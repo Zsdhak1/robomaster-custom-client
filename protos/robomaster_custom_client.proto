@@ -1,0 +1,506 @@
+// RoboMaster 2026 自定义客户端协议 (V1.3.1)
+// Protocol: Protobuf v3 over MQTT (port 3333) + UDP HEVC stream (port 3334)
+// Server IP: 192.168.12.1, Client IP: 192.168.12.2
+
+syntax = "proto3";
+
+package robomaster;
+
+// ============================================================
+// 2.2.1 KeyboardMouseControl
+// 用途：传输鼠标键盘输入
+// Topic: KeyboardMouseControl
+// 方向：自定义客户端 → 图传链路 → 机器人
+// ============================================================
+message KeyboardMouseControl {
+  int32 mouse_x = 1;          // 鼠标x轴移动速度，负值标识向左移动
+  int32 mouse_y = 2;          // 鼠标y轴移动速度，负值标识向下移动
+  int32 mouse_z = 3;          // 鼠标滚轮移动速度，负值标识向后滚动
+  bool left_button_down = 4;  // 左键是否按下
+  bool right_button_down = 5; // 右键是否按下
+  uint32 keyboard_value = 6;  // 键盘按键位掩码 (bit 0-15)
+  bool mid_button_down = 7;   // 中键是否按下
+}
+
+// ============================================================
+// 2.2.2 CustomControl
+// 用途：最大30字节的自定义数据
+// Topic: CustomControl
+// 方向：自定义客户端 → 图传链路 → 机器人
+// ============================================================
+message CustomControl {
+  bytes data = 1;             // 最大30字节的自定义数据
+}
+
+// ============================================================
+// 2.2.3 GameStatus
+// 用途：同步比赛全局状态信息
+// Topic: GameStatus
+// 方向：服务器 → 自定义客户端
+// ============================================================
+message GameStatus {
+  uint32 current_round = 1;        // 当前局号（从1开始）
+  uint32 total_rounds = 2;         // 总局数
+  uint32 red_score = 3;            // 红方得分
+  uint32 blue_score = 4;           // 蓝方得分
+  uint32 current_stage = 5;        // 当前阶段 (0~5)
+  int32 stage_countdown_sec = 6;   // 当前阶段剩余时间（秒）
+  int32 stage_elapsed_sec = 7;     // 当前阶段已过时间（秒）
+  bool is_paused = 8;              // 是否暂停
+}
+
+// ============================================================
+// 2.2.4 GlobalUnitStatus
+// 用途：同步基地、前哨站和所有机器人状态
+// Topic: GlobalUnitStatus
+// 方向：服务器 → 自定义客户端
+// ============================================================
+message GlobalUnitStatus {
+  uint32 base_health = 1;              // 己方基地当前血量
+  uint32 base_status = 2;              // 己方基地状态 (0:无敌, 1:解除无敌护甲未展开, 2:解除无敌护甲展开)
+  uint32 base_shield = 3;              // 己方基地当前护盾值
+  uint32 outpost_health = 4;           // 己方前哨站当前血量
+  uint32 outpost_status = 5;           // 己方前哨站状态 (0~5)
+  uint32 enemy_base_health = 6;        // 对方基地当前血量
+  uint32 enemy_base_status = 7;        // 对方基地状态
+  uint32 enemy_base_shield = 8;        // 对方基地当前护盾值
+  uint32 enemy_outpost_health = 9;     // 对方前哨站当前血量
+  uint32 enemy_outpost_status = 10;    // 对方前哨站状态
+  repeated uint32 robot_health = 11;   // 所有机器人血量（己方1/2/3/4/7号, 对方1/2/3/4/7号顺序）
+  repeated int32 robot_bullets = 12;   // 己方机器人剩余累计发弹量
+  uint32 total_damage_ally = 13;       // 己方累计总伤害
+  uint32 total_damage_enemy = 14;      // 对方累计总伤害
+}
+
+// ============================================================
+// 2.2.5 GlobalLogisticsStatus
+// 用途：同步全局后勤信息
+// Topic: GlobalLogisticsStatus
+// 方向：服务器 → 自定义客户端
+// ============================================================
+message GlobalLogisticsStatus {
+  uint32 remaining_economy = 1;           // 己方当前经济
+  uint64 total_economy_obtained = 2;      // 己方累计总经济
+  uint32 tech_level = 3;                  // 己方科技等级
+  uint32 encryption_level = 4;            // 己方加密等级
+}
+
+// ============================================================
+// 2.2.6 GlobalSpecialMechanism
+// 用途：同步正在生效的全局特殊机制
+// Topic: GlobalSpecialMechanism
+// 方向：服务器 → 自定义客户端
+// ============================================================
+message GlobalSpecialMechanism {
+  repeated uint32 mechanism_id = 1;       // 正在生效的机制ID列表
+  repeated int32 mechanism_time_sec = 2;  // 对应的时间参数（秒）
+}
+
+// ============================================================
+// 2.2.7 Event
+// 用途：全局事件通知
+// Topic: Event
+// 方向：服务器 → 自定义客户端
+// ============================================================
+message Event {
+  int32 event_id = 1;    // 事件编号 (1~15)
+  string param = 2;      // 事件参数（含义随event_id变化）
+}
+
+// ============================================================
+// 2.2.8 RobotInjuryStat
+// 用途：机器人一次存活期间累计受伤统计
+// Topic: RobotInjuryStat
+// 方向：服务器 → 自定义客户端
+// ============================================================
+message RobotInjuryStat {
+  uint32 total_damage = 1;            // 累计受伤总计
+  uint32 collision_damage = 2;        // 撞击伤害
+  uint32 small_projectile_damage = 3; // 17mm弹丸伤害
+  uint32 large_projectile_damage = 4; // 42mm弹丸伤害
+  uint32 dart_splash_damage = 5;      // 飞镖溅射伤害
+  uint32 module_offline_damage = 6;   // 模块离线扣血
+  uint32 offline_damage = 7;          // 异常离线扣血
+  uint32 penalty_damage = 8;          // 判罚扣血
+  uint32 server_kill_damage = 9;      // 服务器强制使其战亡扣血
+  uint32 killer_id = 10;              // 击杀者ID（0=未检测到）
+}
+
+// ============================================================
+// 2.2.9 RobotRespawnStatus
+// 用途：机器人复活状态同步
+// Topic: RobotRespawnStatus
+// 方向：服务器 → 自定义客户端
+// ============================================================
+message RobotRespawnStatus {
+  bool is_pending_respawn = 1;        // 是否处于待复活状态
+  uint32 total_respawn_progress = 2;  // 复活所需总读条
+  uint32 current_respawn_progress = 3;// 当前复活读条进度
+  bool can_free_respawn = 4;          // 是否可以免费复活
+  uint32 gold_cost_for_respawn = 5;   // 花费金币复活所需金币数
+  bool can_pay_for_respawn = 6;       // 是否允许花费金币复活
+}
+
+// ============================================================
+// 2.2.10 RobotStaticStatus
+// 用途：机器人固定属性和配置
+// Topic: RobotStaticStatus
+// 方向：服务器 → 自定义客户端
+// ============================================================
+message RobotStaticStatus {
+  uint32 connection_state = 1;              // 连接状态 (0=未连接, 1=已连接)
+  uint32 field_state = 2;                   // 上场状态 (0=已上场, 1=未上场)
+  uint32 alive_state = 3;                   // 存活状态 (0=未知, 1=存活, 2=战亡)
+  uint32 robot_id = 4;                      // 机器人编号
+  uint32 robot_type = 5;                    // 机器人类型
+  uint32 performance_system_shooter = 6;    // 性能体系-发射机构 (1~4)
+  uint32 performance_system_chassis = 7;    // 性能体系-底盘 (1~4)
+  uint32 level = 8;                         // 当前等级
+  uint32 max_health = 9;                    // 最大血量
+  uint32 max_heat = 10;                     // 最大热量
+  float heat_cooldown_rate = 11;            // 热量冷却速率（每秒）
+  uint32 max_power = 12;                    // 最大功率
+  uint32 max_buffer_energy = 13;            // 最大缓冲能量
+  uint32 max_chassis_energy = 14;           // 最大底盘能量
+}
+
+// ============================================================
+// 2.2.11 RobotDynamicStatus
+// 用途：机器人实时数据
+// Topic: RobotDynamicStatus
+// 方向：服务器 → 自定义客户端
+// ============================================================
+message RobotDynamicStatus {
+  uint32 current_health = 1;           // 当前血量
+  float current_heat = 2;              // 当前热量
+  float last_projectile_fire_rate = 3; // 上一次弹丸射速
+  uint32 current_chassis_energy = 4;   // 当前剩余底盘能量
+  uint32 current_buffer_energy = 5;    // 当前缓冲能量
+  uint32 current_experience = 6;       // 当前经验值
+  uint32 experience_for_upgrade = 7;   // 距离下一次升级仍需经验
+  uint32 total_projectiles_fired = 8;  // 累计已发弹量
+  uint32 remaining_ammo = 9;           // 剩余允许发弹量
+  bool is_out_of_combat = 10;          // 是否处于脱战状态
+  uint32 out_of_combat_countdown = 11; // 脱战状态倒计时
+  bool can_remote_heal = 12;           // 是否可以远程补血
+  bool can_remote_ammo = 13;           // 是否可以远程补弹
+}
+
+// ============================================================
+// 2.2.12 RobotModuleStatus
+// 用途：机器人各模块运行状态
+// Topic: RobotModuleStatus
+// 方向：服务器 → 自定义客户端
+// ============================================================
+message RobotModuleStatus {
+  uint32 power_manager = 1;                // 电源管理模块 (0=离线, 1=在线, 2=安装不规范)
+  uint32 rfid = 2;                         // RFID模块
+  uint32 light_strip = 3;                  // 灯条模块
+  uint32 small_shooter = 4;                // 17mm发射机构
+  uint32 big_shooter = 5;                  // 42mm发射机构
+  uint32 uwb = 6;                          // 定位模块
+  uint32 armor = 7;                        // 装甲模块
+  uint32 video_transmission = 8;           // 图传模块
+  uint32 capacitor = 9;                    // 电容模块
+  uint32 main_controller = 10;             // 主控
+  uint32 laser_detection_module = 11;      // 激光检测模块
+}
+
+// ============================================================
+// 2.2.13 RobotPosition
+// 用途：机器人空间坐标和朝向
+// Topic: RobotPosition
+// 方向：服务器 → 自定义客户端
+// ============================================================
+message RobotPosition {
+  float x = 1;          // 世界坐标X轴
+  float y = 2;          // 世界坐标Y轴
+  float z = 3;          // 世界坐标Z轴
+  float yaw = 4;        // 朝向（度，正北为0）
+  uint32 robot_id = 5;  // 机器人ID (6/106=空, 7/107=哨兵)
+}
+
+// ============================================================
+// 2.2.14 Buff
+// 用途：Buff效果信息
+// Topic: Buff
+// 方向：服务器 → 自定义客户端
+// ============================================================
+message Buff {
+  uint32 robot_id = 1;       // 机器人ID
+  uint32 buff_type = 2;      // Buff类型 (1~7)
+  int32 buff_level = 3;      // Buff增益值
+  uint32 buff_max_time = 4;  // Buff最大剩余时间
+  uint32 buff_left_time = 5; // Buff剩余时间
+}
+
+// ============================================================
+// 2.2.15 PenaltyInfo
+// 用途：判罚信息同步
+// Topic: PenaltyInfo
+// 方向：服务器 → 自定义客户端
+// ============================================================
+message PenaltyInfo {
+  uint32 penalty_type = 1;      // 受罚类型 (1~6)
+  uint32 penalty_effect_sec = 2;// 受罚效果时长（秒）
+  uint32 total_penalty_num = 3; // 当前判罚数量
+}
+
+// ============================================================
+// 2.2.16 RobotPathPlanInfo
+// 用途：哨兵轨迹规划信息
+// Topic: RobotPathPlanInfo
+// 方向：服务器 → 自定义客户端
+// ============================================================
+message RobotPathPlanInfo {
+  uint32 intention = 1;       // 哨兵意图 (1=攻击, 2=防守, 3=移动)
+  uint32 start_pos_x = 2;     // 起始点X坐标（分米）
+  uint32 start_pos_y = 3;     // 起始点Y坐标（分米）
+  repeated int32 offset_x = 4 [packed = true]; // X增量数组（-128~+127，长度49）
+  repeated int32 offset_y = 5 [packed = true]; // Y增量数组（-128~+127，长度49）
+  uint32 sender_id = 6;       // 发送者ID
+}
+
+// ============================================================
+// 2.2.17 MapClickInfo
+// 用途：地图点击标记信息同步
+// Topic: MapClickInfo
+// 方向：服务器 → 自定义客户端
+// ============================================================
+message MapClickInfo {
+  uint32 is_send_all = 1;   // 发送范围 (0=指定, 1=除哨兵, 2=含哨兵)
+  bytes robot_id = 2;       // 目标机器人ID列表（固定7字节）
+  uint32 mode = 3;          // 标记类型 (1=攻击, 2=防御, 3=警戒, 4=自定义)
+  uint32 enemy_id = 4;      // 标定的对方ID
+  uint32 ascii = 5;         // 自定义图标ASCII码
+  uint32 type = 6;          // 标记模式 (1=地图, 2=对方机器人)
+  float map_x = 7;          // 地图坐标X
+  float map_y = 8;          // 地图坐标Y
+}
+
+// ============================================================
+// 2.2.18 MapClickCmd
+// 用途：地图点击标记指令
+// Topic: MapClickCmd
+// 方向：自定义客户端 → 服务器
+// ============================================================
+message MapClickCmd {
+  uint32 is_send_all = 1;   // 发送范围
+  bytes robot_id = 2;       // 目标机器人ID列表（固定7字节）
+  uint32 mode = 3;          // 标记类型
+  uint32 enemy_id = 4;      // 标定的对方ID
+  uint32 ascii = 5;         // 自定义图标ASCII码
+  uint32 type = 6;          // 标记模式
+  float map_x = 7;          // 地图坐标X
+  float map_y = 8;          // 地图坐标Y
+}
+
+// ============================================================
+// 2.2.19 RadarInfoToClient
+// 用途：雷达发送的机器人位置信息
+// Topic: RadarInfoToClient
+// 方向：服务器 → 自定义客户端
+// ============================================================
+message RadarSingleRobotInfo {
+  uint32 target_pos_x = 1;    // 机器人位置x（cm）
+  uint32 target_pos_y = 2;    // 机器人位置y（cm）
+  uint32 is_high_light = 3;   // 是否特殊标识 (0=否, 1=是, 2=是但定位离线)
+}
+
+message RadarInfoToClient {
+  repeated RadarSingleRobotInfo radar_info = 1; // 所有机器人位置信息
+}
+
+// ============================================================
+// 2.2.20 CustomByteBlock
+// 用途：自定义数据流
+// Topic: CustomByteBlock
+// 方向：自定义客户端 → 图传链路 → 机器人
+// ============================================================
+message CustomByteBlock {
+  bytes data = 1; // 最大为2.4 kbit的自定义数据包
+}
+
+// ============================================================
+// 2.2.21 AssemblyCommand
+// 用途：工程装配指令
+// Topic: AssemblyCommand
+// 方向：自定义客户端 → 服务器
+// ============================================================
+message AssemblyCommand {
+  uint32 operation = 1;   // 装配操作类型 (0=开始兑换, 1=确认装配, 2=取消装配)
+  uint32 difficulty = 2;  // 选中的装配难度
+}
+
+// ============================================================
+// 2.2.22 TechCoreMotionStateSync
+// 用途：科技核心运动状态同步
+// Topic: TechCoreMotionStateSync
+// 方向：服务器 → 自定义客户端
+// ============================================================
+message TechCoreMotionStateSync {
+  uint32 maximum_difficulty_level = 1;  // 当前可选最高装配难度等级
+  uint32 basic_state = 2;               // 基础状态 (1=初始, 2=运动中, 3=已到达)
+  uint32 putin_state = 3;               // 能量单元放入 (0=未放, 1=已放)
+  uint32 move_state = 4;                // 能量单元平移 (0=未移, 1=已移)
+  uint32 rotate_state = 5;              // 能量单元旋转 (0=未旋, 1=已旋)
+  uint32 enemy_core_status = 6;         // 对方科技核心状态
+  uint32 remain_time_all = 7;           // 己方装配总剩余时长
+  uint32 remain_time_step = 8;          // 己方单个步骤装配间隔剩余时长
+}
+
+// ============================================================
+// 2.2.23 RobotPerformanceSelectionCommand
+// 用途：地面机器人选择性能体系或控制方式
+// Topic: RobotPerformanceSelectionCommand
+// 方向：自定义客户端 → 服务器
+// ============================================================
+message RobotPerformanceSelectionCommand {
+  uint32 shooter = 1;       // 发射机构性能体系
+  uint32 chassis = 2;       // 底盘性能体系
+  uint32 sentry_control = 3;// 哨兵控制方式 (0=自动, 1=半自动)
+}
+
+// ============================================================
+// 2.2.24 RobotPerformanceSelectionSync
+// 用途：步兵/英雄性能体系状态同步
+// Topic: RobotPerformanceSelectionSync
+// 方向：服务器 → 自定义客户端
+// ============================================================
+message RobotPerformanceSelectionSync {
+  uint32 shooter = 1;       // 发射机构性能体系
+  uint32 chassis = 2;       // 底盘性能体系
+  uint32 sentry_control = 3;// 哨兵控制方式
+}
+
+// ============================================================
+// 2.2.25 CommonCommand
+// 用途：机器人多种常用指令
+// Topic: CommonCommand
+// 方向：自定义客户端 → 服务器
+// ============================================================
+message CommonCommand {
+  uint32 cmd_type = 1;  // 命令类型 (1~6)
+  uint32 param = 2;     // 命令参数
+}
+
+// ============================================================
+// 2.2.26 HeroDeployModeEventCommand
+// 用途：英雄部署模式指令
+// Topic: HeroDeployModeEventCommand
+// 方向：自定义客户端 → 服务器
+// ============================================================
+message HeroDeployModeEventCommand {
+  uint32 mode = 1; // 模式 (0=退出, 1=进入)
+}
+
+// ============================================================
+// 2.2.27 DeployModeStatusSync
+// 用途：英雄部署模式状态同步
+// Topic: DeployModeStatusSync
+// 方向：服务器 → 自定义客户端
+// ============================================================
+message DeployModeStatusSync {
+  uint32 status = 1; // 部署模式状态 (0=未部署, 1=已部署)
+}
+
+// ============================================================
+// 2.2.28 RuneActivateCommand
+// 用途：能量机关激活指令
+// Topic: RuneActivateCommand
+// 方向：自定义客户端 → 服务器
+// ============================================================
+message RuneActivateCommand {
+  uint32 activate = 1; // 激活 (1=开启)
+}
+
+// ============================================================
+// 2.2.29 RuneStatusSync
+// 用途：能量机关状态同步
+// Topic: RuneStatusSync
+// 方向：服务器 → 自定义客户端
+// ============================================================
+message RuneStatusSync {
+  uint32 rune_status = 1;      // 能量机关状态 (1=未激活, 2=正在激活, 3=已激活)
+  uint32 activated_arms = 2;   // 已激活的灯臂数量
+  float average_rings = 3;     // 平均环数
+}
+
+// ============================================================
+// 2.2.30 SentryStatusSync
+// 用途：哨兵姿态和弱化状态
+// Topic: SentryStatusSync
+// 方向：服务器 → 自定义客户端
+// ============================================================
+message SentryStatusSync {
+  uint32 posture_id = 1;   // 姿态ID (1=进攻, 2=防守, 3=移动)
+  bool is_weakened = 2;    // 是否弱化
+}
+
+// ============================================================
+// 2.2.31 DartCommand
+// 用途：飞镖控制指令
+// Topic: DartCommand
+// 方向：自定义客户端 → 服务器
+// ============================================================
+message DartCommand {
+  uint32 target_id = 1;     // 目标ID (1~5)
+  bool open = 2;            // 闸门开关
+  bool launch_confirm = 3;  // 是否确认发射
+}
+
+// ============================================================
+// 2.2.32 DartSelectTargetStatusSync
+// 用途：飞镖目标选择状态同步
+// Topic: DartSelectTargetStatusSync
+// 方向：服务器 → 自定义客户端
+// ============================================================
+message DartSelectTargetStatusSync {
+  uint32 target_id = 1; // 目标ID
+  uint32 open = 2;      // 闸门状态 (0=关闭, 1=开启中, 2=已开启)
+}
+
+// ============================================================
+// 2.2.33 SentryCtrlCommand
+// 用途：哨兵控制指令请求
+// Topic: SentryCtrlCommand
+// 方向：自定义客户端 → 服务器
+// ============================================================
+message SentryCtrlCommand {
+  uint32 command_id = 1; // 指令编号 (1~9)
+}
+
+// ============================================================
+// 2.2.34 SentryCtrlResult
+// 用途：哨兵控制指令结果反馈
+// Topic: SentryCtrlResult
+// 方向：服务器 → 自定义客户端
+// ============================================================
+message SentryCtrlResult {
+  uint32 command_id = 1;   // 对应的指令编号
+  uint32 result_code = 2;  // 执行结果码 (0=成功, 其他=失败)
+}
+
+// ============================================================
+// 2.2.35 AirSupportCommand
+// 用途：空中支援指令
+// Topic: AirSupportCommand
+// 方向：自定义客户端 → 服务器
+// ============================================================
+message AirSupportCommand {
+  uint32 command_id = 1; // 指令类型 (0=取消, 1=免费呼叫, 2=花费金币呼叫)
+}
+
+// ============================================================
+// 2.2.36 AirSupportStatusSync
+// 用途：空中支援状态反馈
+// Topic: AirSupportStatusSync
+// 方向：服务器 → 自定义客户端
+// ============================================================
+message AirSupportStatusSync {
+  uint32 airsupport_status = 1;   // 空中支援状态 (0=未进行, 1=正在)
+  uint32 left_time = 2;           // 免费空中支援剩余时间
+  uint32 cost_coins = 3;          // 付费空中支援已花费金币
+  uint32 is_being_targeted = 4;   // 是否被激光照射 (0=否, 1=是)
+  uint32 shooter_status = 5;      // 发射机构反制状态
+}

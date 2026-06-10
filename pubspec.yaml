@@ -1,0 +1,50 @@
+name: robomaster_custom_client_1
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.12.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.6.1
+  fl_chart: ^0.70.0
+  path_provider: ^2.1.5
+  file_selector: ^1.1.0
+  shared_preferences: ^2.5.0
+  mqtt_client: ^10.0.0
+  protobuf: ^6.0.0
+  fixnum: ^1.1.0
+  freezed_annotation: ^3.0.0
+  json_annotation: ^4.9.0
+  typed_data: ^1.4.0
+  # 视频解码后端 A：media_kit（libmpv + 自带 FFmpeg），全平台硬/软解。
+  media_kit: ^1.2.0
+  media_kit_video: ^2.0.0
+  media_kit_libs_video: ^1.0.4
+  # 视频解码后端 B：fvp（libmdk + 自带 FFmpeg），低延迟，经 video_player 接入。
+  video_player: ^2.11.0
+  fvp: ^0.37.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  build_runner: ^2.4.0
+  freezed: ^3.0.0
+  json_serializable: ^6.9.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/LoginLogo.png
+    - assets/RedEngineer.png
+    - assets/RedHero.png
+    - assets/RedSentryInfantry.png
+    - assets/RedDrone.png
+    - assets/BlueEngineer.png
+    - assets/BlueHero.png
+    - assets/BlueSentryInfantry.png
+    - assets/BlueDrone.png

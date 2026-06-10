@@ -1,0 +1,173 @@
+# AGENTS.md — 自定义客户端数据监控 (RoboMaster 2026 V1.3.1)
+
+## 1. 项目核心语境
+
+**技术栈：** Flutter 3.x + Dart 3.x，Android + Linux 桌面双平台。状态管理使用 Riverpod（flutter_riverpod）。图表使用 fl_chart。JSON 数据持久化使用 dart:convert + path_provider。
+
+**网络层：**
+- **MQTT 3333** — 控制指令、配置、比赛状态与事件（Protobuf 序列化），使用 `mqtt_client` 包。
+- **UDP 3334** — HEVC(H.265) AnnexB 视频流（自定义字节偏移分片，非 RTP），使用 `dart:io` RawSocket。
+
+**架构模式：** Feature-First 分层架构。每个 Feature 包含 `{presentation, domain, data}` 三层，但千行级项目允许适度简化——不强制要求 Repository 接口抽象，但数据与 UI 必须物理分离。
+
+**核心目标：** 构建一个对接 RoboMaster 自定义客户端双链路（MQTT 3333 + UDP 3334）的监控客户端，实时解析并可视化展示比赛状态，支持赛后 JSON 数据导出与多客户端数据汇总分析。
+
+---
+
+## 2. 非 negotiable 规则
+
+| 规则 | 强制执行方式 |
+|------|------------|
+| 单函数不超过 50 行 | analysis_options.yaml (metrics) + 代码审查 hook |
+| 先定义数据模型，再写 UI | feature_spec.md 强制要求 + Stop hook 验证 |
+| 严禁在 Widget 中直接调用 RawSocket 或 MQTT 客户端 | 必须通过 Data 层的 Service 类封装 |
+| 所有协议常量使用命名常量 | Lint: prefer_const_declarations |
+| JSON 导出/导入的数据结构必须有 fromJson/toJson | 编译时检查 |
+| UI 字符串全部放入常量文件 | analysis_options.yaml: avoid_hardcoded_strings |
+| 每次文件写入后必须运行 `flutter analyze` | PostToolUse hook 自动执行 |
+
+---
+
+## 3. 语言与风格
+
+- **命名：** 类名 UpperCamelCase，文件/变量/函数 lowerCamelCase，常量 lowerCamelCase。Feature 文件夹使用 snake_case。
+- **导入排序：** dart: 内置 → package: 第三方 → 相对路径，每组空行分隔。
+- **空安全：** 全程启用 null safety，禁止显式 `!` 操作符（除非有注释说明理由）。
+- **异步：** 优先使用 `Future`/`async-await`，仅在数据流场景使用 `Stream`（MQTT 消息流、UDP 视频帧流）。
+- **注释：** 仅对复杂算法和协议解析逻辑写注释，禁止无意义的 `// 设置颜色` 类注释。
+
+---
+
+## 4. 架构约束
+
+### 4.1 文件组织
+
+```
+lib/
+├── main.dart                    # 入口，ProviderScope 包裹
+├── app.dart                     # MaterialApp + 路由
+├── core/                        # 全局共享
+│   ├── constants/               # 字符串、颜色、数值常量、协议常量
+│   ├── theme/                   # ThemeData + 样式
+│   ├── utils/                   # 纯函数工具类（禁止放状态）
+│   ├── extensions/              # Dart/Flutter 扩展方法
+│   └── protobuf/                # Protobuf 通用解析与降级处理
+├── features/                    # 按功能模块组织
+│   ├── dashboard/               # 主监控面板
+│   ├── data_export/             # JSON 导入导出
+│   ├── post_match_analysis/     # 赛后复盘分析
+│   ├── settings/                # 设置页面
+│   └── about/                   # 关于页面
+└── services/                    # 全局服务
+    ├── mqtt_service.dart        # MQTT 3333 客户端（Protobuf 消息收发）
+    ├── video_stream_service.dart # UDP 3334 HEVC 视频流接收与帧重组
+    └── udp_service.dart         # 通用 UDP 辅助（如端口绑定工具）
+```
+
+### 4.2 层间依赖方向
+
+- `presentation` → `domain` → `data` → 外部（MQTT 客户端、RawSocket、文件系统）
+- 禁止反向依赖。禁止跨 Feature 直接引用。
+- `core/` 可以被任何层引用，但 `core/` 不能引用任何 Feature。
+
+### 4.3 状态管理规范
+
+- 使用 `StateNotifier` + `StateNotifierProvider` 管理复杂状态。
+- 简单状态使用 `StateProvider`。
+- 异步数据流使用 `StreamProvider`：
+  - `mqttMessageProvider` — MQTT Protobuf 消息流
+  - `videoFrameProvider` — UDP 3334 重组后的 HEVC 视频帧流
+- Widget 中读取状态使用 `ref.watch()`，修改状态使用 `ref.read()`。
+
+---
+
+## 5. 协议与数据规范
+
+### 5.1 MQTT 3333 — Protobuf 消息解析
+
+- 所有 MQTT 消息解析逻辑集中在 `services/mqtt_service.dart` 和 `core/protobuf/protobuf_parser.dart`。
+- 消息体为 Protobuf 序列化字节，**非 JSON 文本**。
+- 解析器根据 topic / message type 将 `Uint8List` 反序列化为对应的 `GeneratedMessage` 子类。
+- 无法识别类型时**降级为原始字节日志**，禁止抛异常中断数据流。
+- `.proto` 定义文件存放于 `protos/` 目录，通过 `protoc` 生成 Dart 类到 `lib/generated/`。
+
+### 5.2 UDP 3334 — HEVC AnnexB 视频流重组
+
+- 视频流处理逻辑集中在 `services/video_stream_service.dart` 和 `core/video/frame_reassembler.dart`。
+- 每个 UDP payload 包含分片元数据（`frame_id`, `packet_id`, `frame_size` 等），**不保证 NALU 边界对齐**。
+- 接收端必须按 `frame_id` 缓存分片，按 `packet_id` / 偏移重组完整帧。
+- 同一帧的所有分片共享同一个 `frame_id`；`frame_id` 递增标志进入下一帧。
+- 重组后的完整帧必须包含 AnnexB Start Code `0x00000001`，可直接送入 HEVC 解码器。
+- 若某帧分片丢失超过超时阈值（默认 200ms），**丢弃该帧缓存**，避免阻塞后续帧。
+- VPS/SPS/PPS 随 I 帧周期性内嵌（周期约 1-2 秒），无需主动请求。
+
+### 5.3 JSON 数据结构
+
+- 所有可导出/导入的数据模型必须实现：
+  - `Map<String, dynamic> toJson()`
+  - `factory ModelName.fromJson(Map<String, dynamic> json)`
+- JSON Schema 版本号写入每个导出文件的 `schema_version` 字段。
+
+---
+
+## 6. 开发流程协议
+
+### 6.1 任务启动流程
+
+1. **读取 feature_spec.md** — 确认当前要实现的 Task。
+2. **Codebase 搜索** — 用 Grep/Glob 检查是否存在重复逻辑。
+3. **编写/更新 Spec** — 如需调整计划，先更新 feature_spec.md 再编码。
+4. **编码实现** — 遵循本文件所有规则。
+5. **运行 flutter analyze** — 确保零警告。
+6. **自审计** — 执行代码审查检查清单（见第7节）。
+7. **提交** — 写入 git commit，标记 feature_spec.md 中对应 Task 为完成。
+
+### 6.2 多平台兼容性
+
+- 使用 `Platform.isAndroid` / `Platform.isLinux` 区分平台逻辑。
+- 文件路径使用 `path_provider` 获取，禁止硬编码绝对路径。
+- Linux 桌面端使用 GTK 文件选择器对话框（`file_selector` 包）。
+
+---
+
+## 7. AI 自审计检查清单
+
+每次完成一个 Task 后，AI 必须按以下清单自行审查代码，发现问题立即修复：
+
+- [ ] **函数长度：** 所有函数不超过 50 行？超过则拆分。
+- [ ] **重复代码：** 是否存在与已有代码功能重复的函数/类？
+- [ ] **状态位置：** 状态是否放在正确的层？Widget 中是否存在业务逻辑？
+- [ ] **命名一致性：** 命名是否符合第3节规范？是否存在中文拼音命名？
+- [ ] **导入顺序：** 导入是否按第3节规范分组排序？
+- [ ] **空安全：** 是否存在未处理的 null？是否存在不必要的 `!`？
+- [ ] **常量提取：** 魔法数字/字符串是否已提取为命名常量？
+- [ ] **错误处理：** 所有 async 函数是否有 try-catch？错误是否有用户反馈？
+- [ ] **平台兼容：** 平台特定代码是否有条件分支？
+- [ ] **文档注释：** 公共 API 是否有 dartdoc 注释？
+- [ ] **协议降级：** MQTT 收到未知 Protobuf 类型时是否降级为原始字节，而非抛异常？
+- [ ] **视频流防泄漏：** UDP 分片缓存表是否有最大容量限制和超时清理机制？
+
+---
+
+## 8. 沟通规范
+
+- **语言：** 所有变量命名使用英文。代码注释、文档、AI 与用户交互使用中文。
+- **输出风格：** 简洁，直接给出可执行结论。禁止在工具调用前写长段解释。
+- **代码块：** 使用 Dart 语法高亮标记。```dart
+
+---
+
+## 9. 原则
+
+1. **简单优先** — 千行级项目拒绝过度设计。能用简单方案就不用复杂模式。
+2. **显式优于隐式** — 字节序、编码格式、数据单位、协议链路（MQTT/UDP）必须显式声明。
+3. **防御性编程** — 网络输入不可信（MQTT 消息、UDP 分片）。所有解析操作必须验证长度、范围、CRC/超时。
+4. **可测试性** — 所有业务逻辑必须是纯函数或可注入依赖的类。
+5. **平台无关核心** — 核心协议解析逻辑（Protobuf 反序列化、视频帧重组）必须是纯 Dart，与平台无关。
+
+---
+
+## 10. 进化记录
+
+- 2026-06-06: 初始版本创建，适配千行级 Flutter 项目。
+- 2026-06-06: **修正** — 将项目范围从"通用 UDP 数据包监控"精确限定为"自定义客户端双链路监控（MQTT 3333 + UDP 3334 HEVC）"；同步更新文件组织、协议规范、非 negotiable 规则与自审计清单。

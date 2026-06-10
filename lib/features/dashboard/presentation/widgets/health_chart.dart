@@ -1,0 +1,171 @@
+/// Health trend line chart using fl_chart.
+library;
+
+import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../core/state/session_providers.dart';
+import '../../../../core/theme/app_theme.dart';
+import '../../../connection/domain/robot_identity.dart';
+import '../../logic/game_state.dart';
+import '../../logic/stream_providers.dart';
+
+/// Number of ally robots counted into the total health sum.
+const int _allyRobotCount = 5;
+
+/// History window shown on the X-axis (seconds).
+const double _historyWindowSec = 120;
+
+/// Displays ally total health trend over the last 120 seconds.
+class HealthChart extends ConsumerWidget {
+  /// Creates a [HealthChart].
+  const HealthChart({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final gameState = ref.watch(gameStateProvider);
+    final history = gameState.statusHistory;
+    final ownIsBlue = isBlueSide(ref.watch(selectedRobotIdProvider));
+    final lineColor = Theme.of(context).colorScheme.primary;
+
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: Card(
+        child: Padding(
+          padding: rmCardPadding,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildChartHeader(ownIsBlue: ownIsBlue),
+              const SizedBox(height: 8),
+              Expanded(
+                child: history.isEmpty
+                    ? const Center(
+                        child: Text(
+                          '暂无血量数据',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      )
+                    : _buildLineChart(_buildSpots(history), lineColor),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChartHeader({required bool ownIsBlue}) {
+    return Row(
+      children: [
+        Text(
+          '己方总血量趋势 · ${ownIsBlue ? '蓝方' : '红方'}',
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          '（最近 120 秒 →）',
+          style: TextStyle(
+            fontSize: 11,
+            color: Colors.grey.shade500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLineChart(List<FlSpot> spots, Color lineColor) {
+    final (minY, maxY) = _yRange(spots);
+
+    return LineChart(
+      LineChartData(
+        minX: -_historyWindowSec,
+        maxX: 0,
+        minY: minY,
+        maxY: maxY,
+        gridData: FlGridData(
+          drawVerticalLine: false,
+          horizontalInterval: (maxY - minY) / 2,
+        ),
+        titlesData: FlTitlesData(
+          // X 轴时间不显示密集刻度，方向由标题"最近120秒 →"说明。
+          topTitles: const AxisTitles(),
+          rightTitles: const AxisTitles(),
+          bottomTitles: const AxisTitles(),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 48,
+              interval: (maxY - minY) / 2,
+              getTitlesWidget: _leftTitle,
+            ),
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        lineBarsData: [
+          LineChartBarData(
+            spots: spots,
+            isCurved: true,
+            color: lineColor,
+            dotData: const FlDotData(show: false),
+            belowBarData: BarAreaData(
+              show: true,
+              color: lineColor.withValues(alpha: 0.12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static Widget _leftTitle(double value, TitleMeta meta) {
+    if (value <= meta.min || value >= meta.max) {
+      return const SizedBox.shrink();
+    }
+    final label = value >= 1000
+        ? '${(value / 1000).toStringAsFixed(1)}K'
+        : value.round().toString();
+    return Padding(
+      padding: const EdgeInsets.only(right: 4),
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 10, color: Colors.grey),
+      ),
+    );
+  }
+
+  /// Computes a padded Y range so a flat line is not rendered as a sliver.
+  static (double, double) _yRange(List<FlSpot> spots) {
+    if (spots.isEmpty) return (0, 100);
+    var min = spots.first.y;
+    var max = spots.first.y;
+    for (final s in spots) {
+      if (s.y < min) min = s.y;
+      if (s.y > max) max = s.y;
+    }
+    final pad = (max - min) < 1 ? 200.0 : (max - min) * 0.2;
+    final low = (min - pad).clamp(0.0, double.infinity);
+    return (low, max + pad);
+  }
+
+  /// Builds spots with x = negative seconds-ago so time flows left → right.
+  List<FlSpot> _buildSpots(List<StatusSnapshot> history) {
+    final now = DateTime.now();
+    final result = <FlSpot>[];
+    for (final snapshot in history) {
+      final healthList = snapshot.status.robotHealth;
+      var total = 0;
+      for (var j = 0; j < healthList.length && j < _allyRobotCount; j++) {
+        total += healthList[j];
+      }
+      final secondsAgo =
+          now.difference(snapshot.timestamp).inMilliseconds / 1000.0;
+      result.add(FlSpot(-secondsAgo, total.toDouble()));
+    }
+    return result;
+  }
+}
