@@ -1,0 +1,179 @@
+name: Build & Release
+
+# 触发条件：
+#   - push 到 master：构建全平台并更新名为 latest 的滚动预发布(prerelease)
+#   - push v* tag（如 v1.0.0）：构建全平台并发布带版本号的正式 Release
+#   - 手动触发：workflow_dispatch
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+  workflow_dispatch:
+
+# 需要写权限以创建 Release
+permissions:
+  contents: write
+
+env:
+  # 使用最新 stable 版本（必然满足 pubspec.lock 要求的 flutter >=3.44.0 / dart >=3.12.1）
+  FLUTTER_CHANNEL: 'stable'
+
+jobs:
+  # ---------- Android ----------
+  build-android:
+    name: Build Android (APK)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: flutter pub get
+        run: flutter pub get
+
+      # 使用 debug 签名构建 release APK（build.gradle.kts 当前 release 走 debug signingConfig）
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Rename APK
+        run: |
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-release.apk \
+             dist/robomaster-custom-client-android.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: dist/robomaster-custom-client-android.apk
+          if-no-files-found: error
+
+  # ---------- Windows ----------
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: flutter pub get
+        run: flutter pub get
+
+      - name: Build Windows
+        run: flutter build windows --release
+
+      # 将 Release 目录打包为 zip
+      - name: Package Windows
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $src = "build/windows/x64/runner/Release"
+          Compress-Archive -Path "$src/*" -DestinationPath "dist/robomaster-custom-client-windows.zip" -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-zip
+          path: dist/robomaster-custom-client-windows.zip
+          if-no-files-found: error
+
+  # ---------- Linux ----------
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      # Linux 桌面构建所需系统依赖；mpv 供 media_kit 运行时使用
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev libstdc++-12-dev \
+            libmpv-dev mpv
+
+      - name: flutter pub get
+        run: flutter pub get
+
+      - name: Build Linux
+        run: flutter build linux --release
+
+      # 将 bundle 目录打包为 tar.gz
+      - name: Package Linux
+        run: |
+          mkdir -p dist
+          tar -czf dist/robomaster-custom-client-linux.tar.gz \
+            -C build/linux/x64/release/bundle .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-targz
+          path: dist/robomaster-custom-client-linux.tar.gz
+          if-no-files-found: error
+
+  # ---------- Release ----------
+  release:
+    name: Publish Release
+    needs: [build-android, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      # 把所有产物收拢到一个目录
+      - name: Collect files
+        run: |
+          mkdir -p release
+          find artifacts -type f -exec cp {} release/ \;
+          ls -la release
+
+      # tag 推送 → 正式版 Release（用 tag 名作为版本）
+      - name: Publish tagged release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+
+      # master 分支推送 → 滚动预发布 latest
+      # 先删除旧的 latest release 与 tag，确保 tag 重新指向当前最新提交
+      - name: Delete previous "latest" release
+        if: github.ref == 'refs/heads/master'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete latest --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || true
+
+      - name: Publish rolling "latest" prerelease
+        if: github.ref == 'refs/heads/master'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          target_commitish: ${{ github.sha }}
+          name: 'Latest build (master)'
+          body: |
+            滚动构建，对应 master 分支最新提交 ${{ github.sha }}。
+            每次推送 master 会自动覆盖更新。正式版本请使用带 v 版本号的 Release。
+          files: release/*
+          prerelease: true
+          make_latest: false
