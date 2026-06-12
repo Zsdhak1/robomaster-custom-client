@@ -15,6 +15,9 @@ enum AppDestination {
 
   /// The UDP video-stream page (index 1).
   video,
+
+  /// The data export/import management page (index 2).
+  data,
 }
 
 /// Builder for a destination's screen widget.
@@ -59,6 +62,11 @@ class AppNavigationDrawer extends StatelessWidget {
           icon: Icon(Icons.videocam_outlined),
           selectedIcon: Icon(Icons.videocam),
           label: Text('视频流'),
+        ),
+        const NavigationDrawerDestination(
+          icon: Icon(Icons.storage_outlined),
+          selectedIcon: Icon(Icons.storage),
+          label: Text('数据'),
         ),
       ],
     );

@@ -17,8 +17,6 @@ class EventTimelinePanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final gameState = ref.watch(gameStateProvider);
-    final events = gameState.eventList;
-    final matchStart = gameState.matchStartTime;
 
     return Padding(
       padding: const EdgeInsets.all(12),
@@ -28,9 +26,14 @@ class EventTimelinePanel extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildHeader(context, events.length),
+              _buildHeader(context, gameState.eventList.length),
               const Divider(),
-              Expanded(child: _buildEventList(events, matchStart)),
+              Expanded(
+                child: EventTimelineView(
+                  events: gameState.eventList,
+                  matchStart: gameState.matchStartTime,
+                ),
+              ),
             ],
           ),
         ),
@@ -62,8 +65,28 @@ class EventTimelinePanel extends ConsumerWidget {
       ],
     );
   }
+}
 
-  Widget _buildEventList(List<TimedEvent> events, DateTime? matchStart) {
+/// Reusable event timeline view.
+///
+/// Decoupled from [gameStateProvider] so it can render imported/previewed
+/// events as well as live ones.
+class EventTimelineView extends StatelessWidget {
+  /// Creates an [EventTimelineView].
+  const EventTimelineView({
+    required this.events,
+    this.matchStart,
+    super.key,
+  });
+
+  /// Events to display, newest first.
+  final List<TimedEvent> events;
+
+  /// Match start time used for relative timestamps.
+  final DateTime? matchStart;
+
+  @override
+  Widget build(BuildContext context) {
     if (events.isEmpty) {
       return const Center(
         child: Text(

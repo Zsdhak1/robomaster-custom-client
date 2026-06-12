@@ -53,6 +53,12 @@ ThemeData _buildThemeWithAccent(Color accent) {
     useMaterial3: true,
     colorScheme: ColorScheme.fromSeed(
       seedColor: accent,
+      // Pin primary to the exact brand accent so every surface that reads
+      // colorScheme.primary (dashboard top bar, drawer, charts) matches the
+      // AppBar, which uses `accent` directly. Without this, the M3 seed
+      // algorithm tone-maps primary to a slightly different shade and the
+      // dashboard top bar looks like a different blue than the AppBars.
+      primary: accent,
     ),
     appBarTheme: AppBarTheme(
       backgroundColor: accent,

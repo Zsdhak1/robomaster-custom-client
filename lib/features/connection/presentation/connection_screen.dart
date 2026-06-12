@@ -9,6 +9,7 @@ import '../../../core/state/session_providers.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../features/dashboard/logic/stream_providers.dart';
 import '../../../features/dashboard/presentation/dashboard_screen.dart';
+import '../../../features/settings/logic/record_config_provider.dart';
 import '../../../services/mqtt_service.dart';
 import '../domain/robot_identity.dart';
 
@@ -52,7 +53,7 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
 
     try {
       await service.connect(brokerIp: ip, port: port);
-      _subscribeAllTopics(service);
+      _subscribeConfiguredTopics(service, ref.read(recordConfigProvider));
 
       if (mounted) {
         await Navigator.of(context).pushReplacement(
@@ -516,31 +517,13 @@ class _ConnectionStatus extends StatelessWidget {
   }
 }
 
-void _subscribeAllTopics(MqttService service) {
-  const topics = [
-    topicGameStatus,
-    topicGlobalUnitStatus,
-    topicGlobalLogisticsStatus,
-    topicGlobalSpecialMechanism,
-    topicEvent,
-    topicRobotDynamicStatus,
-    topicRobotStaticStatus,
-    topicRobotModuleStatus,
-    topicRobotPosition,
-    topicBuff,
-    topicPenaltyInfo,
-    topicRobotInjuryStat,
-    topicRobotRespawnStatus,
-    topicRobotPathPlanInfo,
-    topicMapClickInfo,
-    topicRadarInfoToClient,
-    topicDeployModeStatusSync,
-    topicRuneStatusSync,
-    topicSentryStatusSync,
-    topicDartSelectTargetStatusSync,
-    topicAirSupportStatusSync,
-  ];
-  for (final t in topics) {
-    service.subscribe(t);
+/// Subscribes to the server→client topics enabled in the record [config].
+///
+/// The enabled set comes from the data-record configuration (see
+/// `recordConfigProvider`), so the operator controls exactly which telemetry
+/// topics are received and recorded. Defaults to all recordable topics.
+void _subscribeConfiguredTopics(MqttService service, RecordConfig config) {
+  for (final topic in config.enabledTopics) {
+    service.subscribe(topic);
   }
 }

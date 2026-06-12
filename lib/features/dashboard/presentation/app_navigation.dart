@@ -4,6 +4,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../../core/navigation/app_navigation_drawer.dart';
+import '../../data_export/presentation/data_export_screen.dart';
 import 'dashboard_screen.dart';
 import 'video_screen.dart';
 
@@ -16,6 +17,7 @@ void navigateToDestination(BuildContext context, AppDestination destination) {
   final Widget screen = switch (destination) {
     AppDestination.dashboard => const DashboardScreen(),
     AppDestination.video => const VideoScreen(),
+    AppDestination.data => const DataExportScreen(),
   };
   Navigator.of(context).pushReplacement(
     MaterialPageRoute<void>(builder: (_) => screen),

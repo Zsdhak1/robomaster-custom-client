@@ -4,7 +4,13 @@
       "Bash(flutter analyze *)",
       "Bash(rmdir /s /q build)",
       "Bash(rmdir /s /q .dart_tool)",
-      "Bash(flutter build *)"
+      "Bash(flutter build *)",
+      "Bash(python -c \"import yaml; d=yaml.safe_load\\(open\\('.github/workflows/build-release.yml',encoding='utf-8'\\)\\); print\\('YAML OK'\\); [print\\(' -',k, d['jobs'][k].get\\('runs-on'\\)\\) for k in d['jobs']]\")",
+      "WebFetch(domain:storage.googleapis.com)",
+      "Bash(python -c \"import yaml; d=yaml.safe_load\\(open\\('.github/workflows/build-release.yml',encoding='utf-8'\\)\\); print\\('YAML OK:', list\\(d['jobs'].keys\\(\\)\\)\\)\")",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ]
   }
 }

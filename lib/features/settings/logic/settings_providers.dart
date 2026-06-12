@@ -4,6 +4,8 @@ library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../data_export/data/default_export_directory.dart';
+
 // ============================================================
 // Video decoder backend
 // ============================================================
@@ -232,4 +234,77 @@ class DeveloperModeNotifier extends StateNotifier<bool> {
 final developerModeProvider =
     StateNotifierProvider<DeveloperModeNotifier, bool>(
   (ref) => DeveloperModeNotifier(),
+);
+
+// ============================================================
+// Export directory — where JSON exports are saved
+// ============================================================
+
+const _keyExportDirectory = 'export_directory';
+
+/// Notifier persisting the JSON export directory path.
+///
+/// On first run (no user-chosen path) it falls back to the per-platform
+/// default directory resolved via [resolveDefaultExportDirectory], so that
+/// automatic recording and saving works without any manual setup. A user
+/// selection persists and takes precedence; [resetToDefault] returns to the
+/// platform default.
+class ExportDirectoryNotifier extends StateNotifier<String> {
+  /// Creates the notifier and loads the persisted or default path.
+  ExportDirectoryNotifier() : super('') {
+    _load();
+  }
+
+  /// Whether the current [state] is a user-chosen path (vs. the default).
+  bool _isUserChosen = false;
+
+  /// Whether the directory is the user's explicit choice.
+  bool get isUserChosen => _isUserChosen;
+
+  /// Persists [path] as the user's explicit choice and updates state.
+  Future<void> set(String path) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyExportDirectory, path);
+    _isUserChosen = true;
+    state = path;
+  }
+
+  /// Clears the user choice and reverts to the platform default directory.
+  Future<void> resetToDefault() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_keyExportDirectory);
+    _isUserChosen = false;
+    state = await _safeDefaultDirectory();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_keyExportDirectory);
+    if (saved != null && saved.isNotEmpty) {
+      _isUserChosen = true;
+      state = saved;
+      return;
+    }
+    _isUserChosen = false;
+    state = await _safeDefaultDirectory();
+  }
+
+  Future<String> _safeDefaultDirectory() async {
+    try {
+      return await resolveDefaultExportDirectory();
+    } on Object {
+      // Keep state empty if the platform default cannot be resolved; the UI
+      // will then prompt the user to pick a directory manually.
+      return '';
+    }
+  }
+}
+
+/// The directory path used for JSON data exports.
+///
+/// Resolves to a per-platform default on first run so that automatic exports
+/// have a valid target without manual configuration.
+final exportDirectoryProvider =
+    StateNotifierProvider<ExportDirectoryNotifier, String>(
+  (ref) => ExportDirectoryNotifier(),
 );

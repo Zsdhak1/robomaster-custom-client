@@ -6,17 +6,26 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../../generated/robomaster_custom_client.pb.dart';
+import '../../logic/game_state.dart';
 import '../../logic/stream_providers.dart';
 
 /// Bottom-left card displaying match status.
+///
+/// When [gameState] is provided (replay), it renders that snapshot; otherwise
+/// it watches the live [gameStateProvider]. The two paths never share mutable
+/// state, so a replay view cannot affect the live dashboard.
 class GameStatusCard extends ConsumerWidget {
   /// Creates a [GameStatusCard].
-  const GameStatusCard({super.key});
+  const GameStatusCard({this.gameState, super.key});
+
+  /// Optional fixed state for replay; null means use live state.
+  final GameState? gameState;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final gameState = ref.watch(gameStateProvider);
-    final status = gameState.gameStatus;
+    final GameState effectiveState =
+        gameState ?? ref.watch(gameStateProvider);
+    final status = effectiveState.gameStatus;
 
     return Padding(
       padding: const EdgeInsets.all(12),

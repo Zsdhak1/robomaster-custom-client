@@ -62,7 +62,7 @@ class ProtobufParser {
   final void Function(String)? logger;
 
   /// Topic name to Protobuf message factory mapping.
-  static final Map<String, GeneratedMessage Function()> _messageFactories = {
+  static final Map<String, GeneratedMessage Function()> messageFactories = {
     topicKeyboardMouseControl: KeyboardMouseControl.new,
     topicCustomControl: CustomControl.new,
     topicGameStatus: GameStatus.new,
@@ -107,7 +107,7 @@ class ProtobufParser {
   /// If [topic] is unrecognized, returns an envelope with
   /// [ProtobufEnvelope.protobufMessage] set to null and logs the raw bytes.
   ProtobufEnvelope parse(String topic, Uint8List payload) {
-    final factory = _messageFactories[topic];
+    final factory = messageFactories[topic];
 
     if (factory == null) {
       logger?.call(

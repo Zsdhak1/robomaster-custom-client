@@ -3,13 +3,17 @@ library;
 
 import 'dart:io';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/constants/topic_registry.dart';
 import '../../../core/state/session_providers.dart';
 import '../../connection/domain/robot_identity.dart';
+import '../logic/record_config_provider.dart';
 import '../logic/settings_providers.dart';
 import 'hwdec_screen.dart';
+import 'record_config_screen.dart';
 
 /// Lets the user pick how the dashboard presents the two teams.
 class SettingsScreen extends ConsumerWidget {
@@ -41,6 +45,8 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 24),
           ..._buildVideoDecoderSection(ref),
           const SizedBox(height: 24),
+          ..._buildExportSection(ref),
+          const SizedBox(height: 24),
           ..._buildDeveloperSection(ref),
         ],
       ),
@@ -71,6 +77,66 @@ class SettingsScreen extends ConsumerWidget {
             VideoDecoderBackend.mediaKit,
         current: ref.watch(hwdecModeProvider),
       ),
+    ];
+  }
+
+  List<Widget> _buildExportSection(WidgetRef ref) {
+    final directory = ref.watch(exportDirectoryProvider);
+    final isUserChosen =
+        ref.watch(exportDirectoryProvider.notifier).isUserChosen;
+    return [
+      _buildSectionTitle('数据导出'),
+      const SizedBox(height: 4),
+      Text(
+        '比赛结算时自动整场保存；中途断线会等到比赛结束时刻再兜底保存，'
+        '保证一场比赛为一个完整文件。',
+        style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+      ),
+      const SizedBox(height: 8),
+      Card(
+        child: Column(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.folder_open),
+              title: const Text('导出目录'),
+              subtitle: Text(
+                directory.isEmpty
+                    ? '未设置（导出时选择）'
+                    : '${isUserChosen ? '自定义' : '默认'}：$directory',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              trailing: TextButton(
+                onPressed: () async {
+                  final path = await getDirectoryPath();
+                  if (path != null && path.isNotEmpty) {
+                    await ref
+                        .read(exportDirectoryProvider.notifier)
+                        .set(path);
+                  }
+                },
+                child: const Text('选择'),
+              ),
+            ),
+            if (isUserChosen)
+              Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8, bottom: 8),
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.restore, size: 18),
+                    label: const Text('恢复默认目录'),
+                    onPressed: () => ref
+                        .read(exportDirectoryProvider.notifier)
+                        .resetToDefault(),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 8),
+      const _RecordConfigEntry(),
     ];
   }
 
@@ -146,6 +212,31 @@ class _HwdecEntry extends StatelessWidget {
                   ),
                 )
             : null,
+      ),
+    );
+  }
+}
+
+/// Entry to the data-record topic configuration sub-screen.
+class _RecordConfigEntry extends ConsumerWidget {
+  const _RecordConfigEntry();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final config = ref.watch(recordConfigProvider);
+    final total = TopicRegistry.recordableTopicNames.length;
+    final enabled = config.enabledTopics.length;
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.checklist),
+        title: const Text('数据记录配置'),
+        subtitle: Text('选择要订阅并记录的 topic（已启用 $enabled/$total）'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => const RecordConfigScreen(),
+          ),
+        ),
       ),
     );
   }

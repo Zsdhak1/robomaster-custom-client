@@ -7,6 +7,7 @@ import 'core/state/session_providers.dart';
 import 'core/theme/app_theme.dart';
 import 'features/connection/domain/robot_identity.dart';
 import 'features/connection/presentation/connection_screen.dart';
+import 'features/data_export/logic/auto_export_provider.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -52,6 +53,10 @@ class MainApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedId = ref.watch(selectedRobotIdProvider);
+
+    // Activate background auto-export on settlement.
+    ref.watch(autoExportProvider);
+
     return MaterialApp(
       title: 'RoboMaster Monitor',
       theme: buildTeamTheme(teamAccentColor(selectedId)),

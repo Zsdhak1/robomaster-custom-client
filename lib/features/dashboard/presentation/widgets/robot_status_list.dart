@@ -92,16 +92,36 @@ List<_RobotDef> _teamDefs({required bool isBlue, required bool isEnemy}) {
 }
 
 /// Displays robot status rows grouped by team, per side and display mode.
+///
+/// When [gameState] is provided (replay), it renders that snapshot with the
+/// supplied [ownIsBlueOverride] / [modeOverride]; otherwise it watches the live
+/// providers. Replay and live never share mutable state.
 class RobotStatusList extends ConsumerWidget {
   /// Creates a [RobotStatusList].
-  const RobotStatusList({super.key});
+  const RobotStatusList({
+    this.gameState,
+    this.ownIsBlueOverride,
+    this.modeOverride,
+    super.key,
+  });
+
+  /// Optional fixed state for replay; null means use live state.
+  final GameState? gameState;
+
+  /// Own-side override for replay; null means read [selectedRobotIdProvider].
+  final bool? ownIsBlueOverride;
+
+  /// Display-mode override for replay; null means read the live provider.
+  final DashboardDisplayMode? modeOverride;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final gameState = ref.watch(gameStateProvider);
-    final selectedId = ref.watch(selectedRobotIdProvider);
-    final mode = ref.watch(dashboardDisplayModeProvider);
-    final ownIsBlue = isBlueSide(selectedId);
+    final GameState effectiveState =
+        gameState ?? ref.watch(gameStateProvider);
+    final bool ownIsBlue = ownIsBlueOverride ??
+        isBlueSide(ref.watch(selectedRobotIdProvider));
+    final DashboardDisplayMode mode =
+        modeOverride ?? ref.watch(dashboardDisplayModeProvider);
 
     final sections = _resolveSections(ownIsBlue: ownIsBlue, mode: mode);
 
@@ -113,9 +133,9 @@ class RobotStatusList extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildHeader(gameState),
+              _buildHeader(effectiveState),
               const SizedBox(height: 8),
-              Expanded(child: _buildSectionList(sections, gameState)),
+              Expanded(child: _buildSectionList(sections, effectiveState)),
             ],
           ),
         ),

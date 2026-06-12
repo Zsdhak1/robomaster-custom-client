@@ -45,6 +45,35 @@ const String topicCustomControl = 'CustomControl';
 /// Global game status topic.
 const String topicGameStatus = 'GameStatus';
 
+// ============================================================
+// Game Status Stages (from protocol §2.2.3 current_stage)
+// ============================================================
+
+/// Match has not started.
+const int stageNotStarted = 0;
+
+/// Preparation phase.
+const int stagePreparation = 1;
+
+/// 15-second referee system self-check phase.
+const int stageSelfCheck = 2;
+
+/// 5-second countdown.
+const int stageCountdown = 3;
+
+/// Match in progress.
+const int stageInMatch = 4;
+
+/// Match settlement phase.
+const int stageSettlement = 5;
+
+/// Standard match duration plus a settlement buffer.
+///
+/// Standard RoboMaster matches run 7 minutes; the extra 30 seconds gives the
+/// settlement message (stage 5) time to arrive before the disconnect fallback
+/// auto-export fires. Measured from the wall-clock "比赛中" (stage 4) anchor.
+const Duration matchDurationWithBuffer = Duration(minutes: 7, seconds: 30);
+
 /// Base, outpost and robot status topic.
 const String topicGlobalUnitStatus = 'GlobalUnitStatus';
 

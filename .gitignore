@@ -43,3 +43,11 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# --- Project-specific exclusions (not for version control) ---
+# Large reference PDFs (protocol / rules manuals) — keep out of git
+*.pdf
+# Temporary text extracted from PDFs during analysis
+_*.txt
+# Local validation screenshots
+validationscreenshot/

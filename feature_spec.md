@@ -81,12 +81,13 @@
 
 | # | Task | 描述 | 产出文件 | 状态 |
 |---|------|------|----------|------|
-| 3.1 | 数据记录服务 | 创建 DataRecorder 类，在接收 MQTT Protobuf 消息时自动记录到内存列表（按消息类型分桶），提供 `startRecording/stopRecording` 控制。限制内存中最大消息数（默认 10000 条），超限自动滚动。 | `lib/features/data_export/domain/data_recorder.dart` | `[ ]` |
-| 3.2 | JSON 导出功能 | 实现导出为 JSON 文件：选择保存路径（Android 使用 SAF，Linux 使用 file_selector），写入 schema_version + 元数据 + 按消息类型分桶的 Protobuf 转 JSON 数组。 | `lib/features/data_export/data/json_exporter.dart` | `[ ]` |
-| 3.3 | JSON 导入功能 | 实现从 JSON 文件导入数据：选择文件、验证 schema_version、解析数据数组、反序列化为 Protobuf 消息、加载到 `gameStateProvider` 历史缓存。 | `lib/features/data_export/data/json_importer.dart` | `[ ]` |
-| 3.4 | 导出/导入 UI | 创建数据管理页面，显示记录统计信息（各消息类型数量、总时长），提供导出/导入/清空按钮。 | `lib/features/data_export/presentation/data_export_screen.dart` | `[ ]` |
+| 3.1 | 数据记录服务 | 创建 DataRecorder 类，在接收 MQTT Protobuf 消息时自动记录到内存列表（按消息类型分桶），提供 `startRecording/stopRecording` 控制。限制内存中最大消息数（默认 10000 条），超限自动滚动。 | `lib/features/data_export/domain/data_recorder.dart` | `[x]` |
+| 3.2 | JSON 导出功能 | 实现导出为 JSON 文件：选择保存路径（Android 使用 SAF，Linux 使用 file_selector），写入 schema_version + 元数据 + 按消息类型分桶的 Protobuf 转 JSON 数组。 | `lib/features/data_export/data/json_exporter.dart` | `[x]` |
+| 3.3 | JSON 导入功能 | 实现从 JSON 文件导入数据：选择文件、验证 schema_version、解析数据数组、反序列化为 Protobuf 消息、加载到 `gameStateProvider` 历史缓存。 | `lib/features/data_export/data/json_importer.dart` | `[x]` |
+| 3.4 | 导出/导入 UI | 创建数据管理页面，显示记录统计信息（各消息类型数量、总时长），提供导出/导入/清空按钮。 | `lib/features/data_export/presentation/data_export_screen.dart` | `[x]` |
 | 3.5 | 赛后数据看板 | 创建赛后分析页面，使用 fl_chart 绘制：击杀/摧毁时间线、经济变化曲线、事件分布饼图、血量变化曲线。 | `lib/features/post_match_analysis/presentation/analysis_screen.dart` | `[ ]` |
 | 3.6 | 多客户端数据汇总 | 实现多文件数据合并功能：导入多个 JSON 文件，按 MQTT 消息时间戳对齐合并，生成汇总统计。 | `lib/features/post_match_analysis/domain/data_merger.dart` | `[ ]` |
+
 
 **Phase 3 验收标准：** 可完整录制 MQTT 数据、导出 JSON、导入 JSON、绘制赛后分析图表。多文件合并结果时间戳对齐误差 < 1 秒。
 
