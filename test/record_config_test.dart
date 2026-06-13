@@ -6,6 +6,11 @@ import 'package:robomaster_custom_client_1/core/constants/topic_registry.dart';
 import 'package:robomaster_custom_client_1/features/settings/logic/record_config_provider.dart';
 
 void main() {
+  _topicRegistryTests();
+  _recordConfigTests();
+}
+
+void _topicRegistryTests() {
   group('TopicRegistry', () {
     test('covers all 36 protocol topics', () {
       expect(TopicRegistry.all.length, 36);
@@ -25,7 +30,6 @@ void main() {
         ),
         isTrue,
       );
-      // No command topic is recordable.
       expect(
         TopicRegistry.recordable.any((t) => t.scope == TopicScope.command),
         isFalse,
@@ -34,8 +38,7 @@ void main() {
 
     test('recordableByScope splits team-shared and robot-private', () {
       final shared = TopicRegistry.recordableByScope[TopicScope.teamShared]!;
-      final private =
-          TopicRegistry.recordableByScope[TopicScope.robotPrivate]!;
+      final private = TopicRegistry.recordableByScope[TopicScope.robotPrivate]!;
       expect(shared, isNotEmpty);
       expect(private, isNotEmpty);
       expect(
@@ -59,18 +62,21 @@ void main() {
       );
     });
   });
+}
 
-  group('RecordConfig', () {
-    test('allEnabled enables exactly the recordable set', () {
+void _recordConfigTests() {
+  group('RecordConfig allEnabled', () {
+    test('enables exactly the recordable set', () {
       final config = RecordConfig.allEnabled();
       expect(config.enabledTopics, TopicRegistry.recordableTopicNames);
     });
+  });
 
+  group('RecordConfig toggles', () {
     test('withTopic toggles a single topic immutably', () {
       final base = RecordConfig.allEnabled();
       final off = base.withTopic('GameStatus', enabled: false);
       expect(off.isEnabled('GameStatus'), isFalse);
-      // Original is unchanged.
       expect(base.isEnabled('GameStatus'), isTrue);
 
       final on = off.withTopic('GameStatus', enabled: true);
@@ -83,7 +89,9 @@ void main() {
         isEmpty,
       );
     });
+  });
 
+  group('RecordConfig serialization', () {
     test('toJson/fromJson round-trips the enabled set', () {
       final config = RecordConfig.allEnabled()
           .withTopic('GameStatus', enabled: false)
@@ -96,13 +104,10 @@ void main() {
       final restored = RecordConfig.fromJson({
         'enabled_topics': ['GameStatus', 'NotARealTopic', 'KeyboardMouseControl'],
       });
-      // GameStatus kept; the bogus one dropped; KeyboardMouseControl is a
-      // command (not recordable) so also dropped.
       expect(restored.isEnabled('GameStatus'), isTrue);
       expect(restored.isEnabled('NotARealTopic'), isFalse);
       expect(restored.isEnabled('KeyboardMouseControl'), isFalse);
 
-      // Entirely invalid input falls back to all-enabled.
       final fallback = RecordConfig.fromJson({'enabled_topics': <String>[]});
       expect(fallback.enabledTopics, TopicRegistry.recordableTopicNames);
     });

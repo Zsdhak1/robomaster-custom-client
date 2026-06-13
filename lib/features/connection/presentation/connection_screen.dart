@@ -5,10 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/protocol_constants.dart';
+import '../../../core/feedback/feedback_messenger.dart';
+import '../../../core/navigation/app_shell.dart';
 import '../../../core/state/session_providers.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../features/dashboard/logic/stream_providers.dart';
-import '../../../features/dashboard/presentation/dashboard_screen.dart';
 import '../../../features/settings/logic/record_config_provider.dart';
 import '../../../services/mqtt_service.dart';
 import '../domain/robot_identity.dart';
@@ -58,21 +59,32 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
       if (mounted) {
         await Navigator.of(context).pushReplacement(
           MaterialPageRoute<void>(
-            builder: (_) => const DashboardScreen(),
+            builder: (_) => const AppShell(),
           ),
         );
       }
     } on Exception catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('连接失败: $e')),
-        );
+        context.showErrorSnack('连接失败: $e');
       }
     }
   }
 
   void _disconnect() {
     ref.read(mqttServiceProvider).disconnect();
+  }
+
+  /// Enters the app shell without connecting to a broker.
+  ///
+  /// Offline mode is for pure replay / record browsing: the dashboard already
+  /// degrades gracefully when [GameState.isConnected] is false, so no live
+  /// data link is required.
+  void _goOffline() {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => const AppShell(),
+      ),
+    );
   }
 
   void _useLocalhost() {
@@ -109,6 +121,7 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
               onConnect: _connect,
               onDisconnect: _disconnect,
               onUseLocalhost: _useLocalhost,
+              onGoOffline: _goOffline,
             ),
           ),
           Expanded(
@@ -138,6 +151,7 @@ class _LoginPanel extends StatelessWidget {
     required this.onConnect,
     required this.onDisconnect,
     required this.onUseLocalhost,
+    required this.onGoOffline,
   });
 
   final Color accent;
@@ -150,11 +164,12 @@ class _LoginPanel extends StatelessWidget {
   final Future<void> Function() onConnect;
   final VoidCallback onDisconnect;
   final VoidCallback onUseLocalhost;
+  final VoidCallback onGoOffline;
 
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: rmCardBackground,
+      color: Theme.of(context).colorScheme.surface,
       child: Column(
         children: [
           // True top accent strip marking the selected team.
@@ -248,6 +263,12 @@ class _LoginPanel extends StatelessWidget {
           label: const Text('断开'),
         ),
         const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: connected ? null : onGoOffline,
+          icon: const Icon(Icons.cloud_off),
+          label: const Text('离线模式（仅浏览/回放）'),
+        ),
+        const SizedBox(height: 8),
         TextButton.icon(
           onPressed: onUseLocalhost,
           icon: const Icon(Icons.local_fire_department),
@@ -322,22 +343,29 @@ class _RobotSelectorPanel extends StatelessWidget {
   }
 
   Widget _buildCollapsed() {
-    return ColoredBox(
-      key: const ValueKey('collapsed'),
-      color: Colors.grey.shade100,
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.touch_app, size: 64, color: Colors.grey.shade400),
-            const SizedBox(height: 16),
-            Text(
-              '点击左侧「客户端ID」选择登录身份',
-              style: TextStyle(fontSize: 16, color: Colors.grey.shade500),
+    return Builder(
+      builder: (context) {
+        final scheme = Theme.of(context).colorScheme;
+        return ColoredBox(
+          key: const ValueKey('collapsed'),
+          color: scheme.surfaceContainerHighest,
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.touch_app,
+                    size: 64, color: scheme.onSurfaceVariant),
+                const SizedBox(height: 16),
+                Text(
+                  '点击左侧「客户端ID」选择登录身份',
+                  style:
+                      TextStyle(fontSize: 16, color: scheme.onSurfaceVariant),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 

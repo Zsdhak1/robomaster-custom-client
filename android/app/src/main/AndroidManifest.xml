@@ -4,7 +4,12 @@
     <application
         android:label="robomaster_custom_client_1"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
+        <!-- usesCleartextTraffic: MQTT (3333), UDP video (3334) and the local
+             TCP loopback bridge are all plaintext LAN protocols defined by the
+             RoboMaster referee system. Android 9+ blocks cleartext by default,
+             which would break the data link and on-device decoding. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"

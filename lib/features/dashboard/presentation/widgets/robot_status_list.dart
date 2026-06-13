@@ -133,7 +133,7 @@ class RobotStatusList extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildHeader(effectiveState),
+              _buildHeader(context, effectiveState),
               const SizedBox(height: 8),
               Expanded(child: _buildSectionList(sections, effectiveState)),
             ],
@@ -192,9 +192,10 @@ class RobotStatusList extends ConsumerWidget {
     return ListView(children: children);
   }
 
-  Widget _buildHeader(GameState gameState) {
+  Widget _buildHeader(BuildContext context, GameState gameState) {
     // 己方累计允许载弹量 = Σ robot_bullets[0..4]（协议字段12）。
     final totalBullets = gameState.allyTotalBullets;
+    final muted = rmTextSecondary(context);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
@@ -203,11 +204,11 @@ class RobotStatusList extends ConsumerWidget {
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const Spacer(),
-        Icon(Icons.adjust, size: 16, color: Colors.grey.shade600),
+        Icon(Icons.adjust, size: 16, color: muted),
         const SizedBox(width: 4),
         Text(
           '己方累计载弹量: ',
-          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+          style: TextStyle(fontSize: 13, color: muted),
         ),
         Text(
           totalBullets?.toString() ?? '—',
@@ -273,7 +274,7 @@ class _RobotStatusRow extends StatelessWidget {
           const SizedBox(width: 10),
           _buildLabel(),
           const SizedBox(width: 10),
-          _buildProgressSection(health, healthPercent, hasData),
+          _buildProgressSection(context, health, healthPercent, hasData),
           const SizedBox(width: 10),
           _buildValueDisplay(health, hasData),
         ],
@@ -314,7 +315,8 @@ class _RobotStatusRow extends StatelessWidget {
     );
   }
 
-  Widget _buildProgressSection(int health, double healthPercent, bool hasData) {
+  Widget _buildProgressSection(
+      BuildContext context, int health, double healthPercent, bool hasData) {
     final (label, progressValue, barColor) = def.isDrone
         ? _droneCounterInfo()
         : (
@@ -329,7 +331,7 @@ class _RobotStatusRow extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 12, color: rmTextSecondary(context)),
           ),
           const SizedBox(height: 4),
           ClipRRect(
@@ -337,7 +339,7 @@ class _RobotStatusRow extends StatelessWidget {
             child: LinearProgressIndicator(
               value: progressValue,
               minHeight: 12,
-              backgroundColor: Colors.grey.shade200,
+              backgroundColor: rmTrackFill(context),
               valueColor: AlwaysStoppedAnimation<Color>(barColor),
             ),
           ),

@@ -10,7 +10,10 @@
       "Bash(python -c \"import yaml; d=yaml.safe_load\\(open\\('.github/workflows/build-release.yml',encoding='utf-8'\\)\\); print\\('YAML OK:', list\\(d['jobs'].keys\\(\\)\\)\\)\")",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(flutter test *)",
+      "Bash(git tag *)",
+      "Bash(git reset *)"
     ]
   }
 }

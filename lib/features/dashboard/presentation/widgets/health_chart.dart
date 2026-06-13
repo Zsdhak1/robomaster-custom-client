@@ -37,7 +37,7 @@ class HealthChart extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildChartHeader(ownIsBlue: ownIsBlue),
+              _buildChartHeader(context, ownIsBlue: ownIsBlue),
               const SizedBox(height: 8),
               Expanded(
                 child: history.isEmpty
@@ -47,7 +47,8 @@ class HealthChart extends ConsumerWidget {
                           style: TextStyle(color: Colors.grey),
                         ),
                       )
-                    : _buildLineChart(_buildSpots(history), lineColor),
+                    : _buildLineChart(
+                        buildSpots(history, now: DateTime.now()), lineColor),
               ),
             ],
           ),
@@ -56,7 +57,7 @@ class HealthChart extends ConsumerWidget {
     );
   }
 
-  Widget _buildChartHeader({required bool ownIsBlue}) {
+  Widget _buildChartHeader(BuildContext context, {required bool ownIsBlue}) {
     return Row(
       children: [
         Text(
@@ -71,7 +72,7 @@ class HealthChart extends ConsumerWidget {
           '（最近 120 秒 →）',
           style: TextStyle(
             fontSize: 11,
-            color: Colors.grey.shade500,
+            color: rmTextSecondary(context),
           ),
         ),
       ],
@@ -153,9 +154,20 @@ class HealthChart extends ConsumerWidget {
   }
 
   /// Builds spots with x = negative seconds-ago so time flows left → right.
-  List<FlSpot> _buildSpots(List<StatusSnapshot> history) {
-    final now = DateTime.now();
-    final result = <FlSpot>[];
+  ///
+  /// Downsamples to at most one point per second: `GlobalUnitStatus` can arrive
+  /// at tens of Hz, which over the 120-second window would push thousands of
+  /// points into the curve renderer every rebuild. Bucketing by whole-second
+  /// "seconds ago" keeps the line at ≤120 points without changing its shape.
+  ///
+  /// [now] is injectable for testing; production callers pass the wall clock.
+  static List<FlSpot> buildSpots(
+    List<StatusSnapshot> history, {
+    required DateTime now,
+  }) {
+    // Keep the latest sample per integer second bucket. Iterating in history
+    // order (oldest→newest) means the last write per bucket is the freshest.
+    final bySecond = <int, FlSpot>{};
     for (final snapshot in history) {
       final healthList = snapshot.status.robotHealth;
       var total = 0;
@@ -164,8 +176,12 @@ class HealthChart extends ConsumerWidget {
       }
       final secondsAgo =
           now.difference(snapshot.timestamp).inMilliseconds / 1000.0;
-      result.add(FlSpot(-secondsAgo, total.toDouble()));
+      // floor() buckets by whole seconds-ago: [N, N+1) all map to bucket N,
+      // so each one-second window keeps exactly one (freshest) representative.
+      bySecond[secondsAgo.floor()] = FlSpot(-secondsAgo, total.toDouble());
     }
+    final result = bySecond.values.toList()
+      ..sort((a, b) => a.x.compareTo(b.x));
     return result;
   }
 }

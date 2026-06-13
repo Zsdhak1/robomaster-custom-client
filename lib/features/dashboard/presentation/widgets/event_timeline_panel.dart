@@ -60,7 +60,7 @@ class EventTimelinePanel extends ConsumerWidget {
         const Spacer(),
         Text(
           '$count',
-          style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+          style: TextStyle(fontSize: 13, color: rmTextSecondary(context)),
         ),
       ],
     );
@@ -147,7 +147,7 @@ class _EventTile extends StatelessWidget {
                       timeLabel,
                       style: TextStyle(
                         fontSize: 11,
-                        color: Colors.grey.shade500,
+                        color: rmTextSecondary(context),
                         fontFamily: 'monospace',
                       ),
                     ),
@@ -158,7 +158,7 @@ class _EventTile extends StatelessWidget {
                   decoded.detail,
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.grey.shade700,
+                    color: rmTextPrimary(context).withValues(alpha: 0.85),
                   ),
                 ),
               ],

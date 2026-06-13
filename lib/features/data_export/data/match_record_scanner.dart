@@ -82,7 +82,15 @@ MatchRecord? parseMatchSummary(ScanInput input) {
     final metadata = json['metadata'] as Map<String, dynamic>?;
     final messages = json['messages'] as List<dynamic>? ?? [];
 
-    final robotId = (metadata?['robot_id'] as num?)?.toInt() ?? 0;
+    final isMerged = metadata?['merged'] == true;
+
+    // Merged files carry robot_id 0 (no single owner). Derive a representative
+    // side from the `side` metadata so the team filter classifies them.
+    var robotId = (metadata?['robot_id'] as num?)?.toInt() ?? 0;
+    if (isMerged && robotId == 0) {
+      robotId = metadata?['side'] == 'blue' ? 100 : 1;
+    }
+
     final messageCount = (metadata?['message_count'] as num?)?.toInt() ??
         messages.length;
 
@@ -107,6 +115,7 @@ MatchRecord? parseMatchSummary(ScanInput input) {
       blueScore: scores.$2,
       duration: durationSec != null ? Duration(seconds: durationSec) : null,
       isComplete: isComplete,
+      isMerged: isMerged,
       fileSizeBytes: input.sizeBytes,
       eventCount: typeCounts['Event'] ?? 0,
       typeCounts: typeCounts,

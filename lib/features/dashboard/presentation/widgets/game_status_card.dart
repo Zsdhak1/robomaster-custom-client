@@ -39,9 +39,9 @@ class GameStatusCard extends ConsumerWidget {
               children: [
                 _buildHeader(status),
                 const SizedBox(height: 2),
-                const Text(
+                Text(
                   '比赛阶段',
-                  style: TextStyle(fontSize: 13, color: Colors.grey),
+                  style: TextStyle(fontSize: 13, color: rmTextSecondary(context)),
                 ),
                 _buildDetails(context, status),
               ],

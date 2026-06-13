@@ -70,7 +70,7 @@
 | 2.4 | 关键事件列表 | 实现事件列表组件，监听 MQTT 下发的比赛事件消息（击杀、摧毁、占领、判罚等），按时间倒序显示，限制最近 50 条。 | `lib/features/dashboard/presentation/widgets/event_timeline_panel.dart` | `[x]` |
 | 2.5 | 实时操作面板 | 实现辅助信息区域：飞镖发射倒计时、空中支援状态、哨兵决策状态。数据来自 MQTT 状态消息。 | `lib/features/dashboard/presentation/widgets/operation_panel.dart` | `[ ]` |
 | 2.6 | 视频流显示（可选） | 实现视频面板 Widget，接收 `videoFrameProvider` 的 AnnexB 帧，通过平台 View 或外部播放器渲染 HEVC 流。提供"显示/隐藏视频"开关。 | `lib/features/dashboard/presentation/widgets/video_panel.dart` | `[ ]` |
-| 2.7 | 数据流连接控制 | 添加连接/断开按钮，控制 MQTT Service 与 UDP Service 的启动和停止。连接状态实时显示。连接/断开操作整合至 Dashboard 顶部 AppBar 右上角（`ConnectionAppBarAction`，已连接显示「断开」图标、未连接显示「重新连接」图标）。 | `lib/features/dashboard/presentation/widgets/connection_control.dart`, `connection_screen.dart`, `dashboard_screen.dart` | `[x]` |
+| 2.7 | 数据流连接控制 | 添加连接/断开按钮，控制 MQTT Service 与 UDP Service 的启动和停止。连接状态实时显示。连接/断开操作收敛至 Dashboard 页面级 `PageFabMenu`（已连接显示「断开连接」、未连接显示「重新连接」并跳转登录页）；顶部状态栏实时显示连接状态点与登录身份。 | `lib/core/navigation/page_fab_menu.dart`, `connection_screen.dart`, `dashboard_screen.dart` | `[x]` |
 | 2.8 | Debug 面板 | 实现原始数据查看面板：MQTT 消息十六进制 + Protobuf 解析后字段树；UDP 分片重组统计（帧ID、分片数、丢包数）。可通过设置开关显示/隐藏。 | `lib/features/dashboard/presentation/widgets/debug_panel.dart` | `[x]` |
 
 **Phase 2 验收标准：** Dashboard 页面可完整运行，能显示模拟/真实 MQTT 状态数据与视频流，UI 响应流畅无卡顿，视频流（若开启）无花屏或丢帧感知。
@@ -86,10 +86,11 @@
 | 3.3 | JSON 导入功能 | 实现从 JSON 文件导入数据：选择文件、验证 schema_version、解析数据数组、反序列化为 Protobuf 消息、加载到 `gameStateProvider` 历史缓存。 | `lib/features/data_export/data/json_importer.dart` | `[x]` |
 | 3.4 | 导出/导入 UI | 创建数据管理页面，显示记录统计信息（各消息类型数量、总时长），提供导出/导入/清空按钮。 | `lib/features/data_export/presentation/data_export_screen.dart` | `[x]` |
 | 3.5 | 赛后数据看板 | 创建赛后分析页面，使用 fl_chart 绘制：击杀/摧毁时间线、经济变化曲线、事件分布饼图、血量变化曲线。 | `lib/features/post_match_analysis/presentation/analysis_screen.dart` | `[ ]` |
-| 3.6 | 多客户端数据汇总 | 实现多文件数据合并功能：导入多个 JSON 文件，按 MQTT 消息时间戳对齐合并，生成汇总统计。 | `lib/features/post_match_analysis/domain/data_merger.dart` | `[ ]` |
+| 3.6 | 多客户端数据汇总 | 实现多文件数据合并功能：导入多个 JSON 文件，按 MQTT 消息时间戳对齐合并，生成汇总统计。 | `lib/features/post_match_analysis/domain/data_merger.dart` | `[x]` |
+| 3.7 | GitHub 远程记录同步 | 实现基于 GitHub Contents API 的远程记录同步：默认共享仓库 `Zsdhak1/custom-client-sync`，默认分支 `main`，内置默认 PAT；支持上传本地记录、浏览远程记录、下载远程记录到本地；云端记录列表以日期/红蓝方/机器人编号展示，并支持按日期、阵营、机器人编号筛选。 | `lib/core/sync/github_sync_service.dart`, `lib/core/sync/remote_sync_service.dart`, `lib/features/settings/logic/github_sync_provider.dart`, `lib/features/data_export/presentation/remote_records_screen.dart`, `lib/features/data_export/domain/remote_record_meta.dart` | `[x]` |
 
 
-**Phase 3 验收标准：** 可完整录制 MQTT 数据、导出 JSON、导入 JSON、绘制赛后分析图表。多文件合并结果时间戳对齐误差 < 1 秒。
+**Phase 3 验收标准：** 可完整录制 MQTT 数据、导出 JSON、导入 JSON、绘制赛后分析图表。多文件合并结果时间戳对齐误差 < 1 秒。GitHub 远程同步在无凭证或空仓库配置时优雅降级，不触发网络请求。
 
 ---
 
@@ -97,10 +98,10 @@
 
 | # | Task | 描述 | 产出文件 | 状态 |
 |---|------|------|----------|------|
-| 4.1 | 设置页面 | 创建设置页面：MQTT 服务器地址/端口/主题前缀、UDP 端口配置、视频流开关、主题切换（亮色/暗色）、Debug 面板开关、数据记录上限。使用 SharedPreferences 持久化。 | `lib/features/settings/presentation/settings_screen.dart` | `[ ]` |
-| 4.2 | 设置状态管理 | 创建设置相关的 Riverpod Provider，支持设置项的读取、修改和持久化。 | `lib/features/settings/logic/settings_providers.dart` | `[ ]` |
+| 4.1 | 设置页面 | 创建设置页面：MQTT 服务器地址/端口/主题前缀、UDP 端口配置、视频流开关、主题切换（亮色/暗色）、Debug 面板开关、数据记录上限。使用 SharedPreferences 持久化。 | `lib/features/settings/presentation/settings_screen.dart` | `[x]` |
+| 4.2 | 设置状态管理 | 创建设置相关的 Riverpod Provider，支持设置项的读取、修改和持久化。 | `lib/features/settings/logic/settings_providers.dart` | `[x]` |
 | 4.3 | 关于页面 | 创建关于页面：应用名称、版本号、技术栈说明（MQTT + Protobuf + HEVC AnnexB）、开源协议、RoboMaster 2026 自定义客户端协议适配声明。 | `lib/features/about/presentation/about_screen.dart` | `[ ]` |
-| 4.4 | 导航与路由 | 使用 Navigator 实现页面间跳转。底部导航栏（Dashboard / Analysis / Data / Settings）或侧边抽屉导航。 | `lib/core/navigation/app_router.dart` | `[ ]` |
+| 4.4 | 导航与路由 | 常驻 `AppShell` 持有侧边 `NavigationRail` + `IndexedStack`（监控/视频/数据/设置四页），切页只改索引、Rail 与页面状态均存活；Rail 支持展开/收起，顶部 icon 随登录身份切换、3/4 号步兵以数字徽标区分；页面级操作收敛到 `PageFabMenu`。连接页支持「离线模式」直接进入 Shell。 | `lib/core/navigation/app_shell.dart`, `app_navigation_rail.dart`, `page_fab_menu.dart` | `[x]` |
 
 **Phase 4 验收标准：** 所有页面可正常导航，设置项可持久化保存，关于页面信息完整。
 
@@ -110,11 +111,11 @@
 
 | # | Task | 描述 | 产出文件 | 状态 |
 |---|------|------|----------|------|
-| 5.1 | 主题与样式统一 | 确保所有页面使用统一的颜色、字体、间距。支持亮色/暗色主题切换。 | `lib/core/theme/app_theme.dart` | `[ ]` |
-| 5.2 | 错误处理与反馈 | 所有异步操作添加错误处理：MQTT 连接失败、UDP 绑定失败、Protobuf 解析异常、视频帧重组超时、文件读写错误。使用 SnackBar 提示用户。 | 全局 | `[ ]` |
-| 5.3 | 性能优化 | 大数据量场景优化：事件列表使用 `ListView.builder`，图表数据采样（每 1 秒取一个点），内存中消息数量限制，视频帧缓存上限（避免内存泄漏）。 | 全局 | `[ ]` |
-| 5.4 | 多平台适配 | 验证 Android 和 Linux 桌面端的 UI 适配：字体大小、触摸目标、文件选择器、MQTT/UDP 网络权限。 | 全局 | `[ ]` |
-| 5.5 | 最终代码审计 | 执行完整自审计：函数长度、重复代码、命名规范、导入顺序、空安全、错误处理、无 `dynamic` 隐式使用。 | - | `[ ]` |
+| 5.1 | 主题与样式统一 | 确保所有页面使用统一的颜色、字体、间距。支持亮色/暗色主题切换。 | `lib/core/theme/app_theme.dart` | `[x]` |
+| 5.2 | 错误处理与反馈 | 所有异步操作添加错误处理：MQTT 连接失败、UDP 绑定失败、Protobuf 解析异常、视频帧重组超时、文件读写错误。使用 SnackBar 提示用户。 | 全局 | `[x]` |
+| 5.3 | 性能优化 | 大数据量场景优化：事件列表使用 `ListView.builder`，图表数据采样（每 1 秒取一个点），内存中消息数量限制，视频帧缓存上限（避免内存泄漏）。 | 全局 | `[x]` |
+| 5.4 | 多平台适配 | 验证 Android 和 Linux 桌面端的 UI 适配：字体大小、触摸目标、文件选择器、MQTT/UDP 网络权限。 | 全局 | `[x]` |
+| 5.5 | 最终代码审计 | 执行完整自审计：函数长度、重复代码、命名规范、导入顺序、空安全、错误处理、无 `dynamic` 隐式使用。 | - | `[x]` |
 | 5.6 | 运行全部测试 | 运行 `flutter analyze`、`flutter test`，确保零警告、所有测试通过。 | - | `[ ]` |
 
 **Phase 5 验收标准：** 应用在两平台运行正常，零 Lint 警告，所有功能完整可用，视频流（若开启）稳定。
@@ -202,6 +203,16 @@ class VideoFrame {
 }
 ```
 
+### B.4 远程记录文件名约定
+
+远程记录仓库中的文件遵循导出/合并命名约定，用于在不下载文件的情况下解析出日期、阵营、机器人编号：
+
+- 单机导出：`rm_export_{robotId}_{yyyyMMdd_HHmmss}.json`
+  - `robotId < 100` 为红方，`robotId >= 100` 为蓝方。
+- 多机合并：`rm_merged_{red|blue}_{yyyyMMdd_HHmmss}.json`
+
+云端记录管理页面基于这些元数据显示，并支持按日期、阵营、机器人编号筛选。
+
 ---
 
 ## 附录 C: 自定义客户端链路约束
@@ -225,7 +236,33 @@ class VideoFrame {
 
 ---
 
-*文档版本：v2.1（修正版 — 移除串口协议，限定自定义客户端双链路）*
+## 附录 D: GitHub 远程同步说明
+
+### D.1 默认配置
+
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| 仓库 | `Zsdhak1/custom-client-sync` | 团队共享仓库 |
+| 分支 | `main` | 默认目标分支 |
+| 记录目录 | `records` | 远程仓库中存放比赛记录的目录 |
+| 配置路径 | `record_config.json` | 团队共享记录配置的远程路径 |
+| PAT | 内置默认值 | 程序内置默认 token，开箱即用 |
+
+### D.2 安全提示
+
+内置 PAT 仅用于团队内部 convenience，任何拿到二进制的人都可以提取该 token。若 token 泄露，应立即在 GitHub 上撤销并轮换。生产环境建议改为让用户在「数据记录配置」页面输入自己的 PAT。
+
+### D.3 功能列表
+
+- **上传记录：** 在数据导出页面选择本地记录后点击上传按钮，将本地 `MatchRecord` 序列化后通过 GitHub Contents API PUT 到远程 `records/` 目录。
+- **浏览远程记录：** 在「云端记录」页面列出远程 `records/` 目录下的文件，显示为日期/阵营/机器人编号/文件大小，而非原始文件名。
+- **下载远程记录：** 点击单条记录右侧下载按钮，将文件拉取到本地导出目录，并刷新本地记录列表。
+- **共享配置同步：** 支持拉取/推送 `record_config.json`（团队统一的记录配置）。
+- **无凭证降级：** 当仓库为空字符串或 token 被显式清空时，所有同步方法直接返回失败/空结果，不会发起网络请求。
+
+---
+
+*文档版本：v2.2（更新 — 添加 GitHub 远程同步与多客户端合并完成标记）*
 *适配协议：RoboMaster 2026 自定义客户端协议（MQTT 3333 + UDP 3334）*
 *参考依据：V1.3.1 第2章 + 自定义客户端 UDP 流问答*
-*修正日期：2026-06-06*
+*修正日期：2026-06-13*

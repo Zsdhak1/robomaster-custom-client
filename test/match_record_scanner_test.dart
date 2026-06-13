@@ -50,7 +50,14 @@ Map<String, dynamic> event() {
 }
 
 void main() {
-  group('parseMatchSummary', () {
+  _scoreTests();
+  _completenessTests();
+  _countingTests();
+  _mergedRecordTests();
+}
+
+void _scoreTests() {
+  group('score extraction', () {
     test('extracts final score from the last GameStatus', () {
       final json = buildJson(
         messages: [
@@ -62,7 +69,6 @@ void main() {
       final record = parseMatchSummary(
         const ScanInput(text: '', path: '/x/match.json', sizeBytes: 100),
       );
-      // Empty text should fail gracefully.
       expect(record, isNull);
 
       final parsed = parseMatchSummary(
@@ -72,7 +78,11 @@ void main() {
       expect(parsed!.redScore, 5);
       expect(parsed.blueScore, 8);
     });
+  });
+}
 
+void _completenessTests() {
+  group('completeness detection', () {
     test('detects completeness when settlement stage present', () {
       final complete = parseMatchSummary(
         ScanInput(
@@ -92,7 +102,11 @@ void main() {
       );
       expect(incomplete!.isComplete, isFalse);
     });
+  });
+}
 
+void _countingTests() {
+  group('counting and metadata', () {
     test('counts events and message types, reads duration', () {
       final parsed = parseMatchSummary(
         ScanInput(
@@ -127,5 +141,50 @@ void main() {
       );
       expect(parsed!.isBlue, isTrue);
     });
+  });
+}
+
+void _mergedRecordTests() {
+  group('merged records', () {
+    test('detects merged records and derives side from metadata', () {
+      final mergedBlue = _mergedJson(side: 'blue');
+      final parsed = parseMatchSummary(
+        ScanInput(text: mergedBlue, path: '/x/merged.json', sizeBytes: 1),
+      );
+      expect(parsed, isNotNull);
+      expect(parsed!.isMerged, isTrue);
+      expect(parsed.isBlue, isTrue);
+
+      final mergedRed = _mergedJson(side: 'red');
+      final red = parseMatchSummary(
+        ScanInput(text: mergedRed, path: '/x/merged_red.json', sizeBytes: 1),
+      );
+      expect(red!.isMerged, isTrue);
+      expect(red.isBlue, isFalse);
+    });
+
+    test('non-merged record reports isMerged false', () {
+      final parsed = parseMatchSummary(
+        ScanInput(
+          text: buildJson(messages: [gameStatus(stage: 4)]),
+          path: '/x/plain.json',
+          sizeBytes: 1,
+        ),
+      );
+      expect(parsed!.isMerged, isFalse);
+    });
+  });
+}
+
+String _mergedJson({required String side}) {
+  return jsonEncode({
+    'schema_version': '2.0',
+    'metadata': {
+      'robot_id': 0,
+      'merged': true,
+      'side': side,
+      'message_count': 1,
+    },
+    'messages': [gameStatus(stage: 5)],
   });
 }

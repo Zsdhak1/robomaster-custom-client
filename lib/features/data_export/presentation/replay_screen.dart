@@ -146,7 +146,7 @@ class _EventColumn extends StatelessWidget {
                   Text(
                     '${gameState.eventList.length}',
                     style:
-                        TextStyle(fontSize: 13, color: Colors.grey.shade500),
+                        TextStyle(fontSize: 13, color: rmTextSecondary(context)),
                   ),
                 ],
               ),

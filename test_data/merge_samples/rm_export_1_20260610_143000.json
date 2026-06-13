@@ -1,0 +1,175 @@
+{
+  "schema_version": "2.0",
+  "export_time": "2026-06-12T14:12:51.287591Z",
+  "app_version": "0.1.0+1",
+  "metadata": {
+    "robot_id": 1,
+    "match_start_time": "2026-06-10T06:30:00.000Z",
+    "duration_seconds": 180,
+    "message_count": 11,
+    "bucket_count": 5
+  },
+  "messages": [
+    {
+      "timestamp": "2026-06-10T06:30:00.000Z",
+      "topic": "GameStatus",
+      "type": "GameStatus",
+      "payload": {
+        "currentRound": 1,
+        "totalRounds": 3,
+        "redScore": 0,
+        "blueScore": 0,
+        "currentStage": 1,
+        "stageCountdownSec": 420,
+        "stageElapsedSec": 0,
+        "isPaused": false
+      }
+    },
+    {
+      "timestamp": "2026-06-10T06:31:00.000Z",
+      "topic": "GameStatus",
+      "type": "GameStatus",
+      "payload": {
+        "currentRound": 1,
+        "totalRounds": 3,
+        "redScore": 0,
+        "blueScore": 0,
+        "currentStage": 2,
+        "stageCountdownSec": 360,
+        "stageElapsedSec": 60,
+        "isPaused": false
+      }
+    },
+    {
+      "timestamp": "2026-06-10T06:32:00.000Z",
+      "topic": "GameStatus",
+      "type": "GameStatus",
+      "payload": {
+        "currentRound": 1,
+        "totalRounds": 3,
+        "redScore": 0,
+        "blueScore": 0,
+        "currentStage": 3,
+        "stageCountdownSec": 300,
+        "stageElapsedSec": 120,
+        "isPaused": false
+      }
+    },
+    {
+      "timestamp": "2026-06-10T06:33:00.000Z",
+      "topic": "GameStatus",
+      "type": "GameStatus",
+      "payload": {
+        "currentRound": 1,
+        "totalRounds": 3,
+        "redScore": 2,
+        "blueScore": 1,
+        "currentStage": 5,
+        "stageCountdownSec": 240,
+        "stageElapsedSec": 180,
+        "isPaused": false
+      }
+    },
+    {
+      "timestamp": "2026-06-10T06:30:30.000Z",
+      "topic": "Event",
+      "type": "Event",
+      "payload": {
+        "eventId": 1,
+        "param": "event-1"
+      }
+    },
+    {
+      "timestamp": "2026-06-10T06:31:30.000Z",
+      "topic": "Event",
+      "type": "Event",
+      "payload": {
+        "eventId": 2,
+        "param": "event-2"
+      }
+    },
+    {
+      "timestamp": "2026-06-10T06:30:05.000Z",
+      "topic": "RobotDynamicStatus",
+      "type": "RobotDynamicStatus",
+      "payload": {
+        "robotId": 1,
+        "currentHealth": 500,
+        "currentHeat": 80.0,
+        "lastProjectileFireRate": 15.0,
+        "currentChassisEnergy": 60,
+        "currentBufferEnergy": 30,
+        "currentExperience": 5,
+        "experienceForUpgrade": 3,
+        "totalProjectilesFired": 120,
+        "remainingAmmo": 400,
+        "isOutOfCombat": false,
+        "outOfCombatCountdown": 0,
+        "canRemoteHeal": true,
+        "canRemoteAmmo": false
+      }
+    },
+    {
+      "timestamp": "2026-06-10T06:31:05.000Z",
+      "topic": "RobotDynamicStatus",
+      "type": "RobotDynamicStatus",
+      "payload": {
+        "robotId": 1,
+        "currentHealth": 420,
+        "currentHeat": 80.0,
+        "lastProjectileFireRate": 15.0,
+        "currentChassisEnergy": 60,
+        "currentBufferEnergy": 30,
+        "currentExperience": 5,
+        "experienceForUpgrade": 3,
+        "totalProjectilesFired": 120,
+        "remainingAmmo": 400,
+        "isOutOfCombat": false,
+        "outOfCombatCountdown": 0,
+        "canRemoteHeal": true,
+        "canRemoteAmmo": false
+      }
+    },
+    {
+      "timestamp": "2026-06-10T06:32:05.000Z",
+      "topic": "RobotDynamicStatus",
+      "type": "RobotDynamicStatus",
+      "payload": {
+        "robotId": 1,
+        "currentHealth": 380,
+        "currentHeat": 80.0,
+        "lastProjectileFireRate": 15.0,
+        "currentChassisEnergy": 60,
+        "currentBufferEnergy": 30,
+        "currentExperience": 5,
+        "experienceForUpgrade": 3,
+        "totalProjectilesFired": 120,
+        "remainingAmmo": 400,
+        "isOutOfCombat": false,
+        "outOfCombatCountdown": 0,
+        "canRemoteHeal": true,
+        "canRemoteAmmo": false
+      }
+    },
+    {
+      "timestamp": "2026-06-10T06:30:10.000Z",
+      "topic": "RobotPosition",
+      "type": "RobotPosition",
+      "payload": {
+        "robotId": 1,
+        "x": 1.5,
+        "y": 2.5,
+        "z": 0.0,
+        "yaw": 45.0
+      }
+    },
+    {
+      "timestamp": "2026-06-10T06:30:20.000Z",
+      "topic": "CustomByteBlock",
+      "type": "CustomByteBlock",
+      "payload": {
+        "raw_base64": "cm9ib3QtMS1wYXlsb2Fk"
+      }
+    }
+  ]
+}

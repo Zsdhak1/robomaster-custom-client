@@ -13,14 +13,28 @@ import '../../features/data_export/domain/match_record.dart';
 /// For the GitHub implementation: [repository] is `owner/repo`, [branch] the
 /// target branch, [token] a personal access token, and [configPath] /
 /// [recordsDir] the in-repo paths for the shared config and recordings.
+/// Default shared repository every client points at out of the box.
+const String defaultSyncRepository = 'Zsdhak1/custom-client-sync';
+
+/// Default target branch of [defaultSyncRepository].
+const String defaultSyncBranch = 'main';
+
+/// Default GitHub personal access token placeholder.
+///
+/// SECURITY: Never embed a real PAT in source code or committed binaries.
+/// GitHub Push Protection blocks pushes containing secrets. Users must enter
+/// their own PAT in Settings → Remote Sync before uploading recordings.
+const String defaultSyncToken = '';
+
 class RemoteSyncConfig {
   /// Creates a [RemoteSyncConfig].
   const RemoteSyncConfig({
-    this.repository = '',
-    this.branch = 'main',
-    this.token = '',
+    this.repository = defaultSyncRepository,
+    this.branch = defaultSyncBranch,
+    this.token = defaultSyncToken,
     this.configPath = 'record_config.json',
     this.recordsDir = 'records',
+    this.localRecordsDir = '',
   });
 
   /// `owner/repo` slug of the remote repository.
@@ -38,8 +52,22 @@ class RemoteSyncConfig {
   /// In-repo directory holding uploaded match recordings.
   final String recordsDir;
 
-  /// Whether this config is sufficiently populated to attempt a sync.
-  bool get isConfigured => repository.isNotEmpty && token.isNotEmpty;
+  /// Local directory downloads are written into (typically the export dir).
+  ///
+  /// Not persisted to the remote config; populated at runtime from the local
+  /// export directory setting.
+  final String localRecordsDir;
+
+  /// Whether a remote target exists to read from (public pulls need no token).
+  bool get canPull => repository.isNotEmpty;
+
+  /// Whether pushes/uploads are possible (writes require a token).
+  bool get canPush => repository.isNotEmpty && token.isNotEmpty;
+
+  /// Whether this config is fully populated (repository + token).
+  ///
+  /// Retained for callers/UI that gate write actions; equivalent to [canPush].
+  bool get isConfigured => canPush;
 
   /// Creates a copy with selected fields replaced.
   RemoteSyncConfig copyWith({
@@ -48,6 +76,7 @@ class RemoteSyncConfig {
     String? token,
     String? configPath,
     String? recordsDir,
+    String? localRecordsDir,
   }) {
     return RemoteSyncConfig(
       repository: repository ?? this.repository,
@@ -55,6 +84,7 @@ class RemoteSyncConfig {
       token: token ?? this.token,
       configPath: configPath ?? this.configPath,
       recordsDir: recordsDir ?? this.recordsDir,
+      localRecordsDir: localRecordsDir ?? this.localRecordsDir,
     );
   }
 
@@ -62,8 +92,9 @@ class RemoteSyncConfig {
   /// separately in secure storage when the GitHub impl lands).
   factory RemoteSyncConfig.fromJson(Map<String, dynamic> json) {
     return RemoteSyncConfig(
-      repository: json['repository'] as String? ?? '',
-      branch: json['branch'] as String? ?? 'main',
+      repository: json['repository'] as String? ?? defaultSyncRepository,
+      branch: json['branch'] as String? ?? defaultSyncBranch,
+      token: json['token'] as String? ?? defaultSyncToken,
       configPath: json['config_path'] as String? ?? 'record_config.json',
       recordsDir: json['records_dir'] as String? ?? 'records',
     );

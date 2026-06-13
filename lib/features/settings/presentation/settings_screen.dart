@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/topic_registry.dart';
 import '../../../core/state/session_providers.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../connection/domain/robot_identity.dart';
 import '../logic/record_config_provider.dart';
 import '../logic/settings_providers.dart';
@@ -33,6 +34,8 @@ class SettingsScreen extends ConsumerWidget {
           _buildSectionTitle('当前阵营'),
           _SideBanner(ownIsBlue: ownIsBlue),
           const SizedBox(height: 24),
+          ..._buildAppearanceSection(ref),
+          const SizedBox(height: 24),
           _buildSectionTitle('机器人列表显示模式'),
           for (final option in DashboardDisplayMode.values)
             _ModeTile(
@@ -52,6 +55,45 @@ class SettingsScreen extends ConsumerWidget {
       ),
     );
   }
+
+  List<Widget> _buildAppearanceSection(WidgetRef ref) {
+    final mode = ref.watch(themeModeProvider);
+    return [
+      _buildSectionTitle('外观'),
+      Card(
+        child: RadioGroup<ThemeMode>(
+          groupValue: mode,
+          onChanged: (v) {
+            if (v != null) {
+              ref.read(themeModeProvider.notifier).set(v);
+            }
+          },
+          child: Column(
+            children: [
+              for (final option in ThemeMode.values)
+                RadioListTile<ThemeMode>(
+                  value: option,
+                  title: Text(_themeModeLabel(option)),
+                  secondary: Icon(_themeModeIcon(option)),
+                ),
+            ],
+          ),
+        ),
+      ),
+    ];
+  }
+
+  String _themeModeLabel(ThemeMode mode) => switch (mode) {
+        ThemeMode.system => '跟随系统',
+        ThemeMode.light => '亮色',
+        ThemeMode.dark => '暗色',
+      };
+
+  IconData _themeModeIcon(ThemeMode mode) => switch (mode) {
+        ThemeMode.system => Icons.brightness_auto,
+        ThemeMode.light => Icons.light_mode,
+        ThemeMode.dark => Icons.dark_mode,
+      };
 
   List<Widget> _buildVideoDecoderSection(WidgetRef ref) {
     return [
@@ -293,7 +335,7 @@ class _DecoderTile extends StatelessWidget {
                       backend.description,
                       style: TextStyle(
                         fontSize: 13,
-                        color: Colors.grey.shade600,
+                        color: rmTextSecondary(context),
                       ),
                     ),
                   ],
@@ -358,7 +400,7 @@ class _ModeTile extends StatelessWidget {
                       mode.description,
                       style: TextStyle(
                         fontSize: 13,
-                        color: Colors.grey.shade600,
+                        color: rmTextSecondary(context),
                       ),
                     ),
                   ],

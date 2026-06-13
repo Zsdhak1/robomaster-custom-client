@@ -1,10 +1,46 @@
 /// Settings-related Riverpod providers with SharedPreferences persistence.
 library;
 
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../data_export/data/default_export_directory.dart';
+
+// ============================================================
+// Theme mode — light / dark / follow system
+// ============================================================
+
+const _keyThemeMode = 'theme_mode';
+
+/// Notifier persisting the app [ThemeMode] (default: follow system).
+class ThemeModeNotifier extends StateNotifier<ThemeMode> {
+  /// Creates the notifier and loads the persisted value.
+  ThemeModeNotifier() : super(ThemeMode.system) {
+    _load();
+  }
+
+  /// Persists [mode] by its index and updates state.
+  Future<void> set(ThemeMode mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyThemeMode, mode.index);
+    state = mode;
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final index = prefs.getInt(_keyThemeMode);
+    if (index != null && index >= 0 && index < ThemeMode.values.length) {
+      state = ThemeMode.values[index];
+    }
+  }
+}
+
+/// The user's chosen theme mode (light / dark / system).
+final themeModeProvider =
+    StateNotifierProvider<ThemeModeNotifier, ThemeMode>(
+  (ref) => ThemeModeNotifier(),
+);
 
 // ============================================================
 // Video decoder backend

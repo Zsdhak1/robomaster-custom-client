@@ -131,6 +131,24 @@ String robotDisplayName(int id) {
   return '未知 ($id)';
 }
 
+/// Resolves a robot ID to its [RobotIdentity], or null if unknown.
+RobotIdentity? robotIdentityById(int id) {
+  for (final robot in allRobotIdentities) {
+    if (robot.id == id) return robot;
+  }
+  return null;
+}
+
+/// The infantry number (3 or 4) overlaid on the shared infantry icon, or null
+/// for robots that don't share an icon.
+///
+/// Red 3/4 (ids 3/4) and blue 3/4 (ids 103/104) reuse the same
+/// `*SentryInfantry.png` asset, so the digit is the only visual distinction.
+int? infantryBadgeNumber(int id) {
+  final base = id >= 100 ? id - 100 : id;
+  return (base == 3 || base == 4) ? base : null;
+}
+
 /// Whether [id] belongs to the blue side (protocol ids >= 100).
 bool isBlueSide(int id) => id >= 100;
 

@@ -4,17 +4,15 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/navigation/app_navigation_drawer.dart';
+import '../../../core/navigation/page_fab_menu.dart';
 import '../../../core/state/session_providers.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../services/mqtt_service.dart';
 import '../../connection/domain/robot_identity.dart';
+import '../../connection/presentation/connection_screen.dart';
 import '../../settings/logic/settings_providers.dart';
-import '../../settings/presentation/settings_screen.dart';
 import '../logic/game_state.dart';
 import '../logic/stream_providers.dart';
-import 'app_navigation.dart';
-import 'widgets/connection_control.dart';
-import 'widgets/debug_fab.dart';
 import 'widgets/debug_panel.dart';
 import 'widgets/event_timeline_panel.dart';
 import 'widgets/game_status_card.dart';
@@ -39,10 +37,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final devMode = ref.watch(developerModeProvider);
 
     return Scaffold(
-      drawer: AppNavigationDrawer(
-        current: AppDestination.dashboard,
-        onSelect: (dest) => navigateToDestination(context, dest),
-      ),
       body: Stack(
         children: [
           Column(
@@ -60,13 +54,53 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             ),
         ],
       ),
-      floatingActionButton: devMode
-          ? DebugFab(
-              isOpen: _isDebugOpen,
-              onToggle: () => setState(() => _isDebugOpen = !_isDebugOpen),
-            )
-          : null,
-      floatingActionButtonLocation: FloatingActionButtonLocation.endDocked,
+      floatingActionButton: _DashboardFab(
+        devMode: devMode,
+        isDebugOpen: _isDebugOpen,
+        onToggleDebug: () => setState(() => _isDebugOpen = !_isDebugOpen),
+      ),
+    );
+  }
+}
+
+/// Page-level FAB menu for the dashboard: connection toggle + debug panel.
+class _DashboardFab extends ConsumerWidget {
+  const _DashboardFab({
+    required this.devMode,
+    required this.isDebugOpen,
+    required this.onToggleDebug,
+  });
+
+  final bool devMode;
+  final bool isDebugOpen;
+  final VoidCallback onToggleDebug;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isConnected =
+        ref.watch(mqttConnectionStateSyncProvider) ==
+            MqttConnectionState.connected;
+
+    return PageFabMenu(
+      actions: [
+        FabAction(
+          icon: isConnected ? Icons.link_off : Icons.link,
+          label: isConnected ? '断开连接' : '重新连接',
+          onSelected: () => isConnected
+              ? ref.read(mqttServiceProvider).disconnect()
+              : Navigator.of(context).pushReplacement(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const ConnectionScreen(),
+                  ),
+                ),
+        ),
+        if (devMode)
+          FabAction(
+            icon: isDebugOpen ? Icons.bug_report : Icons.bug_report_outlined,
+            label: isDebugOpen ? '隐藏调试面板' : '显示调试面板',
+            onSelected: onToggleDebug,
+          ),
+      ],
     );
   }
 }
@@ -121,17 +155,11 @@ class _TopStatusBar extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          IconButton(
-            icon: const Icon(Icons.menu, color: Colors.white),
-            tooltip: '菜单',
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
-          const SizedBox(width: 4),
           Expanded(
             child: Text(
               isConnected
                   ? '已作为 ${robotDisplayName(selectedId)} 登录（ID：$selectedId）'
-                  : '未连接',
+                  : '未连接（离线模式）',
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 16,
@@ -142,15 +170,6 @@ class _TopStatusBar extends ConsumerWidget {
           _SideBadge(ownIsBlue: ownIsBlue),
           const SizedBox(width: 12),
           _StatusDot(isConnected: isConnected),
-          const SizedBox(width: 4),
-          const ConnectionAppBarAction(),
-          IconButton(
-            icon: const Icon(Icons.settings, color: Colors.white),
-            tooltip: '设置',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
-            ),
-          ),
         ],
       ),
     );

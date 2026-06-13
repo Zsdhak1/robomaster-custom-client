@@ -8,6 +8,9 @@ import 'core/theme/app_theme.dart';
 import 'features/connection/domain/robot_identity.dart';
 import 'features/connection/presentation/connection_screen.dart';
 import 'features/data_export/logic/auto_export_provider.dart';
+import 'features/settings/logic/github_sync_provider.dart';
+import 'features/settings/logic/record_config_provider.dart';
+import 'features/settings/logic/settings_providers.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,8 +38,15 @@ void main() {
     fvp.registerWith();
   }
   runApp(
-    const ProviderScope(
-      child: MainApp(),
+    ProviderScope(
+      overrides: [
+        // Route the record-config notifier's remote sync through the
+        // GitHub-backed service resolved from the user's sync configuration.
+        remoteSyncServiceProvider.overrideWith(
+          (ref) => ref.watch(gitHubBackedSyncServiceProvider),
+        ),
+      ],
+      child: const MainApp(),
     ),
   );
 }
@@ -53,13 +63,17 @@ class MainApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedId = ref.watch(selectedRobotIdProvider);
+    final themeMode = ref.watch(themeModeProvider);
 
     // Activate background auto-export on settlement.
     ref.watch(autoExportProvider);
 
+    final accent = teamAccentColor(selectedId);
     return MaterialApp(
       title: 'RoboMaster Monitor',
-      theme: buildTeamTheme(teamAccentColor(selectedId)),
+      theme: buildTeamTheme(accent),
+      darkTheme: buildTeamThemeDark(accent),
+      themeMode: themeMode,
       home: const ConnectionScreen(),
       debugShowCheckedModeBanner: false,
     );

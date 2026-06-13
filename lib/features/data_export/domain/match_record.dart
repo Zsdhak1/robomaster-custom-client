@@ -14,6 +14,7 @@ class MatchRecord {
     this.blueScore,
     this.duration,
     this.isComplete = false,
+    this.isMerged = false,
     this.fileSizeBytes = 0,
     this.eventCount = 0,
     this.typeCounts = const {},
@@ -45,6 +46,10 @@ class MatchRecord {
 
   /// Whether the recording reached the settlement stage (a complete match).
   final bool isComplete;
+
+  /// Whether this record was produced by merging multiple per-client files
+  /// (carries `metadata.merged == true`).
+  final bool isMerged;
 
   /// File size in bytes.
   final int fileSizeBytes;
