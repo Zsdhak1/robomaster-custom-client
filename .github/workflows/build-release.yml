@@ -227,10 +227,138 @@ jobs:
           path: dist/robomaster-custom-client-linux.tar.gz
           if-no-files-found: error
 
+  # ---------- Linux (Ubuntu 22.04 LTS) ----------
+  build-linux-ubuntu2204:
+    name: Build Linux (Ubuntu 22.04)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      # Ubuntu 22.04 的 libmpv 版本是 libmpv.so.1，需要显式安装
+      - name: Install Linux build dependencies (Ubuntu 22.04)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev libstdc++-12-dev \
+            libmpv-dev mpv
+
+      - name: flutter pub get
+        run: flutter pub get
+
+      - name: Build Linux
+        run: flutter build linux --release
+
+      # Ubuntu 22.04 上编译的二进制链接的是旧版 glibc，在 22.04/24.04 都能跑
+      - name: Bundle all runtime shared libraries
+        run: |
+          BUNDLE_DIR="build/linux/x64/release/bundle"
+          BUNDLE_LIB_DIR="$BUNDLE_DIR/lib"
+          BINARY="$BUNDLE_DIR/robomaster_custom_client_1"
+          mkdir -p "$BUNDLE_LIB_DIR"
+
+          SYSTEM_LIBS="libc.so.6 libm.so.6 libgcc_s.so.1 libstdc++.so.6 libpthread.so.0 libdl.so.2 librt.so.1 ld-linux-x86-64.so.2 linux-vdso.so.1 linux-gate.so.1"
+
+          collect_deps() {
+            local target="$1"
+            [ -f "$target" ] || return
+            ldd "$target" 2>/dev/null | awk '
+              /=>/ {
+                gsub(/^[ \t]+|[ \t]+$/, "", $3);
+                if ($3 ~ /^\//) print $3
+              }
+              !/=>/ {
+                gsub(/^[ \t]+|[ \t]+$/, "", $1);
+                if ($1 ~ /^\//) print $1
+              }
+            '
+          }
+
+          should_bundle() {
+            local path="$1"
+            local name
+            name=$(basename "$path")
+            for sys in $SYSTEM_LIBS; do
+              [ "$name" = "$sys" ] && return 1
+            done
+            [ "$(realpath -m "$path")" = "$(realpath -m "$BUNDLE_LIB_DIR/$name")" ] && return 1
+            return 0
+          }
+
+          TARGETS=("$BINARY")
+          MPV_PATHS=(
+            /usr/lib/x86_64-linux-gnu/libmpv.so.1
+            /usr/lib/x86_64-linux-gnu/libmpv.so
+            /usr/local/lib/libmpv.so.1
+            /usr/local/lib/libmpv.so
+          )
+          for mpv in "${MPV_PATHS[@]}"; do
+            if [ -f "$mpv" ]; then
+              TARGETS+=("$mpv")
+              break
+            fi
+          done
+
+          declare -A COPIED
+          queue=("${TARGETS[@]}")
+          while [ ${#queue[@]} -gt 0 ]; do
+            current="${queue[0]}"
+            queue=("${queue[@]:1}")
+            [ -f "$current" ] || continue
+            while IFS= read -r dep; do
+              [ -n "$dep" ] || continue
+              should_bundle "$dep" || continue
+              name=$(basename "$dep")
+              if [ -z "${COPIED[$name]:-}" ]; then
+                target_path="$BUNDLE_LIB_DIR/$name"
+                if [ -f "$target_path" ]; then
+                  if cmp -s "$dep" "$target_path"; then
+                    echo "Skipping identical: $name"
+                    COPIED[$name]=1
+                    continue
+                  fi
+                fi
+                cp -v "$dep" "$target_path"
+                COPIED[$name]=1
+                queue+=("$target_path")
+              fi
+            done < <(collect_deps "$current")
+          done
+
+          for lib in libmpv.so libmpv.so.1 libmpv.so.2 libmpv.so.3 libmujs.so libmujs.so.3; do
+            for prefix in /usr/lib/x86_64-linux-gnu /usr/local/lib; do
+              if [ -f "$prefix/$lib" ] && [ ! -f "$BUNDLE_LIB_DIR/$lib" ]; then
+                cp -v "$prefix/$lib" "$BUNDLE_LIB_DIR/$lib"
+              fi
+            done
+          done
+
+          echo "=== Bundled libraries ==="
+          ls -la "$BUNDLE_LIB_DIR"
+          echo "=== Remaining unresolved dependencies ==="
+          ldd "$BINARY" | grep 'not found' || echo "All resolved"
+
+      - name: Package Linux (Ubuntu 22.04)
+        run: |
+          mkdir -p dist
+          tar -czf dist/robomaster-custom-client-linux-ubuntu2204.tar.gz \
+            -C build/linux/x64/release/bundle .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-targz-ubuntu2204
+          path: dist/robomaster-custom-client-linux-ubuntu2204.tar.gz
+          if-no-files-found: error
+
   # ---------- Release ----------
   release:
     name: Publish Release
-    needs: [build-android, build-windows, build-linux]
+    needs: [build-android, build-windows, build-linux, build-linux-ubuntu2204]
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts

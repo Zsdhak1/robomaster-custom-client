@@ -122,16 +122,25 @@ flutter run -d <device-id>
 ./robomaster_custom_client_1: error while loading shared libraries: libmpv.so.2: cannot open shared object file: No such file or directory
 ```
 
-说明目标系统缺少 mpv 库。有两种解决方式：
+说明目标系统缺少 mpv 库。有三种解决方式：
 
-1. **快速方案：安装系统 mpv 库**
+1. **Ubuntu 22.04 用户请下载专用包**
+
+   Release 页面提供两种 Linux 包：
+
+   - `robomaster-custom-client-linux-ubuntu2204.tar.gz` —— 在 **Ubuntu 22.04** 上编译，适合 Ubuntu 22.04 / 兼容的旧系统
+   - `robomaster-custom-client-linux.tar.gz` —— 在最新的 `ubuntu-latest`（目前为 Ubuntu 24.04）上编译，适合较新的发行版
+
+   由于 glibc 向前兼容、向后不兼容，**旧系统编译的包通常可以在新系统上运行**，反之则不行。如果你运行在 Ubuntu 22.04 或同类旧发行版，请优先下载带 `-ubuntu2204` 后缀的包。
+
+2. **快速方案：安装系统 mpv 库**
 
    ```bash
    sudo apt-get update
    sudo apt-get install -y libmpv2   # Debian / Ubuntu
    ```
 
-2. **绿色方案：使用自带依赖库的 Release 包**
+3. **绿色方案：使用自带依赖库的 Release 包**
 
    从 `v0.0.2` 起，CI 构建的 Linux 发行包会附带 `libmpv.so.2` 等必要动态库，解压即可直接运行。无需再安装系统 mpv。
 
