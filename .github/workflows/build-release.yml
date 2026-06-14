@@ -143,13 +143,21 @@ jobs:
             '
           }
 
-          # 收集入口：主程序和所有已存在的插件 so
-          TARGETS=("$BINARY")
-          for so in "$BUNDLE_LIB_DIR"/*.so "$BUNDLE_LIB_DIR"/*.so.*; do
-            [ -f "$so" ] && TARGETS+=("$so")
-          done
+          # 判断是否应该 bundle：不是系统核心库、不在 BUNDLE_LIB_DIR 里
+          should_bundle() {
+            local path="$1"
+            local name
+            name=$(basename "$path")
+            for sys in $SYSTEM_LIBS; do
+              [ "$name" = "$sys" ] && return 1
+            done
+            # 已经在 bundle/lib/ 里的不需要再复制
+            [ "$(realpath -m "$path")" = "$(realpath -m "$BUNDLE_LIB_DIR/$name")" ] && return 1
+            return 0
+          }
 
-          # 额外定位 libmpv，确保 ldd 有东西可扫
+          # 收集入口：主程序 + 系统路径里的 libmpv
+          TARGETS=("$BINARY")
           MPV_PATHS=(
             /usr/lib/x86_64-linux-gnu/libmpv.so.2
             /usr/lib/x86_64-linux-gnu/libmpv.so
@@ -157,7 +165,10 @@ jobs:
             /usr/local/lib/libmpv.so
           )
           for mpv in "${MPV_PATHS[@]}"; do
-            [ -f "$mpv" ] && TARGETS+=("$mpv") && break
+            if [ -f "$mpv" ]; then
+              TARGETS+=("$mpv")
+              break
+            fi
           done
 
           # 递归收集（BFS），直到没有新库出现
@@ -169,23 +180,21 @@ jobs:
             [ -f "$current" ] || continue
             while IFS= read -r dep; do
               [ -n "$dep" ] || continue
-              # 跳过系统核心库
-              skip=false
-              for sys in $SYSTEM_LIBS; do
-                if [[ "$(basename "$dep")" == "$sys" ]]; then
-                  skip=true
-                  break
-                fi
-              done
-              $skip && continue
-              # 如果还没复制，就复制并加入队列继续递归
+              should_bundle "$dep" || continue
               name=$(basename "$dep")
               if [ -z "${COPIED[$name]:-}" ]; then
-                if [ -f "$dep" ]; then
-                  cp -v "$dep" "$BUNDLE_LIB_DIR/$name"
-                  COPIED[$name]=1
-                  queue+=("$BUNDLE_LIB_DIR/$name")
+                target_path="$BUNDLE_LIB_DIR/$name"
+                # 如果 bundle 里已经存在同名文件，检查是否内容相同
+                if [ -f "$target_path" ]; then
+                  if cmp -s "$dep" "$target_path"; then
+                    echo "Skipping identical: $name"
+                    COPIED[$name]=1
+                    continue
+                  fi
                 fi
+                cp -v "$dep" "$target_path"
+                COPIED[$name]=1
+                queue+=("$target_path")
               fi
             done < <(collect_deps "$current")
           done
