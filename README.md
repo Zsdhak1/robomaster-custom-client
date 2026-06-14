@@ -149,10 +149,10 @@ flutter run -d <device-id>
    ```bash
    ldd ./robomaster_custom_client_1 | grep not
    ```
-####Linux 发行包运行脚本部署
+#### Linux 发行包运行脚本部署
    在发行包根目录下运行终端
    ```bash
-   cat <<EOF > start.sh
+  start.sh
    #!/bin/bash
    # RoboMaster Custom Client 启动脚本
    # 自动设置 LD_LIBRARY_PATH 以解决 libmpv.so.1 等间接依赖找不到的问题
@@ -161,9 +161,7 @@ flutter run -d <device-id>
    export LD_LIBRARY_PATH="$SCRIPT_DIR/lib:$LD_LIBRARY_PATH"   
    exec "$SCRIPT_DIR/robomaster_custom_client_1" "$@"
    ```
-   ```bash
-   EOF
-   ```
+
 
 ---
 
