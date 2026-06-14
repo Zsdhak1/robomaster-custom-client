@@ -114,6 +114,33 @@ flutter devices
 flutter run -d <device-id>
 ```
 
+#### Linux 发行包运行依赖
+
+本项目使用 `media_kit` 作为视频解码后端，运行时需要 `libmpv.so.2`。如果你从 Release 下载的 tar.gz 解压后运行报以下错误：
+
+```text
+./robomaster_custom_client_1: error while loading shared libraries: libmpv.so.2: cannot open shared object file: No such file or directory
+```
+
+说明目标系统缺少 mpv 库。有两种解决方式：
+
+1. **快速方案：安装系统 mpv 库**
+
+   ```bash
+   sudo apt-get update
+   sudo apt-get install -y libmpv2   # Debian / Ubuntu
+   ```
+
+2. **绿色方案：使用自带依赖库的 Release 包**
+
+   从 `v0.0.2` 起，CI 构建的 Linux 发行包会附带 `libmpv.so.2` 等必要动态库，解压即可直接运行。无需再安装系统 mpv。
+
+   如果仍有其他库缺失，可用 `ldd` 查看：
+
+   ```bash
+   ldd ./robomaster_custom_client_1 | grep not
+   ```
+
 ---
 
 ## 协议对接说明

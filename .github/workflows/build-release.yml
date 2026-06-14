@@ -114,6 +114,41 @@ jobs:
       - name: Build Linux
         run: flutter build linux --release
 
+      # media_kit 依赖的 libmpv 等动态库默认不会被 Flutter bundle 自动复制，
+      # 需要手动收集到 bundle/lib/，让 release 包在干净的 Linux 环境也能直接运行。
+      - name: Bundle media_kit native libraries
+        run: |
+          BUNDLE_LIB_DIR="build/linux/x64/release/bundle/lib"
+          mkdir -p "$BUNDLE_LIB_DIR"
+
+          # 收集 libmpv.so* 以及 FFmpeg / libass / libplacebo 等常见依赖
+          for lib in libmpv.so libmpv.so.2 libmpv.so.3; do
+            if [ -f "/usr/lib/x86_64-linux-gnu/$lib" ]; then
+              cp -v "/usr/lib/x86_64-linux-gnu/$lib" "$BUNDLE_LIB_DIR/"
+            elif [ -f "/usr/local/lib/$lib" ]; then
+              cp -v "/usr/local/lib/$lib" "$BUNDLE_LIB_DIR/"
+            fi
+          done
+
+          # 一并收集 libmpv 依赖的常用解码库（FFmpeg 6.x 在 Ubuntu 24.04 路径）
+          for lib in \
+            libavcodec.so libavcodec.so.60 \
+            libavformat.so libavformat.so.60 \
+            libavutil.so libavutil.so.58 \
+            libswresample.so libswresample.so.4 \
+            libswscale.so libswscale.so.7 \
+            libass.so libass.so.9 \
+            libplacebo.so libplacebo.so.338 \
+            libshaderc_shared.so libshaderc_shared.so.1 \
+            libvulkan.so libvulkan.so.1; do
+            if [ -f "/usr/lib/x86_64-linux-gnu/$lib" ]; then
+              cp -v "/usr/lib/x86_64-linux-gnu/$lib" "$BUNDLE_LIB_DIR/"
+            fi
+          done
+
+          # 验证 libmpv 是否已经被 bundle
+          ls -la "$BUNDLE_LIB_DIR"/libmpv* || true
+
       # 将 bundle 目录打包为 tar.gz
       - name: Package Linux
         run: |
