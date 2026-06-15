@@ -1,7 +1,7 @@
 name: robomaster_custom_client_1
 description: "A new Flutter project."
 publish_to: 'none'
-version: 0.1.0+1
+version: 0.0.2
 
 environment:
   sdk: ^3.12.1
@@ -21,6 +21,8 @@ dependencies:
   freezed_annotation: ^3.0.0
   json_annotation: ^4.9.0
   typed_data: ^1.4.0
+  package_info_plus: ^8.0.0
+  url_launcher: ^6.3.0
   # 视频解码后端 A：media_kit（libmpv + 自带 FFmpeg），全平台硬/软解。
   media_kit: ^1.2.0
   media_kit_video: ^2.0.0

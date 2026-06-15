@@ -13,6 +13,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../connection/domain/robot_identity.dart';
 import '../logic/record_config_provider.dart';
 import '../logic/settings_providers.dart';
+import 'about_screen.dart';
 import 'hwdec_screen.dart';
 import 'record_config_screen.dart';
 
@@ -51,9 +52,28 @@ class SettingsScreen extends ConsumerWidget {
           ..._buildExportSection(ref),
           const SizedBox(height: 24),
           ..._buildDeveloperSection(ref),
+          const SizedBox(height: 24),
+          ..._buildAboutSection(context, ref),
         ],
       ),
     );
+  }
+
+  List<Widget> _buildAboutSection(BuildContext context, WidgetRef ref) {
+    return [
+      _buildSectionTitle('关于'),
+      Card(
+        child: ListTile(
+          leading: const Icon(Icons.info_outline),
+          title: const Text('关于 WOD Client'),
+          subtitle: const Text('版本信息、开源仓库、检查更新'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const AboutScreen()),
+          ),
+        ),
+      ),
+    ];
   }
 
   List<Widget> _buildAppearanceSection(WidgetRef ref) {
@@ -138,41 +158,18 @@ class SettingsScreen extends ConsumerWidget {
       Card(
         child: Column(
           children: [
-            ListTile(
-              leading: const Icon(Icons.folder_open),
-              title: const Text('导出目录'),
-              subtitle: Text(
-                directory.isEmpty
-                    ? '未设置（导出时选择）'
-                    : '${isUserChosen ? '自定义' : '默认'}：$directory',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              trailing: TextButton(
-                onPressed: () async {
-                  final path = await getDirectoryPath();
-                  if (path != null && path.isNotEmpty) {
-                    await ref
-                        .read(exportDirectoryProvider.notifier)
-                        .set(path);
-                  }
-                },
-                child: const Text('选择'),
-              ),
+            _DirectoryPickerTile(
+              directory: directory,
+              isUserChosen: isUserChosen,
+              onPick: (path) => ref
+                  .read(exportDirectoryProvider.notifier)
+                  .set(path),
             ),
             if (isUserChosen)
-              Align(
-                alignment: Alignment.centerRight,
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 8, bottom: 8),
-                  child: TextButton.icon(
-                    icon: const Icon(Icons.restore, size: 18),
-                    label: const Text('恢复默认目录'),
-                    onPressed: () => ref
-                        .read(exportDirectoryProvider.notifier)
-                        .resetToDefault(),
-                  ),
-                ),
+              _ResetDirectoryButton(
+                onReset: () => ref
+                    .read(exportDirectoryProvider.notifier)
+                    .resetToDefault(),
               ),
           ],
         ),
@@ -350,6 +347,63 @@ class _DecoderTile extends StatelessWidget {
 }
 
 /// A selectable display-mode option card.
+class _DirectoryPickerTile extends StatelessWidget {
+  const _DirectoryPickerTile({
+    required this.directory,
+    required this.isUserChosen,
+    required this.onPick,
+  });
+
+  final String directory;
+  final bool isUserChosen;
+  final ValueChanged<String> onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: const Icon(Icons.folder_open),
+      title: const Text('导出目录'),
+      subtitle: Text(
+        directory.isEmpty
+            ? '未设置（导出时选择）'
+            : '${isUserChosen ? '自定义' : '默认'}：$directory',
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: TextButton(
+        onPressed: () async {
+          final path = await getDirectoryPath();
+          if (path != null && path.isNotEmpty) {
+            onPick(path);
+          }
+        },
+        child: const Text('选择'),
+      ),
+    );
+  }
+}
+
+class _ResetDirectoryButton extends StatelessWidget {
+  const _ResetDirectoryButton({required this.onReset});
+
+  final VoidCallback onReset;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Padding(
+        padding: const EdgeInsets.only(right: 8, bottom: 8),
+        child: TextButton.icon(
+          icon: const Icon(Icons.restore, size: 18),
+          label: const Text('恢复默认目录'),
+          onPressed: onReset,
+        ),
+      ),
+    );
+  }
+}
+
 class _ModeTile extends StatelessWidget {
   const _ModeTile({
     required this.mode,

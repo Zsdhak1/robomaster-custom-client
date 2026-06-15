@@ -25,6 +25,7 @@
 | JSON 导出/导入的数据结构必须有 fromJson/toJson | 编译时检查 |
 | UI 字符串全部放入常量文件 | analysis_options.yaml: avoid_hardcoded_strings |
 | 每次文件写入后必须运行 `flutter analyze` | PostToolUse hook 自动执行 |
+| 发布新版本前必须更新 feature_spec.md 的更新日志 | 见第 6.3 节 + 自审计清单 |
 
 ---
 
@@ -120,13 +121,24 @@ lib/
 4. **编码实现** — 遵循本文件所有规则。
 5. **运行 flutter analyze** — 确保零警告。
 6. **自审计** — 执行代码审查检查清单（见第7节）。
-7. **提交** — 写入 git commit，标记 feature_spec.md 中对应 Task 为完成。
+7. **提交** — 写入 git commit，标记 feature_spec.md 中对应 Task 为完成；若涉及版本发布，按 6.3 节更新附录 E 更新日志。
 
 ### 6.2 多平台兼容性
 
 - 使用 `Platform.isAndroid` / `Platform.isLinux` 区分平台逻辑。
 - 文件路径使用 `path_provider` 获取，禁止硬编码绝对路径。
 - Linux 桌面端使用 GTK 文件选择器对话框（`file_selector` 包）。
+
+### 6.3 版本更新日志维护
+
+更新日志记录在 **feature_spec.md 的「附录 E: 版本更新日志（Changelog）」**，接手的 agent 必须按以下规则维护，确保日志与代码、git tag 一致：
+
+1. **何时更新：** 凡是修改 `pubspec.yaml` 的 `version` 字段、准备打 `v*` tag 发布、或合入显著功能/修复时，必须在附录 E 表格**顶部**新增一行（最新版本在最上）。
+2. **版本号来源：** 以 `pubspec.yaml` 的 `version`（`MAJOR.MINOR.PATCH+BUILD`）为唯一权威，表格版本号、git tag 名三者必须一致。
+3. **变更分类：** 使用 `新增` / `修复` / `优化` / `重构` / `文档` 前缀，一行可含多项，用 `；` 分隔。
+4. **日期格式：** 使用绝对日期 `YYYY-MM-DD`，禁止“今天/昨天/本周”等相对表述。
+5. **不登记滚动预发布：** `push` 到 `master` 的 `latest` 预发布不强制登记，但合入显著功能时建议补充摘要。
+6. **完成后验证：** 更新日志属文档变更，无需 `flutter analyze`，但需在自审计清单中确认该项已处理。
 
 ---
 
@@ -146,6 +158,7 @@ lib/
 - [ ] **文档注释：** 公共 API 是否有 dartdoc 注释？
 - [ ] **协议降级：** MQTT 收到未知 Protobuf 类型时是否降级为原始字节，而非抛异常？
 - [ ] **视频流防泄漏：** UDP 分片缓存表是否有最大容量限制和超时清理机制？
+- [ ] **更新日志：** 若本次改动涉及版本号变更或显著功能/修复，是否已在 feature_spec.md 附录 E 顶部新增对应版本行（版本号与 pubspec.yaml 一致）？
 
 ---
 
@@ -171,3 +184,4 @@ lib/
 
 - 2026-06-06: 初始版本创建，适配千行级 Flutter 项目。
 - 2026-06-06: **修正** — 将项目范围从"通用 UDP 数据包监控"精确限定为"自定义客户端双链路监控（MQTT 3333 + UDP 3334 HEVC）"；同步更新文件组织、协议规范、非 negotiable 规则与自审计清单。
+- 2026-06-15: **新增** — 引入版本更新日志维护规范（6.3 节）；在 feature_spec.md 新增「附录 E: 版本更新日志」；非 negotiable 规则与自审计清单同步加入更新日志检查项。

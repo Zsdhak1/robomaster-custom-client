@@ -5,6 +5,7 @@ import 'package:media_kit/media_kit.dart';
 
 import 'core/state/session_providers.dart';
 import 'core/theme/app_theme.dart';
+import 'core/update/presentation/update_checker_listener.dart';
 import 'features/connection/domain/robot_identity.dart';
 import 'features/connection/presentation/connection_screen.dart';
 import 'features/data_export/logic/auto_export_provider.dart';
@@ -69,13 +70,17 @@ class MainApp extends ConsumerWidget {
     ref.watch(autoExportProvider);
 
     final accent = teamAccentColor(selectedId);
-    return MaterialApp(
-      title: 'RoboMaster Monitor',
-      theme: buildTeamTheme(accent),
-      darkTheme: buildTeamThemeDark(accent),
-      themeMode: themeMode,
-      home: const ConnectionScreen(),
-      debugShowCheckedModeBanner: false,
+    return UpdateCheckerListener(
+      child: MaterialApp(
+        title: 'WOD Client',
+        theme: buildTeamTheme(accent),
+        darkTheme: buildTeamThemeDark(accent),
+        themeMode: themeMode,
+        home: const UpdateCheckerHost(
+          child: ConnectionScreen(),
+        ),
+        debugShowCheckedModeBanner: false,
+      ),
     );
   }
 }

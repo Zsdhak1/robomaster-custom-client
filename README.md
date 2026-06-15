@@ -1,4 +1,4 @@
-# RoboMaster Monitor · 自定义客户端数据监控
+# WOD Client · 自定义客户端数据监控
 
 一个面向 **RoboMaster 2026 机甲大师超级对抗赛** 的自定义客户端监控应用。基于 Flutter 构建，对接官方自定义客户端双链路：
 
@@ -128,8 +128,8 @@ flutter run -d <device-id>
 
    Release 页面提供两种 Linux 包：
 
-   - `robomaster-custom-client-linux-ubuntu2204.tar.gz` —— 在 **Ubuntu 22.04** 上编译，适合 Ubuntu 22.04 / 兼容的旧系统
-   - `robomaster-custom-client-linux.tar.gz` —— 在最新的 `ubuntu-latest`（目前为 Ubuntu 24.04）上编译，适合较新的发行版
+   - `wod-client-linux-ubuntu2204.tar.gz` —— 在 **Ubuntu 22.04** 上编译，适合 Ubuntu 22.04 / 兼容的旧系统
+   - `wod-client-linux.tar.gz` —— 在最新的 `ubuntu-latest`（目前为 Ubuntu 24.04）上编译，适合较新的发行版
 
    由于 glibc 向前兼容、向后不兼容，**旧系统编译的包通常可以在新系统上运行**，反之则不行。如果你运行在 Ubuntu 22.04 或同类旧发行版，请优先下载带 `-ubuntu2204` 后缀的包。
 
@@ -144,10 +144,18 @@ flutter run -d <device-id>
 
    从 `v0.0.2` 起，CI 构建的 Linux 发行包会附带 `libmpv.so.2` 等必要动态库，解压即可直接运行。无需再安装系统 mpv。
 
+   解压后，**推荐通过启动脚本运行**，脚本会自动让程序优先加载 `lib/` 目录下的自带库：
+
+   ```bash
+   mkdir -p wod-client && tar -xzf wod-client-linux.tar.gz -C wod-client
+   cd wod-client
+   ./wod_client.sh
+   ```
+
    如果仍有其他库缺失，可用 `ldd` 查看：
 
    ```bash
-   ldd ./robomaster_custom_client_1 | grep not
+   LD_LIBRARY_PATH="$(pwd)/lib:$LD_LIBRARY_PATH" ldd ./robomaster_custom_client_1 | grep not
    ```
 #### Linux 发行包运行脚本部署
    在发行包根目录下运行终端
@@ -229,9 +237,9 @@ flutter test
 
 | 平台 | 产物 |
 |------|------|
-| Android | `robomaster-custom-client-android.apk` |
-| Windows | `robomaster-custom-client-windows.zip` |
-| Linux | `robomaster-custom-client-linux.tar.gz` |
+| Android | `wod-client-android.apk` |
+| Windows | `wod-client-windows.zip` |
+| Linux | `wod-client-linux.tar.gz` |
 
 ---
 

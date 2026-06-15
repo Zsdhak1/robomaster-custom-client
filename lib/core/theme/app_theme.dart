@@ -1,4 +1,4 @@
-/// Application theme constants for RoboMaster Monitor.
+/// Application theme constants for WOD Client.
 ///
 /// The app supports light and dark themes. Brand/team/status colors are fixed
 /// across both modes (they carry protocol meaning — red/blue side, health,
