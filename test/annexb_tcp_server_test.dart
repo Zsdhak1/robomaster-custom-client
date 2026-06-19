@@ -53,4 +53,38 @@ void main() {
         reason: 'feed crashed partway through');
     expect(received, isNotEmpty, reason: 'client received no bytes');
   });
+
+  test('a decoder connecting AFTER the gate opened is primed with the keyframe',
+      () async {
+    final server = AnnexbTcpServer();
+    await server.start();
+    addTearDown(server.stop);
+
+    // The real-world race: the bridge is fed (by MQTT/UDP) and opens its gate
+    // BEFORE any decoder attaches, because players connect asynchronously once
+    // the bridge URL is known. The keyframe is forwarded to an empty client
+    // list and would otherwise be lost.
+    final keyframe = nal(32, [1, 2, 3, 4]); // VPS (type 32) opens the gate
+    server
+      ..feedFrame(keyframe)
+      ..feedFrame(nal(1, [9, 9, 9])); // a live P-frame after the keyframe
+
+    // Now a decoder connects late.
+    final received = <int>[];
+    final client =
+        await Socket.connect(InternetAddress.loopbackIPv4, server.port!);
+    final sub = client.listen(received.addAll);
+    addTearDown(() async {
+      await sub.cancel();
+      client.destroy();
+    });
+
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+
+    // It must be primed with the cached keyframe, otherwise it would sit on a
+    // white screen (no parameter sets / no IDR) until the next keyframe.
+    expect(received, isNotEmpty, reason: 'late client got no keyframe');
+    expect(received.take(keyframe.length).toList(), keyframe,
+        reason: 'late client was not primed with the cached keyframe bytes');
+  });
 }

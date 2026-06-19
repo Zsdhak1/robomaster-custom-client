@@ -83,30 +83,44 @@ extension VideoDecoderBackendLabel on VideoDecoderBackend {
 // ============================================================
 
 const _keyDecoderBackend = 'video_decoder_backend';
+const _keyCustomVideoBackend = 'custom_video_decoder_backend';
 
 // ============================================================
 // Notifier
 // ============================================================
 
-/// Notifier that reads/writes the decoder backend via SharedPreferences.
+/// Notifier that reads/writes a decoder backend via SharedPreferences.
+///
+/// Parameterised by [_prefsKey] and [_fallback] so the official UDP line and
+/// the custom 0x0310 H.264 line each get an independent, separately persisted
+/// backend choice from the same implementation.
 class VideoDecoderBackendNotifier extends StateNotifier<VideoDecoderBackend> {
   /// Creates the notifier and loads the persisted value.
-  VideoDecoderBackendNotifier() : super(VideoDecoderBackend.mediaKit) {
+  VideoDecoderBackendNotifier({
+    required this._prefsKey,
+    VideoDecoderBackend fallback = VideoDecoderBackend.mediaKit,
+  })  : _fallback = fallback,
+        super(fallback) {
     _load();
   }
+
+  final String _prefsKey;
+  final VideoDecoderBackend _fallback;
 
   /// Persists [backend] to SharedPreferences and updates state.
   Future<void> set(VideoDecoderBackend backend) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_keyDecoderBackend, backend.index);
+    await prefs.setInt(_prefsKey, backend.index);
     state = backend;
   }
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
-    final index = prefs.getInt(_keyDecoderBackend);
+    final index = prefs.getInt(_prefsKey);
     if (index != null && index >= 0 && index < VideoDecoderBackend.values.length) {
       state = VideoDecoderBackend.values[index];
+    } else {
+      state = _fallback;
     }
   }
 }
@@ -115,10 +129,24 @@ class VideoDecoderBackendNotifier extends StateNotifier<VideoDecoderBackend> {
 // Provider
 // ============================================================
 
-/// The user's chosen video decoder backend.
+/// The user's chosen video decoder backend for the official UDP 3334 line.
 final videoDecoderBackendProvider =
     StateNotifierProvider<VideoDecoderBackendNotifier, VideoDecoderBackend>(
-  (ref) => VideoDecoderBackendNotifier(),
+  (ref) => VideoDecoderBackendNotifier(prefsKey: _keyDecoderBackend),
+);
+
+/// The user's chosen decoder backend for the custom 0x0310 H.264 line.
+///
+/// Independent of [videoDecoderBackendProvider] so the raw-H.264 custom feed
+/// can be A/B tested (fvp vs media_kit) or verified with external ffplay
+/// without disturbing the official HEVC line. Defaults to fvp — the only
+/// in-app backend that ships a raw-H.264 demuxer on desktop.
+final customVideoBackendProvider =
+    StateNotifierProvider<VideoDecoderBackendNotifier, VideoDecoderBackend>(
+  (ref) => VideoDecoderBackendNotifier(
+    prefsKey: _keyCustomVideoBackend,
+    fallback: VideoDecoderBackend.fvp,
+  ),
 );
 
 // ============================================================
@@ -270,6 +298,43 @@ class DeveloperModeNotifier extends StateNotifier<bool> {
 final developerModeProvider =
     StateNotifierProvider<DeveloperModeNotifier, bool>(
   (ref) => DeveloperModeNotifier(),
+);
+
+// ============================================================
+// Custom video MPEG-TS wrapping
+// ============================================================
+
+const _keyCustomVideoTsWrap = 'custom_video_ts_wrap';
+
+/// Notifier persisting whether the custom 0x0310 line is wrapped in MPEG-TS.
+class CustomVideoTsWrapNotifier extends StateNotifier<bool> {
+  /// Creates the notifier and loads the persisted value (default off).
+  CustomVideoTsWrapNotifier() : super(false) {
+    _load();
+  }
+
+  /// Persists [enabled] and updates state.
+  Future<void> set({required bool enabled}) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyCustomVideoTsWrap, enabled);
+    state = enabled;
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    state = prefs.getBool(_keyCustomVideoTsWrap) ?? false;
+  }
+}
+
+/// Whether the custom H.264 line is wrapped in MPEG-TS before serving.
+///
+/// Off → the bridge serves raw Annex-B (fvp on Linux can decode it). On → the
+/// bridge serves MPEG-TS, which media_kit's libmpv CAN demux (its raw-H.264
+/// demuxer is missing), unblocking media_kit on Windows where fvp cannot
+/// render. Both in-app players switch their forced demuxer format accordingly.
+final customVideoTsWrapProvider =
+    StateNotifierProvider<CustomVideoTsWrapNotifier, bool>(
+  (ref) => CustomVideoTsWrapNotifier(),
 );
 
 // ============================================================

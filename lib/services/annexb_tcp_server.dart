@@ -18,16 +18,31 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
-/// HEVC NAL unit types for parameter sets (nal_unit_type values).
-const int _nalVps = 32;
-const int _nalSps = 33;
-const int _nalPps = 34;
+import '../core/utils/byte_data_reader.dart';
 
 /// Max frames buffered while waiting for the first keyframe.
 const int _maxPendingFrames = 30;
 
+/// Signature of a function that reports whether an AnnexB buffer carries the
+/// codec parameter sets that gate the start of decoding.
+///
+/// The default ([hevcHasParameterSet]) is HEVC; the custom video line injects
+/// an H.264 detector so the two lines never share NAL parsing.
+typedef ParameterSetDetector = bool Function(Uint8List data);
+
 /// Serves a continuous AnnexB byte stream over a loopback TCP socket.
 class AnnexbTcpServer {
+  /// Creates a server whose keyframe gate uses [parameterSetDetector].
+  ///
+  /// Defaults to HEVC detection so the official UDP 3334 video line keeps its
+  /// existing behaviour unchanged. The custom 0x0310 H.264 line passes
+  /// [h264HasParameterSet] instead.
+  AnnexbTcpServer({ParameterSetDetector? parameterSetDetector})
+      : _detectParameterSet = parameterSetDetector ?? hevcHasParameterSet;
+
+  /// Detector deciding whether a frame opens the keyframe gate.
+  final ParameterSetDetector _detectParameterSet;
+
   ServerSocket? _server;
 
   /// Connected decoder clients. Frames are broadcast to all of them.
@@ -42,6 +57,24 @@ class AnnexbTcpServer {
 
   /// Whether a keyframe has been seen and streaming has started.
   bool _started = false;
+
+  /// The most recent parameter-set keyframe (the frame carrying VPS/SPS/PPS +
+  /// IDR that opened the gate; refreshed on every later keyframe).
+  ///
+  /// Replayed to every decoder that connects AFTER the gate opened — which is
+  /// the normal case, because the player attaches asynchronously, only once the
+  /// bridge URL is known, by which time the bridge has usually already forwarded
+  /// the SPS/PPS+IDR to an empty client list and lost it.
+  ///
+  /// This is what unblocks fvp/mdk specifically: its `updateTexture()` cannot
+  /// create the render texture until it knows the video size, which lives in the
+  /// SPS. Reading the SPS via a large probe and then seeking back to start fails
+  /// on a non-seekable live TCP stream, so the keyframe is dropped and the
+  /// decoder shows a white screen. Putting the keyframe at the very start of
+  /// each client's stream gives the decoder its size and a decodable IDR
+  /// immediately, with no probe/seek and no up-to-a-full-GOP wait. Null until
+  /// the gate opens.
+  Uint8List? _keyframe;
 
   /// Whether the server is currently bound and listening.
   bool get isRunning => _server != null;
@@ -81,12 +114,18 @@ class AnnexbTcpServer {
     framesForwarded = 0;
     bytesForwarded = 0;
     _started = false;
+    _keyframe = null;
     _pending.clear();
 
     _server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
 
     _server!.listen((socket) {
       _clients.add(socket);
+      // Prime a late-joining decoder with the cached keyframe so it starts from
+      // a clean IDR (parameter sets present) instead of mid-GOP with no
+      // reference frame. No-op until the gate has opened; clients that connect
+      // first get the keyframe live as usual.
+      _replayKeyframe(socket);
       // Listen for client close/error so we clean up promptly.
       socket.listen(
         (_) {},
@@ -111,10 +150,11 @@ class AnnexbTcpServer {
   /// NALUs. The raw HEVC stream already carries VPS/SPS/PPS before every IDR.
   void feedFrame(Uint8List data) {
     if (!_started) {
-      if (_containsParameterSet(data)) {
+      if (_detectParameterSet(data)) {
         // Gate opens: discard pre-keyframe junk, start clean at the keyframe.
         _started = true;
         _pending.clear();
+        _keyframe = data;
         _writeToClients(data);
       } else {
         // Count frames seen while waiting (diagnostics only); they're junk.
@@ -125,7 +165,29 @@ class AnnexbTcpServer {
       }
       return;
     }
+    // Keep the cached keyframe fresh so a client connecting later is primed
+    // with the most recent parameter sets, not the very first ones.
+    if (_detectParameterSet(data)) {
+      _keyframe = data;
+    }
     _writeToClients(data);
+  }
+
+  /// Sends the cached keyframe to a freshly connected [socket] so a late-joining
+  /// decoder gets parameter sets + an IDR up front. No-op before the gate opens.
+  ///
+  /// Counts toward the forwarding stats; removes the client on write failure
+  /// (it disconnected before we could prime it).
+  void _replayKeyframe(Socket socket) {
+    final keyframe = _keyframe;
+    if (keyframe == null) return;
+    try {
+      socket.add(keyframe);
+      framesForwarded++;
+      bytesForwarded += keyframe.length;
+    } on Exception catch (_) {
+      _removeClient(socket);
+    }
   }
 
   /// Writes a frame to every connected client and updates counters.
@@ -158,32 +220,6 @@ class AnnexbTcpServer {
     } on Exception catch (_) {}
   }
 
-  /// Scans an AnnexB buffer for a VPS/SPS/PPS NAL unit (HEVC).
-  ///
-  /// Walks start codes (00 00 01 / 00 00 00 01) and reads the 6-bit
-  /// nal_unit_type from the first byte after each start code.
-  bool _containsParameterSet(Uint8List d) {
-    final n = d.length;
-    var i = 0;
-    while (i + 3 < n) {
-      final isLong = d[i] == 0 && d[i + 1] == 0 && d[i + 2] == 0 && d[i + 3] == 1;
-      final isShort = d[i] == 0 && d[i + 1] == 0 && d[i + 2] == 1;
-      if (isLong || isShort) {
-        final hdr = i + (isLong ? 4 : 3);
-        if (hdr < n) {
-          final nalType = (d[hdr] >> 1) & 0x3F;
-          if (nalType == _nalVps || nalType == _nalSps || nalType == _nalPps) {
-            return true;
-          }
-        }
-        i = hdr;
-      } else {
-        i++;
-      }
-    }
-    return false;
-  }
-
   /// Stops the server and disconnects all clients.
   void stop() {
     for (final client in List<Socket>.from(_clients)) {
@@ -192,6 +228,7 @@ class AnnexbTcpServer {
     _clients.clear();
     _pending.clear();
     _started = false;
+    _keyframe = null;
     _server?.close();
     _server = null;
   }

@@ -39,10 +39,19 @@ app.*.symbols
 # Obfuscation related
 app.*.map.json
 
+# Android signing secrets
+/android/key.properties
+/android/app/*.keystore
+/android/app/*.jks
+
 # Android Studio will place build artifacts here
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Python generated protobuf bindings (regenerated locally by protoc)
+*_pb2.py
+*_pb2_grpc.py
 
 # --- Project-specific exclusions (not for version control) ---
 # Large reference PDFs (protocol / rules manuals) — keep out of git

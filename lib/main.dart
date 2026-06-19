@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fvp/fvp.dart' as fvp;
+import 'package:fvp/mdk.dart' as mdk;
 import 'package:media_kit/media_kit.dart';
 
 import 'core/state/session_providers.dart';
@@ -16,6 +18,13 @@ import 'features/settings/logic/settings_providers.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
+  // Route mdk/libmpv internal logs (decoder, demuxer, reader) to the console
+  // so the custom H.264 line's decode failures are visible during debugging.
+  if (kDebugMode) {
+    mdk.setLogHandler((level, msg) {
+      debugPrint('[mdk:$level] ${msg.trimRight()}');
+    });
+  }
   // Configure fvp (libmdk) for low-latency raw HEVC over the loopback bridge.
   // Mirrors the reference ffmpeg flags: force the hevc demuxer, disable
   // buffering, and keep the decode pipeline shallow. Wrapped defensively

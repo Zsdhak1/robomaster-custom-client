@@ -23,9 +23,16 @@
 
 > **AI 执行指令：** 按 Phase 顺序逐个完成，在每个Phase开始前，必须询问用户这个Phase的具体执行方式，确认用户需求理解无误之后开始具体执行。每完成一个 Task，在状态列标记 `[x]`，运行 `flutter analyze` 确认零警告，执行自审计检查清单，然后自动进入下一个 Task。严禁跳过 Phase。
 
+> **版本化规范：** 开发进度以**版本号为顶层迭代单元**。每个版本（如 `v0.1.0`）是一次独立迭代，其内部 Phase 与 Task 从 `Phase 1, Task 1` 重新编号。在本表登记或更新任务时，**必须在功能描述前标注其所属版本号 + Phase + Task**，格式为 `vX.Y.Z Phase N, Task M`（例：`v0.1.0 Phase 1, Task 1`）。版本号须与 `pubspec.yaml` 的 `version` 字段、附录 E Changelog、git tag 三者一致（见附录 E.1）。**历史版本（v0.0.1 / v0.0.2）保留其原始 Phase 编号以便追溯**，新版本（v0.1.0 起）一律从 Phase 1 Task 1 起编。
+
 ---
 
-### Phase 0: 项目脚手架与环境验证
+### v0.0.1 — 首个正式版本 (2026-06-14)
+
+> 双链路监控基线：MQTT 3333 / UDP 3334、实时面板、数据导出与回放、多客户端合并、GitHub 远程同步。
+> 历史版本保留原始 Phase 0–5 编号，不重新编号。
+
+#### Phase 0: 项目脚手架与环境验证
 
 | # | Task | 描述 | 产出文件 | 状态 |
 |---|------|------|----------|------|
@@ -40,7 +47,7 @@
 
 ---
 
-### Phase 1: 核心基础设施（自定义客户端双链路）
+#### Phase 1: 核心基础设施（自定义客户端双链路）
 
 | # | Task | 描述 | 产出文件 | 状态 |
 |---|------|------|----------|------|
@@ -60,7 +67,7 @@
 
 ---
 
-### Phase 2: 主监控面板（Dashboard）
+#### Phase 2: 主监控面板（Dashboard）
 
 | # | Task | 描述 | 产出文件 | 状态 |
 |---|------|------|----------|------|
@@ -77,7 +84,7 @@
 
 ---
 
-### Phase 3: 数据导出与赛后分析
+#### Phase 3: 数据导出与赛后分析
 
 | # | Task | 描述 | 产出文件 | 状态 |
 |---|------|------|----------|------|
@@ -94,20 +101,20 @@
 
 ---
 
-### Phase 4: 设置与辅助页面
+#### Phase 4: 设置与辅助页面
 
 | # | Task | 描述 | 产出文件 | 状态 |
 |---|------|------|----------|------|
 | 4.1 | 设置页面 | 创建设置页面：MQTT 服务器地址/端口/主题前缀、UDP 端口配置、视频流开关、主题切换（亮色/暗色）、Debug 面板开关、数据记录上限。使用 SharedPreferences 持久化。 | `lib/features/settings/presentation/settings_screen.dart` | `[x]` |
 | 4.2 | 设置状态管理 | 创建设置相关的 Riverpod Provider，支持设置项的读取、修改和持久化。 | `lib/features/settings/logic/settings_providers.dart` | `[x]` |
-| 4.3 | 关于页面 | 创建关于页面：应用名称、版本号、技术栈说明（MQTT + Protobuf + HEVC AnnexB）、开源协议、RoboMaster 2026 自定义客户端协议适配声明。 | `lib/features/about/presentation/about_screen.dart` | `[ ]` |
+| 4.3 | 关于页面 | 创建关于页面：应用名称、版本号、技术栈说明（MQTT + Protobuf + HEVC AnnexB）、开源协议、RoboMaster 2026 自定义客户端协议适配声明。 | `lib/features/settings/presentation/about_screen.dart` | `[x]`（v0.0.2 交付） |
 | 4.4 | 导航与路由 | 常驻 `AppShell` 持有侧边 `NavigationRail` + `IndexedStack`（监控/视频/数据/设置四页），切页只改索引、Rail 与页面状态均存活；Rail 支持展开/收起，顶部 icon 随登录身份切换、3/4 号步兵以数字徽标区分；页面级操作收敛到 `PageFabMenu`。连接页支持「离线模式」直接进入 Shell。 | `lib/core/navigation/app_shell.dart`, `app_navigation_rail.dart`, `page_fab_menu.dart` | `[x]` |
 
 **Phase 4 验收标准：** 所有页面可正常导航，设置项可持久化保存，关于页面信息完整。
 
 ---
 
-### Phase 5: 收尾与优化
+#### Phase 5: 收尾与优化
 
 | # | Task | 描述 | 产出文件 | 状态 |
 |---|------|------|----------|------|
@@ -119,6 +126,120 @@
 | 5.6 | 运行全部测试 | 运行 `flutter analyze`、`flutter test`，确保零警告、所有测试通过。 | - | `[ ]` |
 
 **Phase 5 验收标准：** 应用在两平台运行正常，零 Lint 警告，所有功能完整可用，视频流（若开启）稳定。
+
+---
+
+### v0.0.2 — WOD Client 更名与更新检查 (2026-06-15)
+
+> 对外名称更名为 **WOD Client**，新增关于页面、应用内更新检查与 Linux 启动脚本。本版本增量原不在 Phase/Task 表中，按版本化规范补登为 Phase 1。
+
+#### Phase 1: 发布完善
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| 1.1 | 关于页面 | 完善关于页面（应用名称、版本号、协议适配声明）；移除技术栈展示 | `lib/features/settings/presentation/about_screen.dart` | `[x]` |
+| 1.2 | 应用内更新检查 | 启动 / 手动触发的版本更新检查（对比 GitHub Release，弹窗提示更新） | `lib/core/update/data/update_checker_service.dart`, `lib/core/update/data/version_comparator.dart`, `lib/core/update/domain/github_release.dart`, `lib/core/update/logic/update_providers.dart`, `lib/core/update/presentation/update_checker_listener.dart`, `lib/core/update/presentation/update_dialog.dart` | `[x]` |
+| 1.3 | Linux 启动脚本 | 默认启动脚本 `wod_client.sh`（自动加载自带依赖库） | `wod_client.sh` | `[x]` |
+| 1.4 | 对外更名 | 应用对外名称更名为 **WOD Client**（保留 package 名与仓库链接） | （多平台配置） | `[x]` |
+
+**v0.0.2 验收标准：** 应用对外显示为 WOD Client，关于页面信息完整，更新检查可用，Linux 端可经 `wod_client.sh` 启动并正确加载依赖。
+
+---
+
+### v0.0.3 — 自定义数据图传线（0x0310 / H.264）
+
+> 目标：在现有 WOD Client 中新增第二条图传线，用于接收机器人通过 `0x0310` 指令上传的 `CustomByteBlock` 数据，并在 Flutter 端实时解码显示、叠加准星。
+>
+> 设计原则：
+> 1. **与官方 UDP 3334 / HEVC 图传线完全独立**：独立 TCP 桥、独立 provider、独立 NAL 门控、独立 UI 入口。
+> 2. **复用已验证的解码桥模式**：`CustomByteBlock.data` → 顺序拼接 Annex-B H.264 → 独立 `AnnexbTcpServer` → media_kit/fvp 解码。
+> 3. **真实链路无序列号**：`0x0310` 的 300B 负载为纯 H.264 字节，MQTT QoS1/TCP 已保序；reset 逻辑由解码器错误/断流触发，不依赖 `sequence_id`。
+> 4. **本地测试补齐 Windows 编码端**：用 FFmpeg/x264 把本地视频/摄像头编码为 H.264 Annex-B，切 300B 包后发本地 MQTT `CustomByteBlock`，无需真实机器人/ROS2。
+
+#### Phase 1: 数据层与 H.264 门控
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.0.3 Phase 1, Task 1 | `CustomByteBlock` 数据源 | 订阅 `topicCustomByteBlock`，经 `ProtobufParser` 取 `data` 字段，暴露 `Stream<Uint8List>`；空/超长（>2.4kbit）包防御并降级日志 | `lib/features/custom_video/data/custom_byte_block_source.dart` | `[x]` |
+| v0.0.3 Phase 1, Task 2 | H.264 关键帧门控 | 实现 H.264 SPS(7)/PPS(8) 检测纯函数，与现有 HEVC 门控物理隔离；附单元测试 | `lib/core/video/h264_annexb_gate.dart`, `test/h264_annexb_gate_test.dart` | `[x]` |
+| v0.0.3 Phase 1, Task 3 | 独立 TCP 桥与 provider | 为自定义图传线新建 `AnnexbTcpServer` 实例，顺序拼流、H.264 门控放行后写桥；用 Riverpod StreamProvider 暴露视频帧 | `lib/features/custom_video/logic/custom_video_providers.dart`, `custom_video_stream_service.dart` | `[x]` |
+
+**Phase 1 验收标准：**
+- 能订阅本地 MQTT Broker 的 `CustomByteBlock`，正确提取 `data` 字节；
+- H.264 门控单元测试覆盖 SPS/PPS 检测、非关键帧丢弃、HEVC 帧不误判为 H.264 关键帧；
+- TCP 桥只在收到含 SPS/PPS 的帧后才向 decoder 输出，模拟器发送时能正常接到 `tcp://` 流。
+
+---
+
+#### Phase 2: UI 与解码
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.0.3 Phase 2, Task 1 | 自定义图传解码面板 | 复用 media_kit/fvp，配置 `demuxer-lavf-format=h264`，使用 Phase 1 的独立 TCP 桥；带状态灯与重连按钮 | `lib/features/custom_video/presentation/widgets/custom_video_panel.dart` | `[x]` |
+| v0.0.3 Phase 2, Task 2 | 准星叠加 | `CustomPainter` 复现 Python 版 `_draw_overlay`：淡紫色横竖准星 + 淡绿色中心圆点；参数可配并持久化 | `lib/features/custom_video/presentation/widgets/crosshair_painter.dart` | `[x]` |
+| v0.0.3 Phase 2, Task 3 | 解码统计覆盖层 | 显示：收包数、解码帧数、门控等待/已放行、桥转发字节、最后错误 | `lib/features/custom_video/presentation/widgets/custom_video_overlay.dart` | `[x]` |
+| v0.0.3 Phase 2, Task 4 | 导航入口与页面 | 在 `AppShell`/`NavigationRail` 新增「自定义图传」入口；新建 `CustomVideoScreen` 承载面板+准星+覆盖层 | `lib/features/custom_video/presentation/custom_video_screen.dart`, 导航文件 | `[x]` |
+
+**Phase 2 验收标准：**
+- 页面能在 Android/Linux/Windows 正常打开；
+- 本地模拟器发送 H.264 后 2 秒内出图（普通 GOP）或最长 8 秒内出图（低码率 GOP）并显示准星；
+- 与官方 UDP 3334 图传线同时运行时互不抢占端口、互不污染解码状态。
+
+---
+
+#### Phase 3: Windows 本地测试编码端（完整复刻原编码端特性）
+
+> 目标：在 Windows 开发机上，无需 ROS2、无需真实机器人，即可完整复刻原仓库编码端的预处理与发送逻辑，向本地 MQTT Broker 发送 `CustomByteBlock`。
+>
+> 实现方式：一个独立的 Python 3 脚本，复用与原仓库相同的技术栈（OpenCV 预处理、PyAV H.264 编码、paho-mqtt 发送），配置项与 `sniper.launch.py` 一一对应。
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.0.3 Phase 3, Task 1 | Windows 编码模拟器 CLI | 基于 Python 3 + OpenCV + PyAV + paho-mqtt，读取本地视频文件或摄像头；复刻原编码端预处理：中心裁剪、resize 到 400×400、静态区域简化、运动拖影、中心保护区、强制灰度 | `tool/custom_byte_block_simulator/encoder_simulator.py` | `[x]` |
+| v0.0.3 Phase 3, Task 2 | H.264 Annex-B 编码 | 用 PyAV `h264` 编码器输出 Annex-B 字节流，支持 `target_bitrate`、`x264_preset`、`key_int`、低码率长 GOP / 普通 zerolatency 两种模式、AUD 输出 | 同上 | `[x]` |
+| v0.0.3 Phase 3, Task 3 | 带宽限速与 backlog 裁剪 | 复刻 2 秒滑动窗口硬限速 + 超限时裁剪到下一个 Annex-B 起始码；保证发送硬上限不超标 | 同上 | `[x]` |
+| v0.0.3 Phase 3, Task 4 | 300B 打包与 MQTT 发送 | 将 H.264 流切 300B 包，按 50Hz 经本地 MQTT Broker 发送到 `CustomByteBlock` Topic；包内无 sequence_id（匹配真实 0x0310） | 同上 | `[x]` |
+| v0.0.3 Phase 3, Task 5 | 编码端调试显示 | 复刻 Raw / ROI / Static / Final 四个 OpenCV 调试窗口（可选开启） | 同上 | `[x]` |
+| v0.0.3 Phase 3, Task 6 | 编码端调试 dump | 每 N 帧保存 Raw/ROI/Static/Final PNG 到本地目录（可选开启） | 同上 | `[x]` |
+| v0.0.3 Phase 3, Task 7 | 一键测试脚本 | PowerShell 脚本：启动 mosquitto → 启动编码模拟器 → 可选启动 Flutter 客户端；支持循环文件/摄像头切换 | `tool/run_custom_video_test.ps1` | `[x]` |
+| v0.0.3 Phase 3, Task 8 | 依赖与文档 | 在脚本目录提供 `requirements.txt` 与 README，说明 Python 3.11+、OpenCV、PyAV、paho-mqtt、mosquitto 安装 | `tool/custom_byte_block_simulator/README.md`, `requirements.txt` | `[x]` |
+
+**Phase 3 验收标准：**
+- Windows 开发机上仅运行 `run_custom_video_test.ps1` 即可端到端验证；
+- 编码模拟器发送的流能被 Flutter 端正确解码出图并显示准星；
+- 预处理效果（静态简化、运动拖影、中心保护区）与原仓库肉眼一致；
+- 带宽限速与 backlog 裁剪行为与原仓库日志一致；
+- 不依赖 ROS2、不依赖 Linux、不依赖真实机器人。
+
+---
+
+### v0.0.4 — MPEG-TS 封装与后端切换 (2026-06-19)
+
+> 目标：解决自定义图传线（0x0310 / H.264）在 Windows 上的解码问题。media_kit 缺裸 H.264 解封装（`Unknown lavf format h264`），fvp 在 Windows 渲染异常（D3D11 纹理白屏）。
+> 方案：新增「封装为 MPEG-TS」开关 + 自定义图传独立后端选择器，让用户在 Windows 上走 media_kit + TS（TS demuxer 在 libmpv 中普遍内置），Linux 上走 fvp + 裸流，与官方线平台策略对齐。
+> 同步修复：桥端 `AnnexbTcpServer` 缓存关键帧 AU，后连接的解码器不再因连接竞态白屏。
+
+#### Phase 1: MPEG-TS 封装与后端切换
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.0.4 Phase 1, Task 1 | MPEG-TS muxer（纯 Dart） | 实现 `MpegTsMuxer`：NAL 切分 → AU 分组（`first_mb_in_slice==0` 顶位判定，多 slice IDR 归为一个 AU）→ 每 AU 一个 PES + 90kHz PTS；关键帧前发 PAT/PMT 使流可中途接入；ffprobe/ffmpeg 验证真实 _dump.h264 转 TS 后完整 150 帧解码零错误 | `lib/core/video/mpegts_muxer.dart` | `[x]` |
+| v0.0.4 Phase 1, Task 2 | muxer 单元测试 | 结构单测：188 对齐 + sync byte 0x47；PAT/PMT 存在性；多 slice IDR 不拆分 AU；tsHasPat 门控检测 | `test/mpegts_muxer_test.dart` | `[x]` |
+| v0.0.4 Phase 1, Task 3 | 自定义图传后端选择器 | 独立持久化 `customVideoBackendProvider`（默认 fvp），与官方线 `videoDecoderBackendProvider` 隔离；设置页新增「自定义图传解码器 (0x0310)」选择区 | `lib/features/settings/logic/settings_providers.dart`, `lib/features/settings/presentation/settings_screen.dart` | `[x]` |
+| v0.0.4 Phase 1, Task 4 | MPEG-TS 开关与集成 | 新增 `customVideoTsWrapProvider`；service 开/关时选择原始 H.264 门控或 TS PAT 门控；controller 启动时传递 TS 标志给 service | `lib/features/custom_video/logic/custom_video_stream_service.dart`, `custom_video_providers.dart` | `[x]` |
+| v0.0.4 Phase 1, Task 5 | media_kit 播放器 | 新增 `CustomMediaKitPlayer`：强制 `demuxer-lavf-format=mpegts`（TS 模式）或 `h264`（裸流），低延迟缓存配置 | `lib/features/custom_video/presentation/widgets/custom_mediakit_player.dart` | `[x]` |
+| v0.0.4 Phase 1, Task 6 | ffplay 验证面板 | 新增 `CustomFfplayLauncher` + `CustomFfplayPanel`：启动外部 `ffplay -f mpegts/h264 -i tcp://...`，状态面板显示连接信息与错误 | `lib/features/custom_video/logic/custom_ffplay_launcher.dart`, `lib/features/custom_video/presentation/widgets/custom_ffplay_panel.dart` | `[x]` |
+| v0.0.4 Phase 1, Task 7 | 桥关键帧缓存补发 | `AnnexbTcpServer` 缓存打开门控的关键帧 AU；新客户端连接时 `_replayKeyframe()` 优先补发，解码器一启动就拿到 SPS+IDR | `lib/services/annexb_tcp_server.dart` | `[x]` |
+| v0.0.4 Phase 1, Task 8 | fvp 播放器低延迟对齐 | 直连 `mdk.Player` 完整复刻官方线 low-latency 配置：`+nobuffer`、`setBufferRange(min:0)`、硬解优先 `MFT:d3d=11`、`shader_resource=0` 等 | `lib/features/custom_video/presentation/widgets/custom_video_panel.dart` | `[x]` |
+| v0.0.4 Phase 1, Task 9 | 面板分发集成 | `custom_video_panel.dart` 按后端 + TS 标志分发到 fvp/media_kit/ffplay；设置页切换自动重启接收 | `lib/features/custom_video/presentation/widgets/custom_video_panel.dart` | `[x]` |
+
+**Phase 1 验收标准：**
+- 设置页「自定义图传解码器」三端可选（fvp / media_kit / ffplay），独立持久化互不干扰；
+- 「封装为 MPEG-TS」开关打开后，桥服务的字节流被 ffmpeg 验证为合法可解码的 MPEG-TS；
+- Windows 上 media_kit + TS 出图正常（libmpv 必含 mpegts demuxer）；
+- Linux 上 fvp + 裸流保持不变（降零回归风险）；
+- 桥关键帧缓存补发通过单元测试验证；
+- 31 个自定义图传相关测试全部通过，`flutter analyze` 零问题。
 
 ---
 
@@ -273,18 +394,20 @@ class VideoFrame {
 
 | 版本 | 日期 | 变更摘要 |
 |------|------|----------|
-| 0.0.2 | 2026-06-15 | 新增 Linux 默认启动脚本 `wod_client.sh`（自动加载自带依赖库）；新增「关于」页面与应用内更新检查；优化「关于」页面，移除技术栈展示；重构 应用对外名称为 **WOD Client**（用户可见名称 + 平台标识，保留 package 名与仓库链接） |
+| 0.0.4 | 2026-06-19 | 新增 自定义图传后端切换（fvp/media_kit/ffplay）；新增 MPEG-TS 封装模式（media_kit 缺裸 H.264 解封装，包 TS 后可正常播放）；新增 桥端关键帧缓存与后连接客户端补发机制（修复解码器连接竞态白屏）；新增 自定义图传设置页独立后端选择与 TS 开关；新增 Windows 端 ffplay 验证面板；新增 pure-Dart MPEG-TS muxer（ffprobe/ffmpeg 验证可完整解码） |
+| 0.0.3 | 2026-06-18 | 新增 自定义数据图传线（0x0310 / CustomByteBlock / H.264）监控页面；新增 Windows 端本地模拟器（H.264 编码 + MQTT 发送）；复用现有 media_kit/fvp 解码桥，与官方 UDP 3334 图传线并存；新增 准星叠加与解码统计覆盖层 |
 | 0.0.1 | 2026-06-14 | 新增 RoboMaster Monitor 首个正式版本：MQTT 3333 / UDP 3334 双链路监控、实时面板、数据导出与回放、多客户端合并、GitHub 远程同步 |
 
 ### E.1 版本号与发布流程
 
 - 修改 `pubspec.yaml` 的 `version` 字段后，必须同步在本节表格新增对应行。
+- 进度表（开发进度表）的版本块标题、`pubspec.yaml` 的 `version`、本节 Changelog 行、git tag 名四者必须一致；新增版本时四处同步更新。
 - `push` 标签 `v*`（如 `v0.1.0`）触发正式 Release；标签名应与本节版本号一致。
 - `push` 到 `master` 会更新名为 `latest` 的滚动预发布，不要求在本节登记，但建议在合入显著功能时补充摘要。
 
 ---
 
-*文档版本：v2.2（更新 — 添加 GitHub 远程同步与多客户端合并完成标记）*
+*文档版本：v2.4（新增 v0.0.4 MPEG-TS 封装与后端切换）*
 *适配协议：RoboMaster 2026 自定义客户端协议（MQTT 3333 + UDP 3334）*
 *参考依据：V1.3.1 第2章 + 自定义客户端 UDP 流问答*
-*修正日期：2026-06-13*
+*修正日期：2026-06-17*

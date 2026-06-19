@@ -24,10 +24,13 @@ enum AppDestination {
   /// The UDP video-stream page (index 1).
   video,
 
-  /// The data export/import management page (index 2).
+  /// The custom H.264 video-stream page (index 2).
+  customVideo,
+
+  /// The data export/import management page (index 3).
   data,
 
-  /// The settings page (index 3).
+  /// The settings page (index 4).
   settings,
 }
 
@@ -85,6 +88,11 @@ class AppNavigationRail extends ConsumerWidget {
           icon: Icon(Icons.videocam_outlined),
           selectedIcon: Icon(Icons.videocam),
           label: Text('视频流'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.center_focus_weak_outlined),
+          selectedIcon: Icon(Icons.center_focus_weak),
+          label: Text('自定义图传'),
         ),
         NavigationRailDestination(
           icon: Icon(Icons.storage_outlined),

@@ -14,6 +14,7 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../../features/custom_video/presentation/custom_video_screen.dart';
 import '../../features/dashboard/presentation/dashboard_screen.dart';
 import '../../features/dashboard/presentation/video_screen.dart';
 import '../../features/data_export/presentation/data_export_screen.dart';
@@ -60,6 +61,7 @@ class _AppShellState extends State<AppShell> {
               children: const [
                 DashboardScreen(),
                 VideoScreen(),
+                CustomVideoScreen(),
                 DataExportScreen(),
                 SettingsScreen(),
               ],

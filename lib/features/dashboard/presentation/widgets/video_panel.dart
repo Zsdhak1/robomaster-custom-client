@@ -10,6 +10,7 @@ library;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -376,6 +377,7 @@ class _FvpPlayer extends StatefulWidget {
 class _FvpPlayerState extends State<_FvpPlayer> {
   late VideoPlayerController _controller;
   String? _error;
+  bool _isFullscreen = false;
 
   @override
   void initState() {
@@ -410,20 +412,54 @@ class _FvpPlayerState extends State<_FvpPlayer> {
   @override
   void dispose() {
     _controller.dispose();
+    _resetSystemUi();
     super.dispose();
+  }
+
+  Future<void> _toggleFullscreen() async {
+    final target = !_isFullscreen;
+    setState(() => _isFullscreen = target);
+    if (target) {
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      await SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+    } else {
+      await _resetSystemUi();
+    }
+  }
+
+  Future<void> _resetSystemUi() async {
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
   }
 
   @override
   Widget build(BuildContext context) {
     if (_error != null) return _buildError();
-    return Card(
+    final initialized = _controller.value.isInitialized;
+    final aspectRatio = _controller.value.aspectRatio > 0
+        ? _controller.value.aspectRatio
+        : 16 / 9;
+
+    Widget player = Card(
       clipBehavior: Clip.antiAlias,
-      child: _controller.value.isInitialized
-          ? AspectRatio(
-              aspectRatio: _controller.value.aspectRatio > 0
-                  ? _controller.value.aspectRatio
-                  : 16 / 9,
-              child: VideoPlayer(_controller),
+      margin: EdgeInsets.zero,
+      child: initialized
+          ? Stack(
+              fit: StackFit.expand,
+              children: [
+                AspectRatio(
+                  aspectRatio: aspectRatio,
+                  child: VideoPlayer(_controller),
+                ),
+                _FvpControls(
+                  controller: _controller,
+                  isFullscreen: _isFullscreen,
+                  onToggleFullscreen: _toggleFullscreen,
+                ),
+              ],
             )
           : const ColoredBox(
               color: Color(0xFF101418),
@@ -442,6 +478,19 @@ class _FvpPlayerState extends State<_FvpPlayer> {
               ),
             ),
     );
+
+    if (_isFullscreen) {
+      // Hide the surrounding Row/Padding when in fullscreen so the video fills
+      // the whole screen. The caller still owns the state, so we rebuild in
+      // place; the Scaffold is underneath and its appBar/FAB auto-hide via the
+      // system UI modes above.
+      player = Scaffold(
+        backgroundColor: Colors.black,
+        body: SafeArea(child: player),
+      );
+    }
+
+    return player;
   }
 
   Widget _buildError() {
@@ -471,6 +520,230 @@ class _FvpPlayerState extends State<_FvpPlayer> {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Overlay controls for the fvp backend: play/pause, seek, time, mute, fullscreen.
+class _FvpControls extends StatefulWidget {
+  const _FvpControls({
+    required this.controller,
+    required this.isFullscreen,
+    required this.onToggleFullscreen,
+  });
+
+  final VideoPlayerController controller;
+  final bool isFullscreen;
+  final VoidCallback onToggleFullscreen;
+
+  @override
+  State<_FvpControls> createState() => _FvpControlsState();
+}
+
+class _FvpControlsState extends State<_FvpControls> {
+  /// Whether the user is currently dragging the progress bar.
+  bool _dragging = false;
+
+  /// The value during drag, overriding the controller's position.
+  Duration _dragPosition = Duration.zero;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<VideoPlayerValue>(
+      valueListenable: widget.controller,
+      builder: (context, value, child) {
+        final showBigPlay = value.isInitialized && !value.isPlaying && !value.isBuffering;
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            // Tapping the video toggles play/pause.
+            GestureDetector(
+              onTap: () {
+                value.isPlaying
+                    ? widget.controller.pause()
+                    : widget.controller.play();
+              },
+              behavior: HitTestBehavior.translucent,
+              child: const SizedBox.expand(),
+            ),
+            if (showBigPlay)
+              Center(
+                child: _ControlsButton(
+                  icon: Icons.play_arrow,
+                  size: 64,
+                  onPressed: widget.controller.play,
+                ),
+              ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: _buildBottomBar(value),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildBottomBar(VideoPlayerValue value) {
+    final position = _dragging ? _dragPosition : value.position;
+    final duration = value.duration;
+    final buffered = value.buffered.isNotEmpty
+        ? value.buffered.last.end
+        : Duration.zero;
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.transparent,
+            Colors.black.withValues(alpha: 0.7),
+          ],
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildProgressSlider(value, position, duration, buffered),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                _ControlsButton(
+                  icon: value.isPlaying ? Icons.pause : Icons.play_arrow,
+                  onPressed: () {
+                    value.isPlaying
+                        ? widget.controller.pause()
+                        : widget.controller.play();
+                  },
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${_formatDuration(position)} / ${_formatDuration(duration)}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const Spacer(),
+                _ControlsButton(
+                  icon: value.volume > 0 ? Icons.volume_up : Icons.volume_off,
+                  onPressed: () {
+                    widget.controller
+                        .setVolume(value.volume > 0 ? 0.0 : 1.0);
+                  },
+                ),
+                const SizedBox(width: 4),
+                _ControlsButton(
+                  icon: widget.isFullscreen
+                      ? Icons.fullscreen_exit
+                      : Icons.fullscreen,
+                  onPressed: widget.onToggleFullscreen,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProgressSlider(
+    VideoPlayerValue value,
+    Duration position,
+    Duration duration,
+    Duration buffered,
+  ) {
+    final maxMs = duration.inMilliseconds.clamp(1, double.maxFinite.toInt());
+    final positionMs = position.inMilliseconds.clamp(0, maxMs).toDouble();
+    final bufferedMs = buffered.inMilliseconds.clamp(0, maxMs).toDouble();
+
+    return SliderTheme(
+      data: SliderTheme.of(context).copyWith(
+        trackHeight: 4,
+        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+        overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+        activeTrackColor: Theme.of(context).colorScheme.primary,
+        inactiveTrackColor: Colors.white30,
+        thumbColor: Theme.of(context).colorScheme.primary,
+        overlayColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+      ),
+      child: Stack(
+        alignment: Alignment.centerLeft,
+        children: [
+          // Buffered background.
+          LinearProgressIndicator(
+            value: duration.inMilliseconds > 0 ? bufferedMs / maxMs : 0,
+            backgroundColor: Colors.white12,
+            valueColor: const AlwaysStoppedAnimation<Color>(Colors.white38),
+            minHeight: 4,
+            borderRadius: BorderRadius.circular(2),
+          ),
+          // Seek slider.
+          Slider(
+            value: positionMs,
+            max: maxMs.toDouble(),
+            onChanged: value.isInitialized
+                ? (ms) {
+                    setState(() {
+                      _dragging = true;
+                      _dragPosition = Duration(milliseconds: ms.toInt());
+                    });
+                  }
+                : null,
+            onChangeEnd: value.isInitialized
+                ? (ms) {
+                    final target = Duration(milliseconds: ms.toInt());
+                    widget.controller.seekTo(target);
+                    setState(() => _dragging = false);
+                  }
+                : null,
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _formatDuration(Duration d) {
+    final totalSeconds = d.inSeconds;
+    final minutes = totalSeconds ~/ 60;
+    final seconds = totalSeconds % 60;
+    final hours = d.inHours;
+    final mmss = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    return hours > 0 ? '${hours.toString().padLeft(2, '0')}:$mmss' : mmss;
+  }
+}
+
+/// Compact circular control button used inside the fvp overlay.
+class _ControlsButton extends StatelessWidget {
+  const _ControlsButton({
+    required this.icon,
+    required this.onPressed,
+    this.size = 24,
+  });
+
+  final IconData icon;
+  final VoidCallback onPressed;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(size),
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Icon(icon, color: Colors.white, size: size),
         ),
       ),
     );

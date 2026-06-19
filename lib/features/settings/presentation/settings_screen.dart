@@ -11,6 +11,7 @@ import '../../../core/constants/topic_registry.dart';
 import '../../../core/state/session_providers.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../connection/domain/robot_identity.dart';
+import '../../custom_video/logic/custom_video_providers.dart';
 import '../logic/record_config_provider.dart';
 import '../logic/settings_providers.dart';
 import 'about_screen.dart';
@@ -48,6 +49,8 @@ class SettingsScreen extends ConsumerWidget {
             ),
           const SizedBox(height: 24),
           ..._buildVideoDecoderSection(ref),
+          const SizedBox(height: 24),
+          ..._buildCustomVideoDecoderSection(ref),
           const SizedBox(height: 24),
           ..._buildExportSection(ref),
           const SizedBox(height: 24),
@@ -140,6 +143,51 @@ class SettingsScreen extends ConsumerWidget {
         current: ref.watch(hwdecModeProvider),
       ),
     ];
+  }
+
+  List<Widget> _buildCustomVideoDecoderSection(WidgetRef ref) {
+    return [
+      _buildSectionTitle('自定义图传解码器 (0x0310)'),
+      const SizedBox(height: 4),
+      Text(
+        '仅作用于自定义图传 (CustomByteBlock / 裸 H.264)，与官方图传独立。'
+        '默认 fvp；media_kit 多数平台不含裸 H.264 解封装；ffplay 调用外部进程验证码流。',
+        style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+      ),
+      const SizedBox(height: 8),
+      for (final option in VideoDecoderBackend.values)
+        // ffplay is a Windows-only verification backend (subprocess).
+        if (option != VideoDecoderBackend.ffplay || Platform.isWindows)
+          _DecoderTile(
+            backend: option,
+            selected: option == ref.watch(customVideoBackendProvider),
+            onTap: () =>
+                ref.read(customVideoBackendProvider.notifier).set(option),
+          ),
+      const SizedBox(height: 8),
+      Card(
+        child: SwitchListTile(
+          title: const Text('封装为 MPEG-TS'),
+          subtitle: const Text(
+            '把裸 H.264 包成 MPEG-TS 再传给解码器。media_kit 缺裸 H.264 解封装，'
+            '开启后即可用 media_kit（Windows 渲染正常）。切换会自动重启接收。',
+          ),
+          value: ref.watch(customVideoTsWrapProvider),
+          onChanged: (v) => _setTsWrap(ref, enabled: v),
+        ),
+      ),
+    ];
+  }
+
+  /// Persists the MPEG-TS wrap flag and restarts the custom stream if it is
+  /// running, so the new wire format takes effect immediately.
+  Future<void> _setTsWrap(WidgetRef ref, {required bool enabled}) async {
+    await ref.read(customVideoTsWrapProvider.notifier).set(enabled: enabled);
+    final controller = ref.read(customVideoControllerProvider.notifier);
+    if (ref.read(customVideoControllerProvider)) {
+      controller.stop();
+      await controller.start();
+    }
   }
 
   List<Widget> _buildExportSection(WidgetRef ref) {
