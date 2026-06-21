@@ -5,6 +5,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/responsive/responsive_ext.dart';
 import '../../../../core/state/session_providers.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../connection/domain/robot_identity.dart';
@@ -30,15 +31,15 @@ class HealthChart extends ConsumerWidget {
     final lineColor = Theme.of(context).colorScheme.primary;
 
     return Padding(
-      padding: const EdgeInsets.all(12),
+      padding: context.insetAll(12),
       child: Card(
         child: Padding(
-          padding: rmCardPadding,
+          padding: context.insetAll(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildChartHeader(context, ownIsBlue: ownIsBlue),
-              const SizedBox(height: 8),
+              context.sizedBox(h: 8),
               Expanded(
                 child: history.isEmpty
                     ? const Center(
@@ -48,7 +49,10 @@ class HealthChart extends ConsumerWidget {
                         ),
                       )
                     : _buildLineChart(
-                        buildSpots(history, now: DateTime.now()), lineColor),
+                        context,
+                        buildSpots(history, now: DateTime.now()),
+                        lineColor,
+                      ),
               ),
             ],
           ),
@@ -62,16 +66,16 @@ class HealthChart extends ConsumerWidget {
       children: [
         Text(
           '己方总血量趋势 · ${ownIsBlue ? '蓝方' : '红方'}',
-          style: const TextStyle(
-            fontSize: 14,
+          style: TextStyle(
+            fontSize: context.fontSize(14),
             fontWeight: FontWeight.bold,
           ),
         ),
-        const SizedBox(width: 8),
+        context.sizedBox(w: 8),
         Text(
           '（最近 120 秒 →）',
           style: TextStyle(
-            fontSize: 11,
+            fontSize: context.fontSize(11),
             color: rmTextSecondary(context),
           ),
         ),
@@ -79,7 +83,7 @@ class HealthChart extends ConsumerWidget {
     );
   }
 
-  Widget _buildLineChart(List<FlSpot> spots, Color lineColor) {
+  Widget _buildLineChart(BuildContext context, List<FlSpot> spots, Color lineColor) {
     final (minY, maxY) = _yRange(spots);
 
     return LineChart(
@@ -100,7 +104,7 @@ class HealthChart extends ConsumerWidget {
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 48,
+              reservedSize: context.sp(48),
               interval: (maxY - minY) / 2,
               getTitlesWidget: _leftTitle,
             ),

@@ -16,10 +16,12 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:video_player/video_player.dart';
 
-import '../../../../core/theme/app_theme.dart';
+import '../../../../core/responsive/responsive_ext.dart';
 import '../../../../core/video/video_frame.dart';
+import '../../../../core/widgets/video_side_panel.dart';
 import '../../../settings/logic/settings_providers.dart';
 import '../../logic/stream_providers.dart';
+import 'video_debug_panel.dart';
 
 /// Panel body of the video screen: real player + stream stats.
 class VideoPanel extends ConsumerWidget {
@@ -38,7 +40,7 @@ class VideoPanel extends ConsumerWidget {
         : null;
 
     return Padding(
-      padding: const EdgeInsets.all(12),
+      padding: context.insetAll(12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -50,12 +52,17 @@ class VideoPanel extends ConsumerWidget {
                     isListening: isListening,
                   ),
           ),
-          const SizedBox(width: 12),
+          context.sizedBox(w: 12),
           Expanded(
-            child: _StatsCard(
-              isListening: isListening,
-              frame: latestFrame,
-              url: url,
+            child: VideoSidePanel(
+              title: '视频流状态',
+              developerMode: developerMode,
+              basicInfo: _BasicInfo(
+                isListening: isListening,
+                frame: latestFrame,
+                url: url,
+              ),
+              debugSection: const _DebugSection(),
             ),
           ),
         ],
@@ -920,11 +927,12 @@ class _PreviewPlaceholder extends StatelessWidget {
 }
 
 // ============================================================
-// Stats card
+// Side-panel content (basic info + dev-only debug section)
 // ============================================================
 
-class _StatsCard extends StatelessWidget {
-  const _StatsCard({
+/// Always-visible basic connection info for the side panel.
+class _BasicInfo extends StatelessWidget {
+  const _BasicInfo({
     required this.isListening,
     required this.frame,
     required this.url,
@@ -936,56 +944,39 @@ class _StatsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: rmCardPadding,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '视频流状态',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            _StatusRow(isListening: isListening),
-            const Divider(height: 24),
-            Expanded(child: _buildFrameInfo()),
-          ],
-        ),
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _StatusRow(isListening: isListening),
+        context.sizedBox(h: 8),
+        ..._buildFrameInfo(),
+      ],
     );
   }
 
-  Widget _buildFrameInfo() {
+  List<Widget> _buildFrameInfo() {
     if (!isListening) {
-      return Center(
-        child: Text(
-          '未开始接收',
-          style: TextStyle(color: Colors.grey.shade600),
-        ),
-      );
+      return [
+        const _InfoRow(label: '状态', value: '未开始接收'),
+      ];
     }
     if (frame == null) {
-      return Center(
-        child: Text(
-          '尚未收到完整帧',
-          style: TextStyle(color: Colors.grey.shade600),
-        ),
-      );
+      return [
+        _InfoRow(label: 'TCP 桥地址', value: url ?? '—'),
+        const _InfoRow(label: '帧', value: '尚未收到完整帧'),
+      ];
     }
     final f = frame!;
-    return ListView(
-      children: [
-        _InfoRow(label: 'TCP 桥地址', value: url ?? '—'),
-        _InfoRow(label: '帧 ID', value: '${f.frameId}'),
-        _InfoRow(label: '分片数', value: '${f.packetCount}'),
-        _InfoRow(label: '帧大小', value: _formatBytes(f.annexbData.length)),
-        _InfoRow(
-          label: '重组耗时',
-          value: '${f.reassemblyTime.inMilliseconds} ms',
-        ),
-      ],
-    );
+    return [
+      _InfoRow(label: 'TCP 桥地址', value: url ?? '—'),
+      _InfoRow(label: '帧 ID', value: '${f.frameId}'),
+      _InfoRow(label: '分片数', value: '${f.packetCount}'),
+      _InfoRow(label: '帧大小', value: _formatBytes(f.annexbData.length)),
+      _InfoRow(
+        label: '重组耗时',
+        value: '${f.reassemblyTime.inMilliseconds} ms',
+      ),
+    ];
   }
 
   static String _formatBytes(int bytes) {
@@ -993,6 +984,24 @@ class _StatsCard extends StatelessWidget {
     final kb = bytes / 1024;
     if (kb < 1024) return '${kb.toStringAsFixed(1)} KB';
     return '${(kb / 1024).toStringAsFixed(2)} MB';
+  }
+}
+
+/// Developer-only debug section wrapping the dark debug content.
+class _DebugSection extends StatelessWidget {
+  const _DebugSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: context.insetAll(10),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade900,
+        borderRadius: BorderRadius.circular(context.sp(8)),
+      ),
+      child: const VideoDebugContent(),
+    );
   }
 }
 
@@ -1007,11 +1016,11 @@ class _StatusRow extends StatelessWidget {
     return Row(
       children: [
         Container(
-          width: rmStatusDotSize,
-          height: rmStatusDotSize,
+          width: context.rmStatusDotSize,
+          height: context.rmStatusDotSize,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
-        const SizedBox(width: 8),
+        context.sizedBox(w: 8),
         Text(
           isListening ? '正在接收 (UDP 3334)' : '已停止',
           style: const TextStyle(fontWeight: FontWeight.w500),
@@ -1030,7 +1039,7 @@ class _InfoRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: context.insetSym(v: 6),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [

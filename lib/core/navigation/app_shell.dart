@@ -14,6 +14,7 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../../../core/responsive/responsive_ext.dart';
 import '../../features/custom_video/presentation/custom_video_screen.dart';
 import '../../features/dashboard/presentation/dashboard_screen.dart';
 import '../../features/dashboard/presentation/video_screen.dart';
@@ -52,7 +53,8 @@ class _AppShellState extends State<AppShell> {
                 setState(() => _railExtended = !_railExtended),
             onSelect: (dest) => setState(() => _current = dest),
           ),
-          const VerticalDivider(width: 1),
+          // Scale the divider width to maintain proportion in fullscreen.
+          VerticalDivider(width: context.sp(1)),
           // IndexedStack keeps every page alive; only the visible index
           // changes on navigation, so page + rail state both survive.
           Expanded(

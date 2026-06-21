@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/protocol_constants.dart';
 import '../../../core/feedback/feedback_messenger.dart';
 import '../../../core/navigation/app_shell.dart';
+import '../../../core/responsive/responsive_ext.dart';
 import '../../../core/state/session_providers.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../features/dashboard/logic/stream_providers.dart';
@@ -175,33 +176,33 @@ class _LoginPanel extends StatelessWidget {
           // True top accent strip marking the selected team.
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
-            height: 4,
+            height: context.sp(4),
             color: accent,
           ),
           Expanded(
             child: SafeArea(
               child: Center(
                 child: SingleChildScrollView(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 32, vertical: 32),
+                  padding: context.insetSym(h: 32, v: 32),
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 360),
+                    constraints: BoxConstraints(maxWidth: context.sp(360)),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _buildHeader(),
-                        const SizedBox(height: 36),
-                        _buildServerFields(),
-                        const SizedBox(height: 12),
+                        _buildHeader(context),
+                        context.sizedBox(h: 36),
+                        _buildServerFields(context),
+                        context.sizedBox(h: 12),
                         _ClientIdField(
                           selectedId: selectedId,
                           isExpanded: isSelectorExpanded,
+                          accent: accent,
                           onTap: onToggleSelector,
                         ),
-                        const SizedBox(height: 24),
+                        context.sizedBox(h: 24),
                         _ConnectionStatus(state: connectionState),
-                        const SizedBox(height: 16),
-                        _buildActionButtons(),
+                        context.sizedBox(h: 16),
+                        _buildActionButtons(context),
                       ],
                     ),
                   ),
@@ -214,16 +215,16 @@ class _LoginPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return Image.asset(
       'assets/LoginLogo.png',
-      height: 72,
+      height: context.sp(72),
       fit: BoxFit.contain,
-      errorBuilder: (_, _, _) => Icon(Icons.memory, size: 56, color: accent),
+      errorBuilder: (_, _, _) => Icon(Icons.memory, size: context.iconSize(56), color: accent),
     );
   }
 
-  Widget _buildServerFields() {
+  Widget _buildServerFields(BuildContext context) {
     return Column(
       children: [
         TextField(
@@ -234,7 +235,7 @@ class _LoginPanel extends StatelessWidget {
           ),
           keyboardType: TextInputType.number,
         ),
-        const SizedBox(height: 12),
+        context.sizedBox(h: 12),
         TextField(
           controller: portController,
           decoration: const InputDecoration(
@@ -247,7 +248,7 @@ class _LoginPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildActionButtons() {
+  Widget _buildActionButtons(BuildContext context) {
     final connected = connectionState == MqttConnectionState.connected;
     return Column(
       children: [
@@ -256,19 +257,19 @@ class _LoginPanel extends StatelessWidget {
           icon: const Icon(Icons.link),
           label: const Text('连接'),
         ),
-        const SizedBox(height: 8),
+        context.sizedBox(h: 8),
         OutlinedButton.icon(
           onPressed: connected ? onDisconnect : null,
           icon: const Icon(Icons.link_off),
           label: const Text('断开'),
         ),
-        const SizedBox(height: 8),
+        context.sizedBox(h: 8),
         OutlinedButton.icon(
           onPressed: connected ? null : onGoOffline,
           icon: const Icon(Icons.cloud_off),
           label: const Text('离线模式（仅浏览/回放）'),
         ),
-        const SizedBox(height: 8),
+        context.sizedBox(h: 8),
         TextButton.icon(
           onPressed: onUseLocalhost,
           icon: const Icon(Icons.local_fire_department),
@@ -284,11 +285,13 @@ class _ClientIdField extends StatelessWidget {
   const _ClientIdField({
     required this.selectedId,
     required this.isExpanded,
+    required this.accent,
     required this.onTap,
   });
 
   final int selectedId;
   final bool isExpanded;
+  final Color accent;
   final VoidCallback onTap;
 
   @override
@@ -299,7 +302,7 @@ class _ClientIdField extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(rmCardRadius),
+      borderRadius: BorderRadius.circular(context.rmCardRadius),
       child: InputDecorator(
         decoration: InputDecoration(
           labelText: '客户端ID',
@@ -338,11 +341,11 @@ class _RobotSelectorPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 250),
-      child: isExpanded ? _buildGrid() : _buildCollapsed(),
+      child: isExpanded ? _buildGrid() : _buildCollapsed(context),
     );
   }
 
-  Widget _buildCollapsed() {
+  Widget _buildCollapsed(BuildContext context) {
     return Builder(
       builder: (context) {
         final scheme = Theme.of(context).colorScheme;
@@ -354,12 +357,12 @@ class _RobotSelectorPanel extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.touch_app,
-                    size: 64, color: scheme.onSurfaceVariant),
-                const SizedBox(height: 16),
+                    size: context.iconSize(64), color: scheme.onSurfaceVariant),
+                context.sizedBox(h: 16),
                 Text(
                   '点击左侧「客户端ID」选择登录身份',
                   style:
-                      TextStyle(fontSize: 16, color: scheme.onSurfaceVariant),
+                      TextStyle(fontSize: context.fontSize(16), color: scheme.onSurfaceVariant),
                 ),
               ],
             ),
@@ -418,20 +421,20 @@ class _TeamColumn extends StatelessWidget {
       color: background,
       child: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.all(20),
+          padding: context.insetAll(20),
           children: [
             Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 color: Colors.white,
-                fontSize: 18,
+                fontSize: context.fontSize(18),
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 12),
+            context.sizedBox(h: 12),
             for (final robot in robots)
               Padding(
-                padding: const EdgeInsets.only(bottom: 12),
+                padding: context.insetOnly(b: 12),
                 child: _RobotCard(
                   robot: robot,
                   isSelected: robot.id == selectedId,
@@ -461,28 +464,28 @@ class _RobotCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.white.withValues(alpha: isSelected ? 0.95 : 0.75),
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(context.sp(16)),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(context.sp(16)),
         child: Container(
-          padding: const EdgeInsets.all(12),
+          padding: context.insetAll(12),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(context.sp(16)),
             border: Border.all(
               color: isSelected ? Colors.white : Colors.transparent,
-              width: 3,
+              width: context.sp(3),
             ),
           ),
           child: Row(
             children: [
-              _buildAvatar(),
-              const SizedBox(width: 16),
+              _buildAvatar(context),
+              context.sizedBox(w: 16),
               Expanded(
                 child: Text(
                   robot.displayName,
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: context.fontSize(18),
                     fontWeight: FontWeight.bold,
                     color: robot.sideColor,
                   ),
@@ -497,15 +500,15 @@ class _RobotCard extends StatelessWidget {
     );
   }
 
-  Widget _buildAvatar() {
+  Widget _buildAvatar(BuildContext context) {
     return ClipOval(
       child: Image.asset(
         robot.iconAsset,
-        width: 48,
-        height: 48,
+        width: context.rmRobotIconSize,
+        height: context.rmRobotIconSize,
         fit: BoxFit.cover,
         errorBuilder: (_, _, _) => CircleAvatar(
-          radius: 24,
+          radius: context.sp(24),
           backgroundColor: robot.sideColor.withValues(alpha: 0.2),
           child: Icon(Icons.smart_toy, color: robot.sideColor),
         ),
@@ -534,11 +537,11 @@ class _ConnectionStatus extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Container(
-          width: rmStatusDotSize,
-          height: rmStatusDotSize,
+          width: context.rmStatusDotSize,
+          height: context.rmStatusDotSize,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
-        const SizedBox(width: 8),
+        context.sizedBox(w: 8),
         Text(label),
       ],
     );

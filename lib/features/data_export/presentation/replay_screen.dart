@@ -8,6 +8,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/responsive/responsive_ext.dart';
 import '../../../core/state/session_providers.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../dashboard/logic/game_state.dart';
@@ -79,7 +80,7 @@ class _ReplayBody extends StatelessWidget {
                 ),
               ),
               SizedBox(
-                width: 320,
+                width: context.sp(320),
                 child: _EventColumn(
                   gameState: gameState,
                   matchStart: replay.matchStart,
@@ -90,11 +91,11 @@ class _ReplayBody extends StatelessWidget {
         ),
         // Bottom: score card + health trend with playback cursor.
         SizedBox(
-          height: 180,
+          height: context.sp(180),
           child: Row(
             children: [
               SizedBox(
-                width: 220,
+                width: context.sp(220),
                 child: GameStatusCard(gameState: gameState),
               ),
               Expanded(
@@ -122,10 +123,10 @@ class _EventColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(12),
+      padding: context.insetAll(12),
       child: Card(
         child: Padding(
-          padding: rmCardPadding,
+          padding: context.insetAll(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -133,20 +134,20 @@ class _EventColumn extends StatelessWidget {
                 children: [
                   Icon(
                     Icons.timeline,
-                    size: 20,
+                    size: context.iconSize(20),
                     color: Theme.of(context).colorScheme.primary,
                   ),
-                  const SizedBox(width: 8),
-                  const Text(
+                  context.sizedBox(w: 8),
+                  Text(
                     '事件时间轴',
                     style:
-                        TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        TextStyle(fontSize: context.fontSize(16), fontWeight: FontWeight.bold),
                   ),
                   const Spacer(),
                   Text(
                     '${gameState.eventList.length}',
                     style:
-                        TextStyle(fontSize: 13, color: rmTextSecondary(context)),
+                        TextStyle(fontSize: context.fontSize(13), color: rmTextSecondary(context)),
                   ),
                 ],
               ),
@@ -176,11 +177,11 @@ class _PlaybackBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: context.insetSym(h: 16, v: 8),
       child: Row(
         children: [
           IconButton(
-            iconSize: 36,
+            iconSize: context.iconSize(36),
             icon: Icon(
               replay.isPlaying
                   ? Icons.pause_circle_filled
@@ -190,12 +191,12 @@ class _PlaybackBar extends StatelessWidget {
             tooltip: replay.isPlaying ? '暂停' : '播放',
             onPressed: controller.togglePlay,
           ),
-          const SizedBox(width: 8),
+          context.sizedBox(w: 8),
           Text(
             _fmt(replay.position),
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: 'monospace',
-              fontSize: 14,
+              fontSize: context.fontSize(14),
             ),
           ),
           Expanded(
@@ -206,12 +207,12 @@ class _PlaybackBar extends StatelessWidget {
           ),
           Text(
             _fmt(replay.total),
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: 'monospace',
-              fontSize: 14,
+              fontSize: context.fontSize(14),
             ),
           ),
-          const SizedBox(width: 16),
+          context.sizedBox(w: 16),
           _SpeedSelector(replay: replay, controller: controller),
         ],
       ),
@@ -237,7 +238,7 @@ class _SpeedSelector extends StatelessWidget {
       children: [
         for (final speed in replaySpeeds)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
+            padding: context.insetSym(h: 2),
             child: ChoiceChip(
               label: Text('${_speedLabel(speed)}×'),
               selected: replay.speed == speed,
@@ -266,19 +267,19 @@ class _ReplayHealthChart extends StatelessWidget {
     final lineColor = Theme.of(context).colorScheme.primary;
 
     return Padding(
-      padding: const EdgeInsets.all(12),
+      padding: context.insetAll(12),
       child: Card(
         child: Padding(
-          padding: rmCardPadding,
+          padding: context.insetAll(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 '己方总血量趋势 · ${ownIsBlue ? '蓝方' : '红方'}',
                 style:
-                    const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                    TextStyle(fontSize: context.fontSize(14), fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 8),
+              context.sizedBox(h: 8),
               Expanded(
                 child: history.isEmpty
                     ? const Center(
@@ -287,7 +288,7 @@ class _ReplayHealthChart extends StatelessWidget {
                           style: TextStyle(color: Colors.grey),
                         ),
                       )
-                    : _buildChart(history, lineColor),
+                    : _buildChart(context, history, lineColor),
               ),
             ],
           ),
@@ -296,7 +297,7 @@ class _ReplayHealthChart extends StatelessWidget {
     );
   }
 
-  Widget _buildChart(List<StatusSnapshot> history, Color lineColor) {
+  Widget _buildChart(BuildContext context, List<StatusSnapshot> history, Color lineColor) {
     final spots = <FlSpot>[];
     final t0 = history.first.timestamp;
     for (final snap in history) {
@@ -313,12 +314,12 @@ class _ReplayHealthChart extends StatelessWidget {
       LineChartData(
         minX: 0,
         maxX: spots.last.x,
-        titlesData: const FlTitlesData(
-          topTitles: AxisTitles(),
-          rightTitles: AxisTitles(),
-          bottomTitles: AxisTitles(),
+        titlesData: FlTitlesData(
+          topTitles: const AxisTitles(),
+          rightTitles: const AxisTitles(),
+          bottomTitles: const AxisTitles(),
           leftTitles: AxisTitles(
-            sideTitles: SideTitles(reservedSize: 44),
+            sideTitles: SideTitles(reservedSize: context.sp(44)),
           ),
         ),
         gridData: const FlGridData(drawVerticalLine: false),

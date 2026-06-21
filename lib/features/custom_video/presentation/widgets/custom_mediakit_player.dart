@@ -125,11 +125,20 @@ class _CustomMediaKitPlayerState extends ConsumerState<CustomMediaKitPlayer> {
     }
   }
 
+  Future<void> _reconnect() async {
+    try {
+      await _player.stop();
+    } on Object {
+      // stop may throw if the player was never fully opened; safe to ignore.
+    }
+    await _configureAndOpen();
+  }
+
   @override
   void didUpdateWidget(covariant CustomMediaKitPlayer oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.url != widget.url) {
-      _configureAndOpen();
+      _reconnect();
     }
   }
 
@@ -169,12 +178,15 @@ class _CustomMediaKitPlayerState extends ConsumerState<CustomMediaKitPlayer> {
               left: 8,
               right: 8,
               bottom: 8,
-              child: _ErrorBanner(message: _error!, onReconnect: _configureAndOpen),
+              child: _ErrorBanner(message: _error!, onReconnect: _reconnect),
             ),
           Positioned(
             top: 8,
             right: 8,
-            child: _Chip(text: 'media_kit · 第 $_attempt 次'),
+            child: _ReconnectChip(
+              attempt: _attempt,
+              onReconnect: _reconnect,
+            ),
           ),
         ],
       ),
@@ -217,10 +229,15 @@ class _ErrorBanner extends StatelessWidget {
   }
 }
 
-class _Chip extends StatelessWidget {
-  const _Chip({required this.text});
+/// Compact reconnect control overlaid on the video.
+class _ReconnectChip extends StatelessWidget {
+  const _ReconnectChip({
+    required this.attempt,
+    required this.onReconnect,
+  });
 
-  final String text;
+  final int attempt;
+  final Future<void> Function() onReconnect;
 
   @override
   Widget build(BuildContext context) {
@@ -231,9 +248,19 @@ class _Chip extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: Text(
-          text,
-          style: const TextStyle(color: Colors.white, fontSize: 11),
+        child: InkWell(
+          onTap: onReconnect,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.refresh, color: Colors.white, size: 14),
+              const SizedBox(width: 4),
+              Text(
+                'media_kit · 重连 (第 $attempt 次)',
+                style: const TextStyle(color: Colors.white, fontSize: 11),
+              ),
+            ],
+          ),
         ),
       ),
     );

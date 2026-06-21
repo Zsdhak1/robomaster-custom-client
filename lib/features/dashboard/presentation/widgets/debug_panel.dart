@@ -4,6 +4,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/responsive/responsive_ext.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../logic/debug_message_log.dart';
 
@@ -19,13 +20,13 @@ class DebugPanel extends ConsumerWidget {
 
     return Material(
       elevation: 8,
-      borderRadius: BorderRadius.circular(rmCardRadius),
+      borderRadius: BorderRadius.circular(context.rmCardRadius),
       child: Container(
-        width: 480,
-        height: 360,
+        width: context.sp(480),
+        height: context.sp(360),
         decoration: BoxDecoration(
           color: Colors.grey.shade900,
-          borderRadius: BorderRadius.circular(rmCardRadius),
+          borderRadius: BorderRadius.circular(context.rmCardRadius),
           border: Border.all(color: Colors.grey.shade700),
         ),
         child: Column(
@@ -40,22 +41,22 @@ class DebugPanel extends ConsumerWidget {
 
   Widget _buildHeader(BuildContext context, WidgetRef ref, int count) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: context.insetSym(h: 12, v: 8),
       decoration: BoxDecoration(
         color: Colors.grey.shade800,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(rmCardRadius),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(context.rmCardRadius),
         ),
       ),
       child: Row(
         children: [
           const Icon(Icons.terminal, color: Colors.green, size: 18),
-          const SizedBox(width: 8),
+          context.sizedBox(w: 8),
           Text(
             'Debug — $count 条记录',
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.white,
-              fontSize: 14,
+              fontSize: context.fontSize(14),
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -116,7 +117,7 @@ class _TopicLog extends StatelessWidget {
     final reversed = entries.reversed.toList();
     return ListView.builder(
       itemCount: reversed.length,
-      padding: const EdgeInsets.all(8),
+      padding: context.insetAll(8),
       itemBuilder: (context, index) {
         final entry = reversed[index];
         return _LogEntryTile(entry: entry);
@@ -135,24 +136,24 @@ class _LogEntryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.all(8),
+      margin: context.insetOnly(b: 6),
+      padding: context.insetAll(8),
       decoration: BoxDecoration(
         color: const Color(0xFF303030),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(context.sp(6)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildMetaRow(),
-          const SizedBox(height: 6),
-          _buildContent(),
+          _buildMetaRow(context),
+          context.sizedBox(h: 6),
+          _buildContent(context),
         ],
       ),
     );
   }
 
-  Widget _buildMetaRow() {
+  Widget _buildMetaRow(BuildContext context) {
     final time =
         '${entry.timestamp.hour.toString().padLeft(2, '0')}:${entry.timestamp.minute.toString().padLeft(2, '0')}:${entry.timestamp.second.toString().padLeft(2, '0')}';
 
@@ -162,25 +163,25 @@ class _LogEntryTile extends StatelessWidget {
           time,
           style: TextStyle(
             color: Colors.grey.shade500,
-            fontSize: 11,
+            fontSize: context.fontSize(11),
             fontFamily: 'monospace',
           ),
         ),
-        const SizedBox(width: 8),
+        context.sizedBox(w: 8),
         Container(
-          width: 8,
-          height: 8,
+          width: context.sp(8),
+          height: context.sp(8),
           decoration: BoxDecoration(
             color: entry.isRecognized ? Colors.green : Colors.orange,
             shape: BoxShape.circle,
           ),
         ),
-        const SizedBox(width: 6),
+        context.sizedBox(w: 6),
         Text(
           entry.isRecognized ? '已解析' : '未识别',
           style: TextStyle(
             color: entry.isRecognized ? Colors.green : Colors.orange,
-            fontSize: 11,
+            fontSize: context.fontSize(11),
           ),
         ),
         const Spacer(),
@@ -188,7 +189,7 @@ class _LogEntryTile extends StatelessWidget {
           '${entry.rawBytes.length} 字节',
           style: TextStyle(
             color: Colors.grey.shade600,
-            fontSize: 10,
+            fontSize: context.fontSize(10),
             fontFamily: 'monospace',
           ),
         ),
@@ -196,43 +197,43 @@ class _LogEntryTile extends StatelessWidget {
     );
   }
 
-  Widget _buildContent() {
+  Widget _buildContent(BuildContext context) {
     if (entry.fields.isEmpty) {
       // Unrecognized or empty message: fall back to hex.
       return Text(
         entry.isRecognized ? '(空消息)' : entry.hexSummary,
         style: TextStyle(
           color: Colors.grey.shade400,
-          fontSize: 12,
+          fontSize: context.fontSize(12),
           fontFamily: 'monospace',
         ),
       );
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: entry.fields.map(_buildFieldRow).toList(),
+      children: entry.fields.map((f) => _buildFieldRow(context, f)).toList(),
     );
   }
 
-  Widget _buildFieldRow(DebugField field) {
+  Widget _buildFieldRow(BuildContext context, DebugField field) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: context.insetSym(v: 2),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 140,
+            width: context.sp(140),
             child: Text(
               field.name,
-              style: const TextStyle(
+              style: TextStyle(
                 color: rmPrimaryBlue,
-                fontSize: 12,
+                fontSize: context.fontSize(12),
                 fontFamily: 'monospace',
                 fontWeight: FontWeight.w500,
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          context.sizedBox(w: 8),
           Expanded(
             child: Text(
               field.value,

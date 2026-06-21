@@ -13,7 +13,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fvp/mdk.dart' as mdk;
 
-import '../../../../core/theme/app_theme.dart';
+import '../../../../core/responsive/responsive_ext.dart';
+import '../../../../core/widgets/video_side_panel.dart';
 import '../../../../features/settings/logic/settings_providers.dart';
 import '../../logic/custom_video_providers.dart';
 import 'crosshair_painter.dart';
@@ -48,7 +49,7 @@ class CustomVideoPanel extends ConsumerWidget {
     final canPlay = isRunning && gateOpen && url != null;
 
     return Padding(
-      padding: const EdgeInsets.all(12),
+      padding: context.insetAll(12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -58,13 +59,17 @@ class CustomVideoPanel extends ConsumerWidget {
                 ? _buildPlayer(backend, url, developerMode, tsWrap)
                 : _PreviewPlaceholder(waitingForKeyframe: isRunning),
           ),
-          const SizedBox(width: 12),
-          // Developer mode swaps the compact stats card for the full debug
-          // panel (per-stage health, throughput rates, decoder info + logs).
+          context.sizedBox(w: 12),
+          // The right panel mirrors the UDP line: basic connection info always
+          // shown, the full pipeline debug only in developer mode, and 敌方血量
+          // bars filling the remaining space.
           Expanded(
-            child: developerMode
-                ? const CustomVideoDebugPanel()
-                : const _StatsCard(),
+            child: VideoSidePanel(
+              title: '自定义图传状态',
+              developerMode: developerMode,
+              basicInfo: const _CustomBasicInfo(),
+              debugSection: const CustomVideoDebugContent(),
+            ),
           ),
         ],
       ),
@@ -293,7 +298,7 @@ class _FvpPlayerState extends ConsumerState<_FvpPlayer> {
   @override
   Widget build(BuildContext context) {
     if (_error != null) {
-      return _buildError();
+      return _buildError(context);
     }
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -317,22 +322,22 @@ class _FvpPlayerState extends ConsumerState<_FvpPlayer> {
                 : const _Initializing(),
           ),
           Positioned(
-            top: 8,
-            right: 8,
+            top: context.sp(8),
+            right: context.sp(8),
             child: _ReconnectChip(attempt: _attempt, onReconnect: _reconnect),
           ),
           if (widget.developerMode)
-            const Positioned(
-              left: 8,
-              bottom: 8,
-              child: CustomVideoOverlay(),
+            Positioned(
+              left: context.sp(8),
+              bottom: context.sp(8),
+              child: const CustomVideoOverlay(),
             ),
         ],
       ),
     );
   }
 
-  Widget _buildError() {
+  Widget _buildError(BuildContext context) {
     return Card(
       clipBehavior: Clip.antiAlias,
       child: ColoredBox(
@@ -401,20 +406,20 @@ class _ReconnectChip extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.55),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(context.sp(6)),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: context.insetSym(h: 8, v: 4),
         child: InkWell(
           onTap: onReconnect,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.refresh, color: Colors.white, size: 14),
-              const SizedBox(width: 4),
+              Icon(Icons.refresh, color: Colors.white, size: context.iconSize(14)),
+              context.sizedBox(w: 4),
               Text(
                 '重连 (第 $attempt 次)',
-                style: const TextStyle(color: Colors.white, fontSize: 11),
+                style: TextStyle(color: Colors.white, fontSize: context.fontSize(11)),
               ),
             ],
           ),
@@ -471,28 +476,28 @@ class _PreviewPlaceholder extends StatelessWidget {
         ),
       );
     }
-    return const Card(
+    return Card(
       clipBehavior: Clip.antiAlias,
       child: ColoredBox(
-        color: Color(0xFF101418),
+        color: const Color(0xFF101418),
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.videocam_off, size: 64, color: Colors.white38),
-              SizedBox(height: 16),
+              Icon(Icons.videocam_off, size: context.iconSize(64), color: Colors.white38),
+              context.sizedBox(h: 16),
               Text(
                 '未接收自定义图传',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 18,
+                  fontSize: context.fontSize(18),
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              SizedBox(height: 8),
+              context.sizedBox(h: 8),
               Text(
                 '点击右上角播放按钮开始接收 CustomByteBlock',
-                style: TextStyle(color: Colors.white54, fontSize: 13),
+                style: TextStyle(color: Colors.white54, fontSize: context.fontSize(13)),
               ),
             ],
           ),
@@ -503,65 +508,39 @@ class _PreviewPlaceholder extends StatelessWidget {
 }
 
 // ============================================================
-// Stats card
+// Basic info (always-visible side-panel content)
 // ============================================================
 
-class _StatsCard extends ConsumerWidget {
-  const _StatsCard();
+class _CustomBasicInfo extends ConsumerWidget {
+  const _CustomBasicInfo();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isRunning = ref.watch(customVideoControllerProvider);
     final stats = ref.watch(customVideoStatsProvider).valueOrNull;
 
-    return Card(
-      child: Padding(
-        padding: rmCardPadding,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '自定义图传状态',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            _StatusRow(isRunning: isRunning),
-            const Divider(height: 24),
-            Expanded(child: _buildInfo(context, isRunning, stats)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInfo(
-    BuildContext context,
-    bool isRunning,
-    CustomVideoStats? stats,
-  ) {
-    if (!isRunning) {
-      return Center(
-        child: Text(
-          '未开始接收',
-          style: TextStyle(color: Colors.grey.shade600),
-        ),
-      );
-    }
-    return ListView(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _InfoRow(label: 'TCP 桥地址', value: stats?.streamUrl ?? '—'),
-        _InfoRow(label: '收到 chunk', value: '${stats?.chunksReceived ?? 0}'),
-        _InfoRow(label: '收到字节', value: _formatBytes(stats?.bytesReceived ?? 0)),
-        _InfoRow(
-          label: '关键帧门控',
-          value: (stats?.gateOpen ?? false) ? '已打开' : '等待中',
-        ),
-        _InfoRow(label: '解码器连接数', value: '${stats?.decoderClients ?? 0}'),
-        _InfoRow(label: '已转发帧数', value: '${stats?.framesForwarded ?? 0}'),
-        _InfoRow(
-          label: '已转发字节',
-          value: _formatBytes(stats?.bytesForwarded ?? 0),
-        ),
+        _StatusRow(isRunning: isRunning),
+        context.sizedBox(h: 8),
+        if (!isRunning)
+          const _InfoRow(label: '状态', value: '未开始接收')
+        else ...[
+          _InfoRow(label: 'TCP 桥地址', value: stats?.streamUrl ?? '—'),
+          _InfoRow(label: '收到 chunk', value: '${stats?.chunksReceived ?? 0}'),
+          _InfoRow(label: '收到字节', value: _formatBytes(stats?.bytesReceived ?? 0)),
+          _InfoRow(
+            label: '关键帧门控',
+            value: (stats?.gateOpen ?? false) ? '已打开' : '等待中',
+          ),
+          _InfoRow(label: '解码器连接数', value: '${stats?.decoderClients ?? 0}'),
+          _InfoRow(label: '已转发帧数', value: '${stats?.framesForwarded ?? 0}'),
+          _InfoRow(
+            label: '已转发字节',
+            value: _formatBytes(stats?.bytesForwarded ?? 0),
+          ),
+        ],
       ],
     );
   }
@@ -585,11 +564,11 @@ class _StatusRow extends StatelessWidget {
     return Row(
       children: [
         Container(
-          width: rmStatusDotSize,
-          height: rmStatusDotSize,
+          width: context.rmStatusDotSize,
+          height: context.rmStatusDotSize,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
-        const SizedBox(width: 8),
+        context.sizedBox(w: 8),
         Text(
           isRunning ? '正在接收 (MQTT CustomByteBlock)' : '已停止',
           style: const TextStyle(fontWeight: FontWeight.w500),
@@ -608,7 +587,7 @@ class _InfoRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: context.insetSym(v: 6),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [

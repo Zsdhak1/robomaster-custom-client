@@ -4,6 +4,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/responsive/responsive_ext.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../logic/event_decoder.dart';
 import '../../logic/game_state.dart';
@@ -19,10 +20,10 @@ class EventTimelinePanel extends ConsumerWidget {
     final gameState = ref.watch(gameStateProvider);
 
     return Padding(
-      padding: const EdgeInsets.all(12),
+      padding: context.insetAll(12),
       child: Card(
         child: Padding(
-          padding: rmCardPadding,
+          padding: context.insetAll(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -47,20 +48,20 @@ class EventTimelinePanel extends ConsumerWidget {
         Icon(
           Icons.timeline,
           color: Theme.of(context).colorScheme.primary,
-          size: 20,
+          size: context.iconSize(20),
         ),
-        const SizedBox(width: 8),
-        const Text(
+        context.sizedBox(w: 8),
+        Text(
           '事件时间轴',
           style: TextStyle(
-            fontSize: 16,
+            fontSize: context.fontSize(16),
             fontWeight: FontWeight.bold,
           ),
         ),
         const Spacer(),
         Text(
           '$count',
-          style: TextStyle(fontSize: 13, color: rmTextSecondary(context)),
+          style: TextStyle(fontSize: context.fontSize(13), color: rmTextSecondary(context)),
         ),
       ],
     );
@@ -122,12 +123,12 @@ class _EventTile extends StatelessWidget {
     final timeLabel = _relativeTime();
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
+      padding: context.insetSym(v: 5),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(decoded.icon, size: 18, color: decoded.color),
-          const SizedBox(width: 8),
+          Icon(decoded.icon, size: context.iconSize(18), color: decoded.color),
+          context.sizedBox(w: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -137,27 +138,27 @@ class _EventTile extends StatelessWidget {
                     Text(
                       decoded.title,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: context.fontSize(13),
                         fontWeight: FontWeight.w600,
                         color: decoded.color,
                       ),
                     ),
-                    const SizedBox(width: 6),
+                    context.sizedBox(w: 6),
                     Text(
                       timeLabel,
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: context.fontSize(11),
                         color: rmTextSecondary(context),
                         fontFamily: 'monospace',
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 2),
+                context.sizedBox(h: 2),
                 Text(
                   decoded.detail,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: context.fontSize(12),
                     color: rmTextPrimary(context).withValues(alpha: 0.85),
                   ),
                 ),

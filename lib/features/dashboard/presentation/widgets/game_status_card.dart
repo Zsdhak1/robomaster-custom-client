@@ -4,6 +4,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/responsive/responsive_ext.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../generated/robomaster_custom_client.pb.dart';
 import '../../logic/game_state.dart';
@@ -28,20 +29,20 @@ class GameStatusCard extends ConsumerWidget {
     final status = effectiveState.gameStatus;
 
     return Padding(
-      padding: const EdgeInsets.all(12),
+      padding: context.insetAll(12),
       child: Card(
         child: Padding(
-          padding: rmCardPadding,
+          padding: context.insetAll(12),
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                _buildHeader(status),
-                const SizedBox(height: 2),
+                _buildHeader(context, status),
+                context.sizedBox(h: 2),
                 Text(
                   '比赛阶段',
-                  style: TextStyle(fontSize: 13, color: rmTextSecondary(context)),
+                  style: TextStyle(fontSize: context.fontSize(13), color: rmTextSecondary(context)),
                 ),
                 _buildDetails(context, status),
               ],
@@ -52,12 +53,12 @@ class GameStatusCard extends ConsumerWidget {
     );
   }
 
-  Widget _buildHeader(GameStatus? status) {
+  Widget _buildHeader(BuildContext context, GameStatus? status) {
     final phaseText = _phaseLabel(status?.currentStage ?? 0);
     return Text(
       phaseText,
-      style: const TextStyle(
-        fontSize: 24,
+      style: TextStyle(
+        fontSize: context.fontSize(24),
         fontWeight: FontWeight.bold,
       ),
     );
@@ -71,17 +72,17 @@ class GameStatusCard extends ConsumerWidget {
     final roundText =
         '第 ${status.currentRound} / ${status.totalRounds} 回合';
     children
-      ..add(const SizedBox(height: 6))
-      ..add(Text(roundText, style: const TextStyle(fontSize: 13)));
+      ..add(context.sizedBox(h: 6))
+      ..add(Text(roundText, style: TextStyle(fontSize: context.fontSize(13))));
 
     final scoreText = '红 ${status.redScore} : ${status.blueScore} 蓝';
     children
-      ..add(const SizedBox(height: 4))
+      ..add(context.sizedBox(h: 4))
       ..add(
         Text(
           scoreText,
           style: TextStyle(
-            fontSize: 15,
+            fontSize: context.fontSize(15),
             fontWeight: FontWeight.w500,
             color: Theme.of(context).colorScheme.primary,
           ),
@@ -91,8 +92,8 @@ class GameStatusCard extends ConsumerWidget {
     if (status.hasStageCountdownSec()) {
       final countdownText = '剩余 ${status.stageCountdownSec} 秒';
       children
-        ..add(const SizedBox(height: 4))
-        ..add(Text(countdownText, style: const TextStyle(fontSize: 13)));
+        ..add(context.sizedBox(h: 4))
+        ..add(Text(countdownText, style: TextStyle(fontSize: context.fontSize(13))));
     }
 
     return Column(

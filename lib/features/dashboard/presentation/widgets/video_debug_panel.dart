@@ -11,28 +11,31 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/theme/app_theme.dart';
+import '../../../../core/responsive/responsive_ext.dart';
 import '../../../../core/video/video_frame.dart';
 import '../../../../services/video_stream_service.dart';
 import '../../logic/stream_providers.dart';
 
-/// Auto-refreshing debug overlay for the video stream.
-class VideoDebugPanel extends StatefulWidget {
-  /// Creates a [VideoDebugPanel].
-  const VideoDebugPanel({super.key});
+/// Embeddable debug content (no floating chrome) for the side panel.
+///
+/// Renders per-stage video-pipeline stats as a plain column that can be
+/// dropped into the shared `VideoSidePanel`. Refreshes every 500 ms so the
+/// counters feel live.
+class VideoDebugContent extends StatefulWidget {
+  /// Creates a [VideoDebugContent].
+  const VideoDebugContent({super.key});
 
   @override
-  State<VideoDebugPanel> createState() => _VideoDebugPanelState();
+  State<VideoDebugContent> createState() => _VideoDebugContentState();
 }
 
-class _VideoDebugPanelState extends State<VideoDebugPanel> {
+class _VideoDebugContentState extends State<VideoDebugContent> {
   late final Timer _timer;
   int _tick = 0;
 
   @override
   void initState() {
     super.initState();
-    // Refresh every 500 ms so stats feel live.
     _timer = Timer.periodic(const Duration(milliseconds: 500), (_) {
       setState(() => _tick++);
     });
@@ -46,87 +49,30 @@ class _VideoDebugPanelState extends State<VideoDebugPanel> {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      elevation: 8,
-      borderRadius: BorderRadius.circular(rmCardRadius),
-      child: Container(
-        width: 520,
-        height: 420,
-        decoration: BoxDecoration(
-          color: Colors.grey.shade900,
-          borderRadius: BorderRadius.circular(rmCardRadius),
-          border: Border.all(color: Colors.grey.shade700),
-        ),
-        child: Consumer(
-          builder: (context, ref, _) {
-            final service = ref.watch(videoStreamServiceProvider);
-            final frameAsync = ref.watch(videoFrameProvider);
-            final latestFrame = frameAsync.valueOrNull;
-            return Column(
-              children: [
-                _buildHeader(service),
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const _SectionTitle(title: 'UDP 接收', color: Colors.cyan),
-                        _UdpStats(service: service),
-                        const SizedBox(height: 12),
-                        const _SectionTitle(
-                          title: '原始包诊断',
-                          color: Colors.redAccent,
-                        ),
-                        _RawPacketDiag(service: service),
-                        const SizedBox(height: 12),
-                        const _SectionTitle(title: '帧重组', color: Colors.orange),
-                        _FrameStats(service: service),
-                        const SizedBox(height: 12),
-                        const _SectionTitle(title: 'TCP 桥', color: Colors.green),
-                        _TcpStats(service: service),
-                        const SizedBox(height: 12),
-                        const _SectionTitle(title: '最新帧', color: Colors.purple),
-                        _LatestFrame(frame: latestFrame),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader(VideoStreamService service) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade800,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(rmCardRadius),
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.videocam,
-            color: service.isListening ? Colors.green : Colors.red,
-            size: 18,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '视频流 Debug — ${service.isListening ? "运行中" : "已停止"}',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
+    return Consumer(
+      builder: (context, ref, _) {
+        final service = ref.watch(videoStreamServiceProvider);
+        final latestFrame = ref.watch(videoFrameProvider).valueOrNull;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _SectionTitle(title: 'UDP 接收', color: Colors.cyan),
+            _UdpStats(service: service),
+            context.sizedBox(h: 12),
+            const _SectionTitle(title: '原始包诊断', color: Colors.redAccent),
+            _RawPacketDiag(service: service),
+            context.sizedBox(h: 12),
+            const _SectionTitle(title: '帧重组', color: Colors.orange),
+            _FrameStats(service: service),
+            context.sizedBox(h: 12),
+            const _SectionTitle(title: 'TCP 桥', color: Colors.green),
+            _TcpStats(service: service),
+            context.sizedBox(h: 12),
+            const _SectionTitle(title: '最新帧', color: Colors.purple),
+            _LatestFrame(frame: latestFrame),
+          ],
+        );
+      },
     );
   }
 }

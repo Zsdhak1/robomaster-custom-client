@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/navigation/page_fab_menu.dart';
+import '../../../core/responsive/responsive_ext.dart';
 import '../../../core/state/session_providers.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../services/mqtt_service.dart';
 import '../../connection/domain/robot_identity.dart';
 import '../../connection/presentation/connection_screen.dart';
@@ -43,13 +43,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             children: [
               _TopStatusBar(gameState: gameState),
               const Expanded(child: _MainContent()),
-              const SizedBox(height: 200, child: _BottomBar()),
+              SizedBox(height: context.sp(200), child: const _BottomBar()),
             ],
           ),
           if (devMode && _isDebugOpen)
             Positioned(
-              right: 16,
-              bottom: 80,
+              right: context.sp(16),
+              bottom: context.sp(80),
               child: DebugPanel(key: ValueKey<bool>(_isDebugOpen)),
             ),
         ],
@@ -126,10 +126,10 @@ class _BottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
+    return Row(
       children: [
-        SizedBox(width: 200, child: GameStatusCard()),
-        Expanded(child: HealthChart()),
+        SizedBox(width: context.sp(200), child: const GameStatusCard()),
+        const Expanded(child: HealthChart()),
       ],
     );
   }
@@ -150,9 +150,9 @@ class _TopStatusBar extends ConsumerWidget {
     final primary = Theme.of(context).colorScheme.primary;
 
     return Container(
-      height: rmTopBarHeight,
+      height: context.rmTopBarHeight,
       color: primary,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: context.insetSym(h: 16),
       child: Row(
         children: [
           Expanded(
@@ -160,15 +160,15 @@ class _TopStatusBar extends ConsumerWidget {
               isConnected
                   ? '已作为 ${robotDisplayName(selectedId)} 登录（ID：$selectedId）'
                   : '未连接（离线模式）',
-              style: const TextStyle(
+              style: TextStyle(
                 color: Colors.white,
-                fontSize: 16,
+                fontSize: context.fontSize(16),
                 fontWeight: FontWeight.w500,
               ),
             ),
           ),
           _SideBadge(ownIsBlue: ownIsBlue),
-          const SizedBox(width: 12),
+          context.sizedBox(w: 12),
           _StatusDot(isConnected: isConnected),
         ],
       ),
@@ -185,16 +185,16 @@ class _SideBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: context.insetSym(h: 10, v: 4),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(context.sp(12)),
       ),
       child: Text(
         ownIsBlue ? '己方 · 蓝方' : '己方 · 红方',
         style: TextStyle(
           color: Theme.of(context).colorScheme.primary,
-          fontSize: 13,
+          fontSize: context.fontSize(13),
           fontWeight: FontWeight.bold,
         ),
       ),
@@ -211,8 +211,8 @@ class _StatusDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 8,
-      height: 8,
+      width: context.sp(8),
+      height: context.sp(8),
       decoration: BoxDecoration(
         color: isConnected ? Colors.greenAccent : Colors.redAccent,
         shape: BoxShape.circle,

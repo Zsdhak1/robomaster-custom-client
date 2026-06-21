@@ -11,75 +11,47 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/theme/app_theme.dart';
+import '../../../../core/responsive/responsive_ext.dart';
 import '../../logic/custom_video_providers.dart';
 
 /// Full diagnostics panel shown beside the custom-video player.
-class CustomVideoDebugPanel extends ConsumerWidget {
-  /// Creates a [CustomVideoDebugPanel].
-  const CustomVideoDebugPanel({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final isRunning = ref.watch(customVideoControllerProvider);
-    final stats = ref.watch(customVideoStatsProvider).valueOrNull;
-    final decoder = ref.watch(customVideoDecoderInfoProvider);
-
-    return Card(
-      child: Padding(
-        padding: rmCardPadding,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    '自定义图传调试',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                _RunningChip(running: isRunning),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: !isRunning
-                  ? Center(
-                      child: Text(
-                        '未开始接收\n点击右下角播放按钮开始',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey.shade600),
-                      ),
-                    )
-                  : ListView(
-                      children: [
-                        _PipelineHealth(stats: stats, decoder: decoder),
-                        const SizedBox(height: 8),
-                        _IngestSection(stats: stats),
-                        const SizedBox(height: 8),
-                        _LossSection(stats: stats),
-                        const SizedBox(height: 8),
-                        _KeyframeSection(stats: stats),
-                        const SizedBox(height: 8),
-                        _BridgeSection(stats: stats),
-                        const SizedBox(height: 8),
-                        _DecoderSection(decoder: decoder),
-                        const SizedBox(height: 8),
-                        _DecoderLogSection(logs: decoder.logs),
-                      ],
-                    ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 // ============================================================
 // Pipeline health — one-line verdict per stage
 // ============================================================
+
+/// Embeddable debug content (no Card chrome) for the shared side panel.
+///
+/// Renders the same pipeline sections as [CustomVideoDebugPanel] but as a plain
+/// column so it can be dropped into `VideoSidePanel`'s developer section.
+class CustomVideoDebugContent extends ConsumerWidget {
+  /// Creates a [CustomVideoDebugContent].
+  const CustomVideoDebugContent({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final stats = ref.watch(customVideoStatsProvider).valueOrNull;
+    final decoder = ref.watch(customVideoDecoderInfoProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _PipelineHealth(stats: stats, decoder: decoder),
+        context.sizedBox(h: 8),
+        _IngestSection(stats: stats),
+        context.sizedBox(h: 8),
+        _LossSection(stats: stats),
+        context.sizedBox(h: 8),
+        _KeyframeSection(stats: stats),
+        context.sizedBox(h: 8),
+        _BridgeSection(stats: stats),
+        context.sizedBox(h: 8),
+        _DecoderSection(decoder: decoder),
+        context.sizedBox(h: 8),
+        _DecoderLogSection(logs: decoder.logs),
+      ],
+    );
+  }
+}
 
 /// A traffic-light summary of each pipeline stage.
 class _PipelineHealth extends StatelessWidget {
@@ -148,25 +120,25 @@ class _HealthRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: context.insetSym(v: 3),
       child: Row(
         children: [
           Icon(
             ok ? Icons.check_circle : Icons.radio_button_unchecked,
-            size: 14,
+            size: context.iconSize(14),
             color: ok ? Colors.green : Colors.orange,
           ),
-          const SizedBox(width: 6),
+          context.sizedBox(w: 6),
           SizedBox(
-            width: 92,
-            child: Text(label, style: const TextStyle(fontSize: 12)),
+            width: context.sp(92),
+            child: Text(label, style: TextStyle(fontSize: context.fontSize(12))),
           ),
           Expanded(
             child: Text(
               detail,
               textAlign: TextAlign.right,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: context.fontSize(12),
                 color: Colors.grey.shade600,
               ),
             ),
@@ -485,49 +457,23 @@ class _Section extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: context.insetAll(10),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surfaceContainerHighest
             .withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(context.sp(8)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+            style: TextStyle(fontSize: context.fontSize(13), fontWeight: FontWeight.w700),
           ),
-          const SizedBox(height: 6),
+          context.sizedBox(h: 6),
           ...children,
         ],
       ),
-    );
-  }
-}
-
-class _RunningChip extends StatelessWidget {
-  const _RunningChip({required this.running});
-
-  final bool running;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = running ? Colors.green : Colors.grey;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: rmStatusDotSize,
-          height: rmStatusDotSize,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          running ? '接收中' : '已停止',
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-        ),
-      ],
     );
   }
 }
@@ -541,20 +487,20 @@ class _InfoRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: context.insetSym(v: 3),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
             label,
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: context.fontSize(12), color: Colors.grey.shade600),
           ),
-          const SizedBox(width: 8),
+          context.sizedBox(w: 8),
           Expanded(
             child: Text(
               value,
               textAlign: TextAlign.right,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              style: TextStyle(fontSize: context.fontSize(12), fontWeight: FontWeight.w600),
             ),
           ),
         ],

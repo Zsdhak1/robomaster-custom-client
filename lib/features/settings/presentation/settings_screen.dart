@@ -7,6 +7,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/responsive/responsive_ext.dart';
 import '../../../core/constants/topic_registry.dart';
 import '../../../core/state/session_providers.dart';
 import '../../../core/theme/app_theme.dart';
@@ -31,13 +32,13 @@ class SettingsScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('设置')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: context.insetAll(16),
         children: [
           _buildSectionTitle('当前阵营'),
           _SideBanner(ownIsBlue: ownIsBlue),
-          const SizedBox(height: 24),
+          context.sizedBox(h: 24),
           ..._buildAppearanceSection(ref),
-          const SizedBox(height: 24),
+          context.sizedBox(h: 24),
           _buildSectionTitle('机器人列表显示模式'),
           for (final option in DashboardDisplayMode.values)
             _ModeTile(
@@ -47,15 +48,15 @@ class SettingsScreen extends ConsumerWidget {
                   .read(dashboardDisplayModeProvider.notifier)
                   .state = option,
             ),
-          const SizedBox(height: 24),
+          context.sizedBox(h: 24),
           ..._buildVideoDecoderSection(ref),
-          const SizedBox(height: 24),
+          context.sizedBox(h: 24),
           ..._buildCustomVideoDecoderSection(ref),
-          const SizedBox(height: 24),
+          context.sizedBox(h: 24),
           ..._buildExportSection(ref),
-          const SizedBox(height: 24),
+          context.sizedBox(h: 24),
           ..._buildDeveloperSection(ref),
-          const SizedBox(height: 24),
+          context.sizedBox(h: 24),
           ..._buildAboutSection(context, ref),
         ],
       ),

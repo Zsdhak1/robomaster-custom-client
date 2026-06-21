@@ -119,8 +119,9 @@ void main() {
     });
   });
 
-  group('CustomVideoDebugPanel', () {
-    testWidgets('shows the idle prompt when not running', (tester) async {
+  group('CustomVideoDebugContent', () {
+    testWidgets('renders pipeline sections even when not running',
+        (tester) async {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
@@ -129,14 +130,18 @@ void main() {
             ),
           ],
           child: const MaterialApp(
-            home: Scaffold(body: CustomVideoDebugPanel()),
+            home: Scaffold(
+              body: SingleChildScrollView(child: CustomVideoDebugContent()),
+            ),
           ),
         ),
       );
       await tester.pump();
 
-      expect(find.text('自定义图传调试'), findsOneWidget);
-      expect(find.textContaining('未开始接收'), findsOneWidget);
+      // The embeddable content always renders its sections; the running/idle
+      // gating now lives in the shared VideoSidePanel wrapper.
+      expect(find.text('流水线状态'), findsOneWidget);
+      expect(find.text('MQTT 接收 (CustomByteBlock)'), findsOneWidget);
     });
 
     testWidgets('renders all diagnostic sections when running', (tester) async {
@@ -150,21 +155,14 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            // Drive both the running controller state and the stats stream so
-            // the panel enters its full-diagnostics layout.
-            customVideoControllerProvider.overrideWith(
-              (ref) => _RunningController(
-                ref.read(customByteBlockSourceProvider),
-                ref.read(customVideoStreamServiceProvider),
-                ref,
-              ),
-            ),
             customVideoStatsProvider.overrideWith(
               (ref) => Stream<CustomVideoStats>.value(_runningStats()),
             ),
           ],
           child: const MaterialApp(
-            home: Scaffold(body: CustomVideoDebugPanel()),
+            home: Scaffold(
+              body: SingleChildScrollView(child: CustomVideoDebugContent()),
+            ),
           ),
         ),
       );
@@ -182,15 +180,4 @@ void main() {
       expect(find.text('MPEG-TS'), findsOneWidget);
     });
   });
-}
-
-/// A controller stub stuck in the running (true) state for widget tests.
-///
-/// It reuses the real dependencies (whose constructors have no side effects
-/// until `start`), and just forces `state = true` so the panel renders its
-/// full-diagnostics layout without any MQTT/TCP activity.
-class _RunningController extends CustomVideoController {
-  _RunningController(super.source, super.service, super.ref) {
-    state = true;
-  }
 }

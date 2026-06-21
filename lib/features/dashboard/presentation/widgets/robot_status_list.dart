@@ -9,6 +9,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/responsive/responsive_ext.dart';
 import '../../../../core/state/session_providers.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../connection/domain/robot_identity.dart';
@@ -126,16 +127,16 @@ class RobotStatusList extends ConsumerWidget {
     final sections = _resolveSections(ownIsBlue: ownIsBlue, mode: mode);
 
     return Padding(
-      padding: const EdgeInsets.all(12),
+      padding: context.insetAll(12),
       child: Card(
         child: Padding(
-          padding: rmCardPadding,
+          padding: context.insetAll(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildHeader(context, effectiveState),
-              const SizedBox(height: 8),
-              Expanded(child: _buildSectionList(sections, effectiveState)),
+              context.sizedBox(h: 8),
+              Expanded(child: _buildSectionList(context, sections, effectiveState)),
             ],
           ),
         ),
@@ -164,12 +165,12 @@ class RobotStatusList extends ConsumerWidget {
     return [own, enemy];
   }
 
-  Widget _buildSectionList(List<_TeamSection> sections, GameState gameState) {
+  Widget _buildSectionList(BuildContext context, List<_TeamSection> sections, GameState gameState) {
     // 双方都显示时（两栏）横向并列；单栏时（敌方详情）保持纵向铺满。
     if (sections.length > 1) {
       final columns = <Widget>[];
       for (var i = 0; i < sections.length; i++) {
-        if (i > 0) columns.add(const SizedBox(width: 16));
+        if (i > 0) columns.add(context.sizedBox(w: 16));
         columns.add(
           Expanded(child: _buildSectionColumn(sections[i], gameState)),
         );
@@ -199,21 +200,21 @@ class RobotStatusList extends ConsumerWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        const Text(
+        Text(
           '机器人状态',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          style: TextStyle(fontSize: context.fontSize(18), fontWeight: FontWeight.bold),
         ),
         const Spacer(),
-        Icon(Icons.adjust, size: 16, color: muted),
-        const SizedBox(width: 4),
+        Icon(Icons.adjust, size: context.iconSize(16), color: muted),
+        context.sizedBox(w: 4),
         Text(
           '己方累计载弹量: ',
-          style: TextStyle(fontSize: 13, color: muted),
+          style: TextStyle(fontSize: context.fontSize(13), color: muted),
         ),
         Text(
           totalBullets?.toString() ?? '—',
-          style: const TextStyle(
-            fontSize: 16,
+          style: TextStyle(
+            fontSize: context.fontSize(16),
             fontWeight: FontWeight.bold,
             color: rmHealthBarColor,
           ),
@@ -233,15 +234,15 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: 6, bottom: 2),
+      padding: EdgeInsets.only(top: context.sp(6), bottom: context.sp(2)),
       child: Row(
         children: [
-          Container(width: 4, height: 16, color: color),
-          const SizedBox(width: 6),
+          Container(width: context.sp(4), height: context.sp(16), color: color),
+          context.sizedBox(w: 6),
           Text(
             title,
             style: TextStyle(
-              fontSize: 14,
+              fontSize: context.fontSize(14),
               fontWeight: FontWeight.bold,
               color: color,
             ),
@@ -267,47 +268,47 @@ class _RobotStatusRow extends StatelessWidget {
         (gameState.globalUnitStatus?.robotHealth.length ?? 0) > def.dataIndex;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: context.insetSym(v: 6),
       child: Row(
         children: [
-          _buildIcon(),
-          const SizedBox(width: 10),
-          _buildLabel(),
-          const SizedBox(width: 10),
+          _buildIcon(context),
+          context.sizedBox(w: 10),
+          _buildLabel(context),
+          context.sizedBox(w: 10),
           _buildProgressSection(context, health, healthPercent, hasData),
-          const SizedBox(width: 10),
-          _buildValueDisplay(health, hasData),
+          context.sizedBox(w: 10),
+          _buildValueDisplay(context, health, hasData),
         ],
       ),
     );
   }
 
-  Widget _buildIcon() {
+  Widget _buildIcon(BuildContext context) {
     return ClipOval(
       child: Image.asset(
         def.iconAsset,
-        width: rmRobotIconSize,
-        height: rmRobotIconSize,
+        width: context.rmRobotIconSize,
+        height: context.rmRobotIconSize,
         fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => const Icon(
+        errorBuilder: (_, _, _) => Icon(
           Icons.smart_toy,
-          size: rmRobotIconSize,
+          size: context.rmRobotIconSize,
         ),
       ),
     );
   }
 
-  Widget _buildLabel() {
+  Widget _buildLabel(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: context.insetSym(h: 10, v: 4),
       decoration: BoxDecoration(
         color: def.sideColor.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(context.sp(16)),
       ),
       child: Text(
         def.name,
         style: TextStyle(
-          fontSize: 13,
+          fontSize: context.fontSize(13),
           fontWeight: FontWeight.w500,
           color: def.sideColor,
         ),
@@ -331,14 +332,14 @@ class _RobotStatusRow extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(fontSize: 12, color: rmTextSecondary(context)),
+            style: TextStyle(fontSize: context.fontSize(12), color: rmTextSecondary(context)),
           ),
-          const SizedBox(height: 4),
+          context.sizedBox(h: 4),
           ClipRRect(
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(context.sp(6)),
             child: LinearProgressIndicator(
               value: progressValue,
-              minHeight: 12,
+              minHeight: context.sp(12),
               backgroundColor: rmTrackFill(context),
               valueColor: AlwaysStoppedAnimation<Color>(barColor),
             ),
@@ -364,7 +365,7 @@ class _RobotStatusRow extends StatelessWidget {
     return ('反制进度: $progress%', progress / 100.0, rmCounterBarColor);
   }
 
-  Widget _buildValueDisplay(int health, bool hasData) {
+  Widget _buildValueDisplay(BuildContext context, int health, bool hasData) {
     final String text;
     if (def.isDrone) {
       final sync = gameState.airSupportStatusSync;
@@ -375,12 +376,12 @@ class _RobotStatusRow extends StatelessWidget {
       text = !hasData ? '—' : '$health';
     }
     return SizedBox(
-      width: 56,
+      width: context.sp(56),
       child: Text(
         text,
         textAlign: TextAlign.right,
         style: TextStyle(
-          fontSize: 22,
+          fontSize: context.fontSize(22),
           fontWeight: FontWeight.bold,
           color: def.sideColor,
         ),

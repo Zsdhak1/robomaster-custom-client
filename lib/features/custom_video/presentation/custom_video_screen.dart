@@ -7,7 +7,9 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/navigation/page_fab_menu.dart';
+import '../../../core/responsive/responsive_ext.dart';
+import '../../../core/widgets/mqtt_login_badge.dart';
+import '../../../core/widgets/stream_connection_fab.dart';
 import '../logic/custom_video_providers.dart';
 import 'widgets/custom_video_panel.dart';
 
@@ -113,21 +115,29 @@ class _CustomVideoScreenState extends ConsumerState<CustomVideoScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('自定义图传 · CustomByteBlock')),
-      body: const CustomVideoPanel(),
-      floatingActionButton: PageFabMenu(
-        actions: [
-          FabAction(
-            icon: isRunning ? Icons.stop : Icons.play_arrow,
-            label: isRunning ? '停止接收' : '开始接收',
-            onSelected: _toggleStream,
-          ),
-          FabAction(
-            icon: Icons.save_alt,
-            label: isRunning ? (_isDumping ? '正在录制 20s…' : '保存前 20 秒') : '保存前 20 秒',
-            enabled: isRunning && !_isDumping,
-            onSelected: _dumpAndSave,
+      body: Stack(
+        children: [
+          const Positioned.fill(child: CustomVideoPanel()),
+          Positioned(
+            top: context.sp(12),
+            right: context.sp(12),
+            child: const MqttLoginBadge(),
           ),
         ],
+      ),
+      floatingActionButton: StreamConnectionFab(
+        isRunning: isRunning,
+        onToggle: _toggleStream,
+        secondaryActions: isRunning
+            ? [
+                StreamFabAction(
+                  icon: Icons.save_alt,
+                  label: _isDumping ? '正在录制 20s…' : '保存前 20 秒',
+                  enabled: !_isDumping,
+                  onPressed: _dumpAndSave,
+                ),
+              ]
+            : const [],
       ),
     );
   }

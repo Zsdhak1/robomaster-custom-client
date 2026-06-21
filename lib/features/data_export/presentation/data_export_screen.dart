@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/feedback/feedback_messenger.dart';
 import '../../../core/navigation/page_fab_menu.dart';
+import '../../../core/responsive/responsive_ext.dart';
 import '../../../core/state/session_providers.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../connection/domain/robot_identity.dart';
@@ -798,30 +799,30 @@ class _ScoreRow extends StatelessWidget {
       children: [
         Text(
           '${record.blueScore}',
-          style: const TextStyle(
-            fontSize: 36,
+          style: TextStyle(
+            fontSize: context.fontSize(36),
             fontWeight: FontWeight.bold,
             color: rmBlueTeamColor,
           ),
         ),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 8),
-          child: Text(':', style: TextStyle(fontSize: 28)),
+        Padding(
+          padding: context.insetSym(h: 8),
+          child: Text(':', style: TextStyle(fontSize: context.fontSize(28))),
         ),
         Text(
           '${record.redScore}',
-          style: const TextStyle(
-            fontSize: 36,
+          style: TextStyle(
+            fontSize: context.fontSize(36),
             fontWeight: FontWeight.bold,
             color: rmRedTeamColor,
           ),
         ),
-        const SizedBox(width: 12),
+        context.sizedBox(w: 12),
         Padding(
-          padding: const EdgeInsets.only(bottom: 6),
+          padding: context.insetOnly(b: 6),
           child: Text(
             '蓝 : 红',
-            style: TextStyle(fontSize: 13, color: rmTextSecondary(context)),
+            style: TextStyle(fontSize: context.fontSize(13), color: rmTextSecondary(context)),
           ),
         ),
       ],
