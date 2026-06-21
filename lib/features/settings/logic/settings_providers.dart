@@ -338,6 +338,180 @@ final customVideoTsWrapProvider =
 );
 
 // ============================================================
+// Custom video packet slicing — how each CustomByteBlock.data is turned
+// into the Annex-B byte stream fed to the decoder.
+// ============================================================
+
+/// Strategy for extracting H.264 bytes from each `CustomByteBlock.data`.
+///
+/// Captured streams show the robot wraps each packet's H.264 payload in an
+/// in-band protobuf-style length prefix: `0x0A` + varint length + payload +
+/// optional padding. Forwarding `data` verbatim injects that prefix into the
+/// stream once per packet, corrupting every NAL it lands inside (keyframes
+/// span many packets, so they corrupt nearly every time). These modes let the
+/// prefix be stripped and the behavior be A/B-tested live.
+enum CustomVideoSliceMode {
+  /// Forward `data` unchanged. Baseline for A/B testing — known to inject the
+  /// length prefix into the stream. Useful to confirm the prefix is the cause.
+  verbatim('原样转发 (verbatim)', '直接转发整个 data，含包头前缀，仅作对比基线'),
+
+  /// Auto-detect the `0x0A <varint>` prefix and emit exactly the declared
+  /// payload bytes (dropping prefix and trailing padding). Recommended.
+  stripPrefix('自动剥离包头 (推荐)', '识别 0x0A+varint 长度前缀，仅取声明的负载字节'),
+
+  /// Manually skip a fixed header and take a fixed payload count (the slider).
+  fixed('固定切片 (手动)', '跳过固定包头字节，取固定长度负载（用下方滑块设定）');
+
+  const CustomVideoSliceMode(this.label, this.description);
+
+  /// Short Chinese label for the picker.
+  final String label;
+
+  /// One-line description.
+  final String description;
+
+  /// Resolves a persisted index back to an enum, defaulting to [stripPrefix].
+  static CustomVideoSliceMode fromIndex(int? i) {
+    if (i != null && i >= 0 && i < CustomVideoSliceMode.values.length) {
+      return CustomVideoSliceMode.values[i];
+    }
+    return CustomVideoSliceMode.stripPrefix;
+  }
+}
+
+const _keyCustomVideoSliceMode = 'custom_video_slice_mode';
+
+/// Notifier persisting the [CustomVideoSliceMode] (default [stripPrefix]).
+class CustomVideoSliceModeNotifier extends StateNotifier<CustomVideoSliceMode> {
+  /// Creates the notifier and loads the persisted value.
+  CustomVideoSliceModeNotifier() : super(CustomVideoSliceMode.stripPrefix) {
+    _load();
+  }
+
+  /// Persists [mode] and updates state.
+  Future<void> set(CustomVideoSliceMode mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyCustomVideoSliceMode, mode.index);
+    state = mode;
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    state = CustomVideoSliceMode.fromIndex(
+      prefs.getInt(_keyCustomVideoSliceMode),
+    );
+  }
+}
+
+/// The active packet-slicing strategy for the custom 0x0310 line. Live-applied.
+final customVideoSliceModeProvider =
+    StateNotifierProvider<CustomVideoSliceModeNotifier, CustomVideoSliceMode>(
+  (ref) => CustomVideoSliceModeNotifier(),
+);
+
+// ============================================================
+// Custom video sequence header — leading uint64 LE packet sequence number
+// ============================================================
+
+/// Byte length of the leading uint64 little-endian sequence number that the
+/// robot prepends to each `CustomByteBlock.data` for packet-loss detection.
+const int customVideoSeqHeaderBytes = 8;
+
+const _keyCustomVideoSeqHeader = 'custom_video_seq_header';
+
+/// Notifier persisting whether each packet starts with an 8-byte uint64 LE
+/// sequence number (default on).
+///
+/// When enabled, the source reads the sequence number, computes a packet-loss
+/// rate from gaps in the sequence, and strips those 8 bytes before slicing the
+/// H.264 payload. Disable it if the robot firmware reverts to a stream without
+/// the sequence header.
+class CustomVideoSeqHeaderNotifier extends StateNotifier<bool> {
+  /// Creates the notifier and loads the persisted value (default on).
+  CustomVideoSeqHeaderNotifier() : super(true) {
+    _load();
+  }
+
+  /// Persists [enabled] and updates state.
+  Future<void> set({required bool enabled}) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyCustomVideoSeqHeader, enabled);
+    state = enabled;
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    state = prefs.getBool(_keyCustomVideoSeqHeader) ?? true;
+  }
+}
+
+/// Whether each packet carries a leading uint64 LE sequence number. Live.
+final customVideoSeqHeaderProvider =
+    StateNotifierProvider<CustomVideoSeqHeaderNotifier, bool>(
+  (ref) => CustomVideoSeqHeaderNotifier(),
+);
+
+// ============================================================
+// Custom video payload byte count — bytes of H.264 data per packet
+// ============================================================
+
+/// Fixed prefix bytes preceding the H.264 payload in each `CustomByteBlock`.
+///
+/// The robot frames every 0x0310 packet as `[3-byte header][N video bytes]
+/// [padding]`. The header is constant; only the video byte count [N] is
+/// user-tunable (see [customVideoPayloadBytesProvider]).
+const int customVideoHeaderBytes = 3;
+
+/// Default number of H.264 payload bytes carried in each `CustomByteBlock`.
+const int customVideoDefaultPayloadBytes = 150;
+
+/// Minimum / maximum selectable payload byte counts (UI clamp range).
+const int customVideoMinPayloadBytes = 1;
+const int customVideoMaxPayloadBytes = 297;
+
+const _keyCustomVideoPayloadBytes = 'custom_video_payload_bytes';
+
+/// Notifier persisting how many H.264 bytes to slice from each packet.
+///
+/// Each `CustomByteBlock.data` is `[header][payload][padding]`; the source
+/// slices `data[0 .. header + payload]` and concatenates it into the Annex-B
+/// stream. Changing this value takes effect on the very next packet — the
+/// source reads the live provider value per chunk, so no restart is needed.
+class CustomVideoPayloadBytesNotifier extends StateNotifier<int> {
+  /// Creates the notifier and loads the persisted value (default 150).
+  CustomVideoPayloadBytesNotifier() : super(customVideoDefaultPayloadBytes) {
+    _load();
+  }
+
+  /// Persists [bytes] (clamped to the valid range) and updates state.
+  Future<void> set(int bytes) async {
+    final clamped =
+        bytes.clamp(customVideoMinPayloadBytes, customVideoMaxPayloadBytes);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyCustomVideoPayloadBytes, clamped);
+    state = clamped;
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getInt(_keyCustomVideoPayloadBytes);
+    if (saved != null) {
+      state =
+          saved.clamp(customVideoMinPayloadBytes, customVideoMaxPayloadBytes);
+    }
+  }
+}
+
+/// Number of H.264 video-data bytes sliced from each `CustomByteBlock`.
+///
+/// Live-applied: the [CustomByteBlockSource] reads this per packet, so the
+/// debug slider in settings retunes the stream without restarting it.
+final customVideoPayloadBytesProvider =
+    StateNotifierProvider<CustomVideoPayloadBytesNotifier, int>(
+  (ref) => CustomVideoPayloadBytesNotifier(),
+);
+
+// ============================================================
 // Export directory — where JSON exports are saved
 // ============================================================
 

@@ -151,7 +151,7 @@ class SettingsScreen extends ConsumerWidget {
       const SizedBox(height: 4),
       Text(
         '仅作用于自定义图传 (CustomByteBlock / 裸 H.264)，与官方图传独立。'
-        '默认 fvp；media_kit 多数平台不含裸 H.264 解封装；ffplay 调用外部进程验证码流。',
+        '默认 fvp；media_kit 多数平台不含裸 H.264 解封装；ffplay 仅验证用',
         style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
       ),
       const SizedBox(height: 8),
@@ -167,16 +167,73 @@ class SettingsScreen extends ConsumerWidget {
       const SizedBox(height: 8),
       Card(
         child: SwitchListTile(
-          title: const Text('封装为 MPEG-TS'),
+          title: const Text('封装为 MPEG-TS（推荐开启）'),
           subtitle: const Text(
-            '把裸 H.264 包成 MPEG-TS 再传给解码器。media_kit 缺裸 H.264 解封装，'
-            '开启后即可用 media_kit（Windows 渲染正常）。切换会自动重启接收。',
+            '把裸 H.264 包成 MPEG-TS '
+            '切换会自动重启接收。',
           ),
           value: ref.watch(customVideoTsWrapProvider),
           onChanged: (v) => _setTsWrap(ref, enabled: v),
         ),
       ),
+      const SizedBox(height: 8),
+      Card(
+        child: SwitchListTile(
+          title: const Text('8 字节序列号包头'),
+          subtitle: const Text(
+            '每包前 8 字节为 uint64(LE) 递增序列号，用于统计丢包率；'
+            '开启后会解析并在调试面板显示，并在拼包前剥离这 8 字节。',
+          ),
+          value: ref.watch(customVideoSeqHeaderProvider),
+          onChanged: (v) =>
+              ref.read(customVideoSeqHeaderProvider.notifier).set(enabled: v),
+        ),
+      ),
+      const SizedBox(height: 8),
+      _buildSliceModeCard(ref),
+      if (ref.watch(customVideoSliceModeProvider) ==
+          CustomVideoSliceMode.fixed) ...[
+        const SizedBox(height: 8),
+        _PayloadBytesTile(
+          bytes: ref.watch(customVideoPayloadBytesProvider),
+          onChanged: (v) =>
+              ref.read(customVideoPayloadBytesProvider.notifier).set(v),
+        ),
+      ],
     ];
+  }
+
+  Widget _buildSliceModeCard(WidgetRef ref) {
+    final current = ref.watch(customVideoSliceModeProvider);
+    return Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Text(
+              '拼包方式（实时生效）',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+            ),
+          ),
+          for (final m in CustomVideoSliceMode.values)
+            RadioListTile<CustomVideoSliceMode>(
+              value: m,
+              // ignore: deprecated_member_use
+              groupValue: current,
+              // ignore: deprecated_member_use
+              onChanged: (v) {
+                if (v != null) {
+                  ref.read(customVideoSliceModeProvider.notifier).set(v);
+                }
+              },
+              title: Text(m.label),
+              subtitle: Text(m.description),
+              dense: true,
+            ),
+        ],
+      ),
+    );
   }
 
   /// Persists the MPEG-TS wrap flag and restarts the custom stream if it is
@@ -323,6 +380,76 @@ class _RecordConfigEntry extends ConsumerWidget {
           MaterialPageRoute<void>(
             builder: (_) => const RecordConfigScreen(),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Stepper + slider tile tuning how many H.264 bytes are kept per packet.
+///
+/// The slice (`header + payload`) is applied live by [CustomByteBlockSource],
+/// so dragging the slider retunes the running stream without a restart.
+class _PayloadBytesTile extends StatelessWidget {
+  const _PayloadBytesTile({required this.bytes, required this.onChanged});
+
+  final int bytes;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.primary;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    '单包图传数据字节数',
+                    style:
+                        TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.remove_circle_outline),
+                  onPressed: bytes > customVideoMinPayloadBytes
+                      ? () => onChanged(bytes - 1)
+                      : null,
+                ),
+                Text('$bytes',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 16, color: color)),
+                IconButton(
+                  icon: const Icon(Icons.add_circle_outline),
+                  onPressed: bytes < customVideoMaxPayloadBytes
+                      ? () => onChanged(bytes + 1)
+                      : null,
+                ),
+              ],
+            ),
+            Slider(
+              value: bytes.toDouble(),
+              min: customVideoMinPayloadBytes.toDouble(),
+              max: customVideoMaxPayloadBytes.toDouble(),
+              divisions:
+                  customVideoMaxPayloadBytes - customVideoMinPayloadBytes,
+              label: '$bytes',
+              onChanged: (v) => onChanged(v.round()),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(left: 8, bottom: 4),
+              child: Text(
+                '每个 CustomByteBlock 取 ${customVideoHeaderBytes}B 包头 + '
+                '$bytes B 视频数据拼接（默认 $customVideoDefaultPayloadBytes）。'
+                '修改即时生效，无需重启接收。',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+              ),
+            ),
+          ],
         ),
       ),
     );

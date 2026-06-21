@@ -243,6 +243,56 @@
 
 ---
 
+### v0.0.5 — 调试基础设施：NAL 诊断、丢包检测、拼包切片、H.264 导出 (2026-06-21)
+
+> 目标：为自定义图传线（0x0310 / H.264）构建完整的调试基础设施，使黑屏/花屏的根因定位从"猜"变为"看数据"。
+>
+> 关键发现：抓包分析发现机器人固件在每个 `CustomByteBlock.data` 前插入了 8 字节 uint64 LE 序列号（丢包检测用），
+> 且 H.264 负载包裹了 `0x0A <varint>` 长度前缀。旧的 verbatim 转发模式会把前缀注入码流，
+> 导致几乎所有跨包边界的 NAL 被破坏。
+>
+> 解决方案：
+> 1. **可实时切换的拼包模式** — stripPrefix（自动剥离前缀，推荐）、verbatim（原样转发基线）、fixed（手动调参）；
+> 2. **序列号丢包检测** — 8 字节包头开关，实时统计丢包率、乱序数；
+> 3. **NAL 类型计数器** — `_scanNalUnits()` 跨 chunk 边界统计 H.264 NAL type 1/5/7/8，直观判断关键帧是否到达；
+> 4. **调试面板** — 流水线红绿灯（MQTT→门控→解码器→出图），每阶段详情与码率；
+> 5. **解码器诊断** — fvp/media_kit 实时上报分辨率、编解码、fps、错误、滚动日志；
+> 6. **20 秒 H.264 流导出** — 将原始码流保存为 `.h264` 文件，供 ffprobe/ffplay 离线分析；
+> 7. **准星点击移动** — crosshair 改为 `aimCenter` 参数，点击画面可以把准星移到点击位置；
+> 8. **Proto 字段更新** — `CustomByteBlock` 新增 `is_frame_start` 字段（固件端标记帧首包，当前接收端未依赖此标记分帧）。
+
+#### Phase 1: 调试基础设施
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.0.5 Phase 1, Task 1 | 自定义图传拼包切片器 | 实现 `SliceResult` 与三种切片模式：`stripVarintPrefix`（自动识别 0x0A+varint，取声明负载，丢弃前缀与尾部补齐）、`sliceFixed`（手动指定 header+payload）、verbatim（原样转发，基线对照）；附带单元测试 | `lib/features/custom_video/data/custom_packet_slicer.dart`, `test/custom_packet_slicer_test.dart` | `[x]` |
+| v0.0.5 Phase 1, Task 2 | uint64 LE 序列号丢包检测器 | 实现 `PacketSequenceTracker`：解析每包前 8 字节 uint64 LE 序列号，检测间隙（gap→丢包）、乱序/重复（regression）、大幅回跳（重启后重设基线）；附带单元测试 | `lib/features/custom_video/data/packet_sequence_tracker.dart`, `test/packet_sequence_tracker_test.dart` | `[x]` |
+| v0.0.5 Phase 1, Task 3 | CustomByteBlockSource 重构 | 构造方法新增 `sliceMode` / `headerBytes` / `payloadBytes` / `seqHeaderEnabled` 四个 live callback；集成 `PacketSequenceTracker`；暴露出诊断 getter（`packetsReceived`, `packetsWithPrefix`, `packetsTruncated`, `packetsLost`, `lossRate`、`lastSequence` 等）；支持设置项实时生效无需重启 | `lib/features/custom_video/data/custom_byte_block_source.dart` | `[x]` |
+| v0.0.5 Phase 1, Task 4 | 设置项：拼包模式、序列号开关、负载字节数 | 新增 `CustomVideoSliceMode` 枚举（verbatim / stripPrefix / fixed 带中文描述）；新增 `customVideoSliceModeProvider`、`customVideoSeqHeaderProvider`、`customVideoPayloadBytesProvider` 三个持久化 StateNotifier；设置页新增对应的 RadioListTile、Switch、Slider 控件 | `lib/features/settings/logic/settings_providers.dart`, `lib/features/settings/presentation/settings_screen.dart` | `[x]` |
+| v0.0.5 Phase 1, Task 5 | H.264 NAL 类型跨块扫描 | 在 `CustomVideoStreamService._onChunk()` 中调用 `_scanNalUnits()`：识别 3/4 字节 AnnexB Start Code，统计 NAL type 1/5/6/7/8/9 频次；跨 chunk 边界携带 3 字节尾部避免 Start Code 跨块漏计 | `lib/features/custom_video/logic/custom_video_stream_service.dart` | `[x]` |
+| v0.0.5 Phase 1, Task 6 | CustomVideoStats 扩充与吞吐率计算 | 新增字段：`tsWrap`、`gateBufferBytes`、`pendingFrames`、`millisSinceLastChunk`、`keyframesSeen`、`spsSeen`、`nonIdrSeen`、`millisSinceLastKeyframe`、序列号丢包统计、`chunksPerSec`/`bytesInPerSec`/`framesPerSec`/`bytesOutPerSec` 吞吐率（每秒 tick 增量计算）；`customVideoStatsProvider` 从 source+service 联合读取 | `lib/features/custom_video/logic/custom_video_providers.dart` | `[x]` |
+| v0.0.5 Phase 1, Task 7 | 解码器诊断信息模型 | 创建 `CustomVideoDecoderInfo` / `CustomVideoDecoderInfoNotifier`：记录 backend 名称、打开次数、resolution、codec、pixelFormat、fps、bitRate、profile、lastError、滚动日志（最多 60 条）；暴露为 `customVideoDecoderInfoProvider`；附带单元测试 | `lib/features/custom_video/logic/custom_video_decoder_info.dart`, `test/custom_video_decoder_info_test.dart` | `[x]` |
+| v0.0.5 Phase 1, Task 8 | 全面调试面板 | 创建 `CustomVideoDebugPanel`：流水线红绿灯（MQTT 接收→关键帧门控→解码器连接→出图）、MQTT 接收详情（chunk 频率、入站码率、距上一包时间、门控缓冲）、丢包统计（序列号、丢包数/率、乱序数）、关键帧诊断（IDR/SPS/non-IDR 计数、距上一关键帧时间）、TCP 桥转发（地址、封装模式、连接数、转发帧率/码率）、解码器详情（状态、分辨率、编解码、fps、错误）、解码器日志（带时间戳与颜色等级的滚动记录） | `lib/features/custom_video/presentation/widgets/custom_video_debug_panel.dart` | `[x]` |
+| v0.0.5 Phase 1, Task 9 | 面板分发集成：门控后连接播放器 | `custom_video_panel.dart` 改为等待 `gateOpen==true` 后才创建播放器（避免播放器连接空 socket 后永不重试）；开发者模式下用 `CustomVideoDebugPanel` 替换紧凑型 stats card；`_PreviewPlaceholder` 增加"等待关键帧…"动画提示 | `lib/features/custom_video/presentation/widgets/custom_video_panel.dart` | `[x]` |
+| v0.0.5 Phase 1, Task 10 | fvp 播放器诊断集成 | fvp `_FvpPlayer` 改为 `ConsumerStatefulWidget`；`_attachDiagnostics()` 推送 `mdk.Player` 状态（event/state/mediaStatus）到 `customVideoDecoderInfoProvider`；`_open()` 成功后上报 resolution/codec/fps/profile；支持点击画面移动准星 | `lib/features/custom_video/presentation/widgets/custom_video_panel.dart` | `[x]` |
+| v0.0.5 Phase 1, Task 11 | media_kit 播放器诊断集成 | `CustomMediaKitPlayer` 改为 `ConsumerStatefulWidget`；监听 `player.stream.error/playing/buffering/width/height` 推送到 `customVideoDecoderInfoProvider`；支持点击画面移动准星 | `lib/features/custom_video/presentation/widgets/custom_mediakit_player.dart` | `[x]` |
+| v0.0.5 Phase 1, Task 12 | 准星点击移动 | `CrosshairPainter` 重构：将 `offsetX`/`offsetY` 替换为 `aimCenter`（`Offset?`，null=画布中心）；两个播放器包裹 `GestureDetector`，`onTapDown` 更新 crosshair 位置 | `lib/features/custom_video/presentation/widgets/crosshair_painter.dart`, `custom_video_panel.dart`, `custom_mediakit_player.dart` | `[x]` |
+| v0.0.5 Phase 1, Task 13 | CustomVideoScreen FAB 保存 20 秒流 | 新增"保存前 20 秒"FAB 动作：调用 `CustomVideoController.startDump()` 录制 20 秒原始码流；完成后弹出平台文件保存对话框（`file_selector`）；录制中按钮禁用并显示"正在录制 20s…" | `lib/features/custom_video/presentation/custom_video_screen.dart` | `[x]` |
+| v0.0.5 Phase 1, Task 14 | 20 秒 H.264 流导出服务 | 在 `CustomVideoStreamService` 中实现 `startDump()` / `stopDump()`：20 秒内逐 chunk 累积到内存缓存；超时后写入 `getApplicationDocumentsDirectory()` 下时间戳命名 `.h264` 文件；服务停止或取消写入时优雅错误处理 | `lib/features/custom_video/logic/custom_video_stream_service.dart` | `[x]` |
+| v0.0.5 Phase 1, Task 15 | Proto 更新：CustomByteBlock 加 is_frame_start | 在 `CustomByteBlock` message 中新增 `uint32 is_frame_start = 2`；更新注释说明 150B 固定分包与 0x00 补齐规则；重新生成 Dart protobuf 代码 | `protos/robomaster_custom_client.proto`, `lib/generated/robomaster_custom_client.pb.dart` | `[x]` |
+| v0.0.5 Phase 1, Task 16 | 官方图传缓存参数微调 | 将官方 media_kit 播放器的 `demuxer-readahead-secs` 和 `cache-secs` 从 1.0 降至 0.3，降低首帧延迟 | `lib/features/dashboard/presentation/widgets/video_panel.dart` | `[x]` |
+
+**Phase 1 验收标准：**
+- 设置页拼包模式三种可选，实时生效无需重启接收（切换后下一个包即用新模式）；
+- 序列号开关打开后调试面板显示实时丢包率、乱序计数；
+- `CustomVideoDebugPanel` 在开发者模式下替换紧凑 stats 卡，显示流水线红绿灯、NAL 计数、码率；
+- 点击视频画面可将准星移动到点击位置；
+- 官方图传与自定义图传各自独立运行，互不干扰；
+- CustomVideoScreen 的"保存前 20 秒"可导出可在线 ffprobe 验证的 `.h264` 文件；
+- 所有单元测试通过：`flutter test` 124 项 0 失败，`flutter analyze` 零问题。
+
+---
+
 ## 附录 A: 依赖清单
 
 ```yaml
@@ -394,6 +444,7 @@ class VideoFrame {
 
 | 版本 | 日期 | 变更摘要 |
 |------|------|----------|
+| 0.0.5 | 2026-06-21 | 新增 调试基础设施：三种可实时切换的拼包模式（verbatim/stripPrefix/fixed）、uint64 LE 序列号丢包检测与统计；新增 全面调试面板（CustomVideoDebugPanel）显示流水线红绿灯、NAL 类型计数、实时码率与丢包率；新增 解码器诊断信息模型（fvp/media_kit 上报 resolution/codec/fps/error 到滚动日志）；新增 20 秒 H.264 原始码流导出（保存 .h264 供 ffprobe 离线分析）；新增 准星点击移动交互；更新 Proto CustomByteBlock 新增 is_frame_start 字段 |
 | 0.0.4 | 2026-06-19 | 新增 自定义图传后端切换（fvp/media_kit/ffplay）；新增 MPEG-TS 封装模式（media_kit 缺裸 H.264 解封装，包 TS 后可正常播放）；新增 桥端关键帧缓存与后连接客户端补发机制（修复解码器连接竞态白屏）；新增 自定义图传设置页独立后端选择与 TS 开关；新增 Windows 端 ffplay 验证面板；新增 pure-Dart MPEG-TS muxer（ffprobe/ffmpeg 验证可完整解码） |
 | 0.0.3 | 2026-06-18 | 新增 自定义数据图传线（0x0310 / CustomByteBlock / H.264）监控页面；新增 Windows 端本地模拟器（H.264 编码 + MQTT 发送）；复用现有 media_kit/fvp 解码桥，与官方 UDP 3334 图传线并存；新增 准星叠加与解码统计覆盖层 |
 | 0.0.1 | 2026-06-14 | 新增 RoboMaster Monitor 首个正式版本：MQTT 3333 / UDP 3334 双链路监控、实时面板、数据导出与回放、多客户端合并、GitHub 远程同步 |
@@ -407,7 +458,7 @@ class VideoFrame {
 
 ---
 
-*文档版本：v2.4（新增 v0.0.4 MPEG-TS 封装与后端切换）*
+*文档版本：v2.5（新增 v0.0.5 调试基础设施：NAL 诊断、丢包检测、拼包切片、H.264 导出）*
 *适配协议：RoboMaster 2026 自定义客户端协议（MQTT 3333 + UDP 3334）*
-*参考依据：V1.3.1 第2章 + 自定义客户端 UDP 流问答*
-*修正日期：2026-06-17*
+*参考依据：V1.3.1 第2章 + 自定义客户端 UDP 流问答 + 0x0310 抓包分析*
+*修正日期：2026-06-21*

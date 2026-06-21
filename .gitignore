@@ -60,3 +60,5 @@ app.*.map.json
 _*.txt
 # Local validation screenshots
 validationscreenshot/
+test_data/
+新建 文本文档.txt

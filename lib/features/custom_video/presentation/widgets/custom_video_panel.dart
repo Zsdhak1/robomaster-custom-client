@@ -19,6 +19,7 @@ import '../../logic/custom_video_providers.dart';
 import 'crosshair_painter.dart';
 import 'custom_ffplay_panel.dart';
 import 'custom_mediakit_player.dart';
+import 'custom_video_debug_panel.dart';
 import 'custom_video_overlay.dart';
 
 /// Panel body of the custom video screen: real decoder + crosshair + stats.
@@ -32,9 +33,19 @@ class CustomVideoPanel extends ConsumerWidget {
     final developerMode = ref.watch(developerModeProvider);
     final backend = ref.watch(customVideoBackendProvider);
     final tsWrap = ref.watch(customVideoTsWrapProvider);
-    final url = isRunning
-        ? ref.read(customVideoStreamServiceProvider).streamUrl
-        : null;
+
+    // Watch the live stats so the panel rebuilds when the keyframe gate opens.
+    //
+    // The decoder must connect only AFTER the gate releases: before that the
+    // bridge holds every frame pending (nothing to read), so a low-latency
+    // (+nobuffer) player would connect to an empty socket, fail to parse a
+    // codec, and never retry — which is why nothing connected automatically.
+    // Once the gate opens the bridge primes each new client with the cached
+    // keyframe, so creating the player then starts decoding immediately.
+    final stats = ref.watch(customVideoStatsProvider).valueOrNull;
+    final gateOpen = stats?.gateOpen ?? false;
+    final url = stats?.streamUrl;
+    final canPlay = isRunning && gateOpen && url != null;
 
     return Padding(
       padding: const EdgeInsets.all(12),
@@ -43,12 +54,18 @@ class CustomVideoPanel extends ConsumerWidget {
         children: [
           Expanded(
             flex: 2,
-            child: isRunning && url != null
+            child: canPlay
                 ? _buildPlayer(backend, url, developerMode, tsWrap)
-                : const _PreviewPlaceholder(),
+                : _PreviewPlaceholder(waitingForKeyframe: isRunning),
           ),
           const SizedBox(width: 12),
-          const Expanded(child: _StatsCard()),
+          // Developer mode swaps the compact stats card for the full debug
+          // panel (per-stage health, throughput rates, decoder info + logs).
+          Expanded(
+            child: developerMode
+                ? const CustomVideoDebugPanel()
+                : const _StatsCard(),
+          ),
         ],
       ),
     );
@@ -96,7 +113,7 @@ class CustomVideoPanel extends ConsumerWidget {
 /// — which would force the H.264 bridge through the HEVC demuxer and render a
 /// white screen. A direct mdk Player skips those globals, so here we set
 /// `avformat.format=h264` per player and decode correctly.
-class _FvpPlayer extends StatefulWidget {
+class _FvpPlayer extends ConsumerStatefulWidget {
   const _FvpPlayer({
     required this.url,
     required this.developerMode,
@@ -112,15 +129,16 @@ class _FvpPlayer extends StatefulWidget {
   final bool tsWrap;
 
   @override
-  State<_FvpPlayer> createState() => _FvpPlayerState();
+  ConsumerState<_FvpPlayer> createState() => _FvpPlayerState();
 }
 
-class _FvpPlayerState extends State<_FvpPlayer> {
+class _FvpPlayerState extends ConsumerState<_FvpPlayer> {
   mdk.Player? _player;
   int? _textureId;
   String? _error;
   int _attempt = 0;
   final List<StreamSubscription<Object?>> _diagSubs = [];
+  Offset? _crosshairCenter;
 
   @override
   void initState() {
@@ -129,17 +147,30 @@ class _FvpPlayerState extends State<_FvpPlayer> {
   }
 
   /// Subscribes to the player's event/status streams and prints them, so the
-  /// decode failure behind a white screen becomes visible in the console.
+  /// decode failure behind a white screen becomes visible in the console, and
+  /// mirrors them into [customVideoDecoderInfoProvider] for the debug panel.
   void _attachDiagnostics(mdk.Player player) {
+    final info = ref.read(customVideoDecoderInfoProvider.notifier);
     _diagSubs
       ..add(player.onEvent.listen((e) {
         debugPrint('[fvp event] ${e.category} | err=${e.error} | ${e.detail}');
+        // mdk reports reader buffering progress via the "reader.buffering"
+        // category with the percentage in `error`.
+        if (e.category == 'reader.buffering') {
+          info.setBuffering(
+            buffering: e.error < 100,
+            percent: e.error.toDouble(),
+          );
+        } else {
+          info.log(DecoderLogLevel.info, '${e.category}: ${e.detail}');
+        }
       }))
       ..add(player.onMediaStatus.listen((s) {
         debugPrint('[fvp status] ${s.oldValue} -> ${s.newValue}');
       }))
       ..add(player.onStateChanged.listen((s) {
-        debugPrint('[fvp state] $s');
+        debugPrint('[fvp state] ${s.oldValue} -> ${s.newValue}');
+        info.setPlaying(playing: s.newValue == mdk.PlaybackState.playing);
       }));
   }
 
@@ -153,6 +184,8 @@ class _FvpPlayerState extends State<_FvpPlayer> {
   Future<void> _open() async {
     _attempt++;
     if (mounted) setState(() => _error = null);
+    final info = ref.read(customVideoDecoderInfoProvider.notifier)
+      ..beginSession('fvp', attempt: _attempt);
     final player = mdk.Player();
     _attachDiagnostics(player);
     try {
@@ -190,12 +223,32 @@ class _FvpPlayerState extends State<_FvpPlayer> {
       await player.prepare();
       // Dump what mdk actually parsed (codec / resolution / track count) — a
       // white screen with valid video tracks points at decode, not demux.
+      final videoTracks = player.mediaInfo.video;
       debugPrint(
-        '[fvp mediaInfo] video tracks=${player.mediaInfo.video?.length} '
-        '${player.mediaInfo.video?.map((v) => v.codec).join(", ")}',
+        '[fvp mediaInfo] video tracks=${videoTracks?.length} '
+        '${videoTracks?.map((v) => v.codec).join(", ")}',
       );
+      // Surface the parsed codec/resolution to the debug panel so a black
+      // screen can be diagnosed as a decode (not demux) failure at a glance.
+      if (videoTracks != null && videoTracks.isNotEmpty) {
+        final cp = videoTracks.first.codec;
+        info
+          ..setResolution(cp.width, cp.height)
+          ..setCodec(
+            codec: cp.codec,
+            pixelFormat: cp.formatName,
+            fps: cp.frameRate > 0 ? cp.frameRate : null,
+            bitRate: cp.bitRate > 0 ? cp.bitRate : null,
+            profile: cp.profile,
+          );
+      } else {
+        info.log(DecoderLogLevel.warn, 'prepare 完成但无视频轨道');
+      }
       final tid = await player.updateTexture();
       debugPrint('[fvp] textureId=$tid');
+      if (tid < 0) {
+        info.setError('无法解码视频（已连接但拿不到画面尺寸）');
+      }
       player.state = mdk.PlaybackState.playing;
       if (!mounted) {
         player.dispose();
@@ -208,6 +261,7 @@ class _FvpPlayerState extends State<_FvpPlayer> {
       });
     } on Object catch (e) {
       player.dispose();
+      info.setError('初始化失败: $e');
       if (mounted) setState(() => _error = '初始化失败: $e');
     }
   }
@@ -247,9 +301,18 @@ class _FvpPlayerState extends State<_FvpPlayer> {
         children: [
           Positioned.fill(
             child: _textureId != null
-                ? CustomPaint(
-                    foregroundPainter: const CrosshairPainter(),
-                    child: Texture(textureId: _textureId!),
+                ? GestureDetector(
+                    onTapDown: (details) {
+                      setState(() {
+                        _crosshairCenter = details.localPosition;
+                      });
+                    },
+                    child: CustomPaint(
+                      foregroundPainter: CrosshairPainter(
+                        aimCenter: _crosshairCenter,
+                      ),
+                      child: Texture(textureId: _textureId!),
+                    ),
                   )
                 : const _Initializing(),
           ),
@@ -366,10 +429,48 @@ class _ReconnectChip extends StatelessWidget {
 // ============================================================
 
 class _PreviewPlaceholder extends StatelessWidget {
-  const _PreviewPlaceholder();
+  const _PreviewPlaceholder({this.waitingForKeyframe = false});
+
+  /// True once reception has started but the keyframe gate has not opened yet,
+  /// so the player is intentionally not connected to the bridge yet.
+  final bool waitingForKeyframe;
 
   @override
   Widget build(BuildContext context) {
+    if (waitingForKeyframe) {
+      return const Card(
+        clipBehavior: Clip.antiAlias,
+        child: ColoredBox(
+          color: Color(0xFF101418),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: CircularProgressIndicator(strokeWidth: 3),
+                ),
+                SizedBox(height: 16),
+                Text(
+                  '正在接收，等待关键帧…',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  '收到 SPS/PPS 关键帧后将自动连接解码器',
+                  style: TextStyle(color: Colors.white54, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     return const Card(
       clipBehavior: Clip.antiAlias,
       child: ColoredBox(

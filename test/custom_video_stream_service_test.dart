@@ -68,5 +68,43 @@ void main() {
       await controller.close();
       service.dispose();
     });
+
+    test('exposes diagnostic counters used by the debug panel', () async {
+      final service = CustomVideoStreamService();
+      final controller = StreamController<Uint8List>();
+      await service.start(controller.stream);
+
+      // Before any data: no chunk timestamp, empty gate buffer.
+      expect(service.millisSinceLastChunk, isNull);
+      expect(service.gateBufferBytes, 0);
+      expect(service.tsWrap, isFalse);
+
+      // Pre-keyframe junk accumulates in the gate buffer and is counted.
+      controller.add(Uint8List.fromList([0, 0, 0, 1, 0x61, 0xAA]));
+      await _tick();
+      expect(service.chunksReceived, 1);
+      expect(service.bytesReceived, 6);
+      expect(service.gateBufferBytes, 6);
+      expect(service.millisSinceLastChunk, isNotNull);
+
+      // SPS opens the gate and flushes the gate buffer.
+      controller.add(Uint8List.fromList([0, 0, 0, 1, 0x67, 0x42, 0xC0]));
+      await _tick();
+      expect(service.gateOpen, isTrue);
+      expect(service.gateBufferBytes, 0);
+
+      await controller.close();
+      service.dispose();
+    });
+
+    test('tsWrap reflects the start parameter', () async {
+      final service = CustomVideoStreamService();
+      final controller = StreamController<Uint8List>();
+      await service.start(controller.stream, tsWrap: true);
+      expect(service.tsWrap, isTrue);
+
+      await controller.close();
+      service.dispose();
+    });
   });
 }

@@ -2590,9 +2590,11 @@ class RadarInfoToClient extends $pb.GeneratedMessage {
 class CustomByteBlock extends $pb.GeneratedMessage {
   factory CustomByteBlock({
     $core.List<$core.int>? data,
+    $core.int? isFrameStart,
   }) {
     final result = create();
     if (data != null) result.data = data;
+    if (isFrameStart != null) result.isFrameStart = isFrameStart;
     return result;
   }
 
@@ -2611,6 +2613,8 @@ class CustomByteBlock extends $pb.GeneratedMessage {
       createEmptyInstance: create)
     ..a<$core.List<$core.int>>(
         1, _omitFieldNames ? '' : 'data', $pb.PbFieldType.OY)
+    ..aI(2, _omitFieldNames ? '' : 'isFrameStart',
+        fieldType: $pb.PbFieldType.OU3)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2640,6 +2644,15 @@ class CustomByteBlock extends $pb.GeneratedMessage {
   $core.bool hasData() => $_has(0);
   @$pb.TagNumber(1)
   void clearData() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.int get isFrameStart => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set isFrameStart($core.int value) => $_setUnsignedInt32(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasIsFrameStart() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearIsFrameStart() => $_clearField(2);
 }
 
 /// ============================================================

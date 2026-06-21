@@ -13,7 +13,13 @@
       "Bash(git push *)",
       "Bash(flutter test *)",
       "Bash(git tag *)",
-      "Bash(git reset *)"
+      "Bash(git reset *)",
+      "Bash(dart pub *)",
+      "Bash(dart run *)",
+      "Bash(grep -v \"^$\")",
+      "Bash(protoc --version)",
+      "Bash(xargs grep -l \"CustomByteBlock\\\\|custom_byte\\\\|customVideo\\\\|CustomVideo\\\\|is_frame_start\\\\|isFrameStart\")",
+      "Bash(xxd -l 64 _dump.h264)"
     ]
   }
 }

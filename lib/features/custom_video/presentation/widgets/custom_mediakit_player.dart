@@ -10,14 +10,16 @@ library;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
+import '../../logic/custom_video_providers.dart';
 import 'crosshair_painter.dart';
 
 /// Decodes the custom raw-H.264 TCP bridge with libmpv and overlays the
 /// crosshair.
-class CustomMediaKitPlayer extends StatefulWidget {
+class CustomMediaKitPlayer extends ConsumerStatefulWidget {
   /// Creates a [CustomMediaKitPlayer] reading from [url].
   const CustomMediaKitPlayer({
     required this.url,
@@ -33,15 +35,17 @@ class CustomMediaKitPlayer extends StatefulWidget {
   final bool tsWrap;
 
   @override
-  State<CustomMediaKitPlayer> createState() => _CustomMediaKitPlayerState();
+  ConsumerState<CustomMediaKitPlayer> createState() =>
+      _CustomMediaKitPlayerState();
 }
 
-class _CustomMediaKitPlayerState extends State<CustomMediaKitPlayer> {
+class _CustomMediaKitPlayerState extends ConsumerState<CustomMediaKitPlayer> {
   late final Player _player;
   late final VideoController _controller;
-  StreamSubscription<String>? _errorSub;
+  final List<StreamSubscription<Object?>> _subs = [];
   String? _error;
   int _attempt = 0;
+  Offset? _crosshairCenter;
 
   @override
   void initState() {
@@ -50,16 +54,44 @@ class _CustomMediaKitPlayerState extends State<CustomMediaKitPlayer> {
       configuration: const PlayerConfiguration(logLevel: MPVLogLevel.warn),
     );
     _controller = VideoController(_player);
-    _errorSub = _player.stream.error.listen((msg) {
-      debugPrint('[custom media_kit error] $msg');
-      if (mounted) setState(() => _error = msg);
-    });
+    _attachDiagnostics();
     _configureAndOpen();
+  }
+
+  /// Mirrors libmpv's live state (error / playing / buffering / resolution)
+  /// into [customVideoDecoderInfoProvider] for the debug panel.
+  void _attachDiagnostics() {
+    final info = ref.read(customVideoDecoderInfoProvider.notifier);
+    int? width;
+    int? height;
+    _subs
+      ..add(_player.stream.error.listen((msg) {
+        debugPrint('[custom media_kit error] $msg');
+        info.setError(msg);
+        if (mounted) setState(() => _error = msg);
+      }))
+      ..add(_player.stream.playing.listen((p) {
+        info.setPlaying(playing: p);
+      }))
+      ..add(_player.stream.buffering.listen((b) {
+        info.setBuffering(buffering: b);
+      }))
+      ..add(_player.stream.width.listen((w) {
+        width = w;
+        info.setResolution(width, height);
+      }))
+      ..add(_player.stream.height.listen((h) {
+        height = h;
+        info.setResolution(width, height);
+      }));
   }
 
   Future<void> _configureAndOpen() async {
     _attempt++;
     if (mounted) setState(() => _error = null);
+    ref
+        .read(customVideoDecoderInfoProvider.notifier)
+        .beginSession('media_kit', attempt: _attempt);
     final platform = _player.platform;
     if (platform is NativePlayer) {
       try {
@@ -86,6 +118,9 @@ class _CustomMediaKitPlayerState extends State<CustomMediaKitPlayer> {
     try {
       await _player.open(Media(widget.url));
     } on Object catch (e) {
+      ref
+          .read(customVideoDecoderInfoProvider.notifier)
+          .setError('打开失败: $e');
       if (mounted) setState(() => _error = '打开失败: $e');
     }
   }
@@ -100,7 +135,10 @@ class _CustomMediaKitPlayerState extends State<CustomMediaKitPlayer> {
 
   @override
   void dispose() {
-    _errorSub?.cancel();
+    for (final s in _subs) {
+      s.cancel();
+    }
+    _subs.clear();
     _player.dispose();
     super.dispose();
   }
@@ -112,9 +150,18 @@ class _CustomMediaKitPlayerState extends State<CustomMediaKitPlayer> {
       child: Stack(
         children: [
           Positioned.fill(
-            child: CustomPaint(
-              foregroundPainter: const CrosshairPainter(),
-              child: Video(controller: _controller),
+            child: GestureDetector(
+              onTapDown: (details) {
+                setState(() {
+                  _crosshairCenter = details.localPosition;
+                });
+              },
+              child: CustomPaint(
+                foregroundPainter: CrosshairPainter(
+                  aimCenter: _crosshairCenter,
+                ),
+                child: Video(controller: _controller),
+              ),
             ),
           ),
           if (_error != null)

@@ -176,8 +176,8 @@ class _MediaKitPlayerState extends State<_MediaKitPlayer> {
         // enough bytes to lock on. The old `cache=no` was the root cause
         // of media_kit showing nothing while VLC worked.
         await platform.setProperty('cache', 'yes');
-        await platform.setProperty('demuxer-readahead-secs', '1.0');
-        await platform.setProperty('cache-secs', '1.0');
+        await platform.setProperty('demuxer-readahead-secs', '0.3');
+        await platform.setProperty('cache-secs', '0.3');
         // User-selected hardware decoder. mpv falls back to software decode
         // automatically if the chosen mode is unsupported on this platform.
         await platform.setProperty('hwdec', widget.hwdec);

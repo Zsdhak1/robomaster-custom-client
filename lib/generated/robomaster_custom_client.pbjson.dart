@@ -697,12 +697,14 @@ const CustomByteBlock$json = {
   '1': 'CustomByteBlock',
   '2': [
     {'1': 'data', '3': 1, '4': 1, '5': 12, '10': 'data'},
+    {'1': 'is_frame_start', '3': 2, '4': 1, '5': 13, '10': 'isFrameStart'},
   ],
 };
 
 /// Descriptor for `CustomByteBlock`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List customByteBlockDescriptor = $convert
-    .base64Decode('Cg9DdXN0b21CeXRlQmxvY2sSEgoEZGF0YRgBIAEoDFIEZGF0YQ==');
+final $typed_data.Uint8List customByteBlockDescriptor = $convert.base64Decode(
+    'Cg9DdXN0b21CeXRlQmxvY2sSEgoEZGF0YRgBIAEoDFIEZGF0YRIkCg5pc19mcmFtZV9zdGFydBgC'
+    'IAEoDVIMaXNGcmFtZVN0YXJ0');
 
 @$core.Deprecated('Use assemblyCommandDescriptor instead')
 const AssemblyCommand$json = {
