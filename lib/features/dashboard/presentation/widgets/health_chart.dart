@@ -30,31 +30,47 @@ class HealthChart extends ConsumerWidget {
     final ownIsBlue = isBlueSide(ref.watch(selectedRobotIdProvider));
     final lineColor = Theme.of(context).colorScheme.primary;
 
-    return Padding(
-      padding: context.insetAll(12),
-      child: Card(
-        child: Padding(
-          padding: context.insetAll(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildChartHeader(context, ownIsBlue: ownIsBlue),
-              context.sizedBox(h: 8),
-              Expanded(
-                child: history.isEmpty
-                    ? const Center(
-                        child: Text(
-                          '暂无血量数据',
-                          style: TextStyle(color: Colors.grey),
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 400),
+      curve: const Cubic(0.2, 0, 0, 1), // MD3 emphasized decelerate
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - value) * 20),
+            child: child,
+          ),
+        );
+      },
+      child: Padding(
+        padding: context.insetAll(12),
+        child: Card(
+          child: Padding(
+            padding: context.insetAll(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildChartHeader(context, ownIsBlue: ownIsBlue),
+                context.sizedBox(h: 8),
+                Expanded(
+                  child: history.isEmpty
+                      ? Center(
+                          child: Text(
+                            '暂无血量数据',
+                            style: context.textTheme.bodyMedium!.copyWith(
+                              color: Colors.grey,
+                            ),
+                          ),
+                        )
+                      : _buildLineChart(
+                          context,
+                          buildSpots(history, now: DateTime.now()),
+                          lineColor,
                         ),
-                      )
-                    : _buildLineChart(
-                        context,
-                        buildSpots(history, now: DateTime.now()),
-                        lineColor,
-                      ),
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -66,16 +82,14 @@ class HealthChart extends ConsumerWidget {
       children: [
         Text(
           '己方总血量趋势 · ${ownIsBlue ? '蓝方' : '红方'}',
-          style: TextStyle(
-            fontSize: context.fontSize(14),
+          style: context.textTheme.titleSmall!.copyWith(
             fontWeight: FontWeight.bold,
           ),
         ),
         context.sizedBox(w: 8),
         Text(
           '（最近 120 秒 →）',
-          style: TextStyle(
-            fontSize: context.fontSize(11),
+          style: context.textTheme.labelSmall!.copyWith(
             color: rmTextSecondary(context),
           ),
         ),
@@ -138,6 +152,8 @@ class HealthChart extends ConsumerWidget {
       padding: const EdgeInsets.only(right: 4),
       child: Text(
         label,
+        // Special case: fl_chart axis-tick callback exposes no BuildContext,
+        // so a fixed micro size is used for the chart's Y-axis labels.
         style: const TextStyle(fontSize: 10, color: Colors.grey),
       ),
     );

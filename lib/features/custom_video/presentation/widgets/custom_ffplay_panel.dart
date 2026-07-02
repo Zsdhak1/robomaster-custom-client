@@ -8,6 +8,8 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/responsive/responsive_ext.dart';
+import '../../../../features/settings/logic/settings_providers.dart';
 import '../../logic/custom_ffplay_launcher.dart';
 
 /// Launches ffplay against [streamUrl] and shows its status.
@@ -16,6 +18,7 @@ class CustomFfplayPanel extends StatefulWidget {
   const CustomFfplayPanel({
     required this.streamUrl,
     required this.tsWrap,
+    required this.codec,
     super.key,
   });
 
@@ -24,6 +27,9 @@ class CustomFfplayPanel extends StatefulWidget {
 
   /// When true the bridge serves MPEG-TS, so ffplay is told `-f mpegts`.
   final bool tsWrap;
+
+  /// The video codec: H.264 → `-f h264`, H.265 → `-f hevc`.
+  final CustomVideoCodec codec;
 
   @override
   State<CustomFfplayPanel> createState() => _CustomFfplayPanelState();
@@ -39,7 +45,11 @@ class _CustomFfplayPanelState extends State<CustomFfplayPanel> {
   }
 
   Future<void> _start() async {
-    await _launcher.start(widget.streamUrl, tsWrap: widget.tsWrap);
+    await _launcher.start(
+      widget.streamUrl,
+      tsWrap: widget.tsWrap,
+      codec: widget.codec,
+    );
     if (mounted) setState(() {});
   }
 
@@ -47,7 +57,8 @@ class _CustomFfplayPanelState extends State<CustomFfplayPanel> {
   void didUpdateWidget(covariant CustomFfplayPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.streamUrl != widget.streamUrl ||
-        oldWidget.tsWrap != widget.tsWrap) {
+        oldWidget.tsWrap != widget.tsWrap ||
+        oldWidget.codec != widget.codec) {
       _launcher.stop();
       _start();
     }
@@ -69,7 +80,7 @@ class _CustomFfplayPanelState extends State<CustomFfplayPanel> {
     return Card(
       clipBehavior: Clip.antiAlias,
       child: ColoredBox(
-        color: const Color(0xFF101418),
+        color: Theme.of(context).colorScheme.surfaceContainerLowest,
         child: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -78,11 +89,10 @@ class _CustomFfplayPanelState extends State<CustomFfplayPanel> {
               children: [
                 const Icon(Icons.open_in_new, size: 56, color: Colors.white38),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   'ffplay 在独立窗口播放',
-                  style: TextStyle(
+                  style: context.textTheme.titleMedium!.copyWith(
                     color: Colors.white,
-                    fontSize: 18,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -92,21 +102,27 @@ class _CustomFfplayPanelState extends State<CustomFfplayPanel> {
                       ? 'ffplay 已启动并连接 TCP 桥。\n若 ffplay 窗口出图，说明码流正确，问题在 app 内解码器。'
                       : 'ffplay 未运行',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white54, fontSize: 13),
+                  style: context.textTheme.bodySmall!.copyWith(
+                    color: Colors.white54,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Text(
                   '命令: ${_launcher.resolvedPath ?? "ffplay"} '
-                  '-f ${widget.tsWrap ? "mpegts" : "h264"} -i ${widget.streamUrl}',
+                  '-f ${widget.tsWrap ? "mpegts" : widget.codec == CustomVideoCodec.h265 ? "hevc" : "h264"} -i ${widget.streamUrl}',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white30, fontSize: 11),
+                  style: context.textTheme.labelSmall!.copyWith(
+                    color: Colors.white30,
+                  ),
                 ),
                 if (_launcher.lastError != null) ...[
                   const SizedBox(height: 8),
                   Text(
                     _launcher.lastError!,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.orange, fontSize: 11),
+                    style: context.textTheme.labelSmall!.copyWith(
+                      color: Colors.orange,
+                    ),
                   ),
                 ],
                 const SizedBox(height: 12),

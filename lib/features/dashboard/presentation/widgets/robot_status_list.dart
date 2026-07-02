@@ -1,9 +1,15 @@
-/// Robot status list rendered per selected side and display mode.
+/// Professionally designed robot status list optimized for enemy health monitoring.
 ///
 /// Protocol `robot_health` is ordered `[己方 0-4, 对方 5-9]`, each side as
 /// 英雄/工程/步兵3/步兵4/哨兵. The connected side (己方) is decided by the
-/// logged-in robot id; the opposing side is 对方. The list shows either the
-/// enemy detail (enemyFocus) or both teams (both), per [dashboardDisplayModeProvider].
+/// logged-in robot id; the opposing side is 对方.
+///
+/// ## Design Features
+/// - **Team Health Summary Bar**: Side-by-side ally vs enemy total HP comparison.
+/// - **Health Gradient Colors**: Green (>60%) → Orange (30-60%) → Red (<30%).
+/// - **Critical-Health Pulse**: Animated glow for robots below 25% HP.
+/// - **Smooth Transitions**: `TweenAnimationBuilder` on every health bar.
+/// - **Game-HUD Typography**: Monospaced numbers, clear visual hierarchy.
 library;
 
 import 'package:flutter/material.dart';
@@ -15,6 +21,22 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../connection/domain/robot_identity.dart';
 import '../../logic/game_state.dart';
 import '../../logic/stream_providers.dart';
+
+// ======================================================================
+// Constants
+// ======================================================================
+
+/// Thresholds for health color coding.
+const double _healthHigh = 0.60; // green
+const double _healthMid = 0.30; // orange
+// below _healthMid → red
+
+/// Below this fraction the robot gets a critical-pulse badge.
+const double _criticalThreshold = 0.25;
+
+// ======================================================================
+// Robot definition helpers
+// ======================================================================
 
 /// Robot type definition with display name, asset and data mapping.
 class _RobotDef {
@@ -28,25 +50,12 @@ class _RobotDef {
     this.isDrone = false,
   });
 
-  /// Display name shown on the label pill.
   final String name;
-
-  /// Asset path for the robot icon.
   final String iconAsset;
-
-  /// Index into [GlobalUnitStatus.robotHealth]; -1 for the drone (no health).
   final int dataIndex;
-
-  /// Maximum health used to scale the health bar.
   final int maxHealth;
-
-  /// Team color (red/blue) used for the label, bar and value.
   final Color sideColor;
-
-  /// Whether this robot belongs to the opposing (对方) side.
   final bool isEnemy;
-
-  /// Whether this is the aerial drone (shows counter-progress, no ammo).
   final bool isDrone;
 }
 
@@ -72,19 +81,24 @@ List<_RobotDef> _teamDefs({required bool isBlue, required bool isEnemy}) {
   final sideName = isBlue ? '蓝方' : '红方';
   final color = isBlue ? rmBlueTeamColor : rmRedTeamColor;
   final base = isEnemy ? 5 : 0;
-  _RobotDef def(String role, String asset, int offset, int maxHp,
-          {bool drone = false}) =>
-      _RobotDef(
-        name: '$sideName $role',
-        iconAsset: 'assets/$asset.png',
-        dataIndex: drone ? -1 : base + offset,
-        maxHealth: maxHp,
-        sideColor: color,
-        isEnemy: isEnemy,
-        isDrone: drone,
-      );
+  _RobotDef def(
+    String role,
+    String asset,
+    int offset,
+    int maxHp, {
+    bool drone = false,
+  }) => _RobotDef(
+    name: '$sideName $role',
+    iconAsset: 'assets/$asset.png',
+    dataIndex: drone ? -1 : base + offset,
+    maxHealth: maxHp,
+    sideColor: color,
+    isEnemy: isEnemy,
+    isDrone: drone,
+  );
   return [
     def('英雄', '${prefix}Hero', 0, 500),
+    // Note: 工程 (offset 1) is intentionally omitted from UI per spec.
     def('步兵3', '${prefix}SentryInfantry', 2, 300),
     def('步兵4', '${prefix}SentryInfantry', 3, 300),
     def('哨兵', '${prefix}SentryInfantry', 4, 600),
@@ -92,11 +106,35 @@ List<_RobotDef> _teamDefs({required bool isBlue, required bool isEnemy}) {
   ];
 }
 
-/// Displays robot status rows grouped by team, per side and display mode.
+// ======================================================================
+// Health color helpers
+// ======================================================================
+
+/// Returns a color interpolated from green → orange → red based on [ratio].
+Color _healthColor(double ratio) {
+  if (ratio >= _healthHigh) {
+    // Green -> Yellow-Orange
+    final t = (ratio - _healthHigh) / (1.0 - _healthHigh);
+    return Color.lerp(rmHealthMidColor, rmHealthHighColor, t)!;
+  } else if (ratio >= _healthMid) {
+    // Yellow-Orange -> Orange-Red
+    final t = (ratio - _healthMid) / (_healthHigh - _healthMid);
+    return Color.lerp(rmHealthLowColor, rmHealthMidColor, t)!;
+  } else {
+    return rmHealthLowColor;
+  }
+}
+
+// ======================================================================
+// RobotStatusList
+// ======================================================================
+
+/// Professionally designed robot status panel with team health comparison.
 ///
-/// When [gameState] is provided (replay), it renders that snapshot with the
-/// supplied [ownIsBlueOverride] / [modeOverride]; otherwise it watches the live
-/// providers. Replay and live never share mutable state.
+/// Shows enemy robot health details (default) or both teams, configurable via
+/// [dashboardDisplayModeProvider]. Includes a summary bar at the top comparing
+/// ally vs enemy total health, and per-robot health bars with gradient coloring
+/// and critical-health pulse effects.
 class RobotStatusList extends ConsumerWidget {
   /// Creates a [RobotStatusList].
   const RobotStatusList({
@@ -117,31 +155,71 @@ class RobotStatusList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final GameState effectiveState =
-        gameState ?? ref.watch(gameStateProvider);
-    final bool ownIsBlue = ownIsBlueOverride ??
-        isBlueSide(ref.watch(selectedRobotIdProvider));
+    final GameState effectiveState = gameState ?? ref.watch(gameStateProvider);
+    final bool ownIsBlue =
+        ownIsBlueOverride ?? isBlueSide(ref.watch(selectedRobotIdProvider));
     final DashboardDisplayMode mode =
         modeOverride ?? ref.watch(dashboardDisplayModeProvider);
 
     final sections = _resolveSections(ownIsBlue: ownIsBlue, mode: mode);
+    final enemyDefs = _enemyDefs(ownIsBlue: ownIsBlue, sections: sections);
 
-    return Padding(
-      padding: context.insetAll(12),
-      child: Card(
-        child: Padding(
-          padding: context.insetAll(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(context, effectiveState),
-              context.sizedBox(h: 8),
-              Expanded(child: _buildSectionList(context, sections, effectiveState)),
-            ],
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 400),
+      curve: const Cubic(0.2, 0, 0, 1), // MD3 emphasized decelerate
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - value) * 20),
+            child: child,
+          ),
+        );
+      },
+      child: Padding(
+        padding: context.insetAll(12),
+        child: Card(
+          clipBehavior: Clip.antiAlias,
+          child: Padding(
+            padding: context.insetAll(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // --- Team Health Comparison Bar ---
+                _TeamHealthSummary(
+                  gameState: effectiveState,
+                  ownIsBlue: ownIsBlue,
+                ),
+
+                context.sizedBox(h: 10),
+
+                // --- Per-robot health list ---
+                Expanded(
+                  child: _buildSectionList(context, sections, effectiveState),
+                ),
+
+                // --- Enemy gang-up suggestion (only in enemyFocus mode) ---
+                if (mode == DashboardDisplayMode.enemyFocus &&
+                    enemyDefs.isNotEmpty)
+                  _buildSuggestionBar(context, effectiveState, enemyDefs),
+              ],
+            ),
           ),
         ),
       ),
     );
+  }
+
+  /// Extracts the enemy section defs, if any.
+  static List<_RobotDef> _enemyDefs({
+    required bool ownIsBlue,
+    required List<_TeamSection> sections,
+  }) {
+    for (final s in sections) {
+      if (s.title == 'enemy') return s.defs;
+    }
+    return [];
   }
 
   /// Resolves which team sections to show for [mode] and the own side.
@@ -150,7 +228,7 @@ class RobotStatusList extends ConsumerWidget {
     required DashboardDisplayMode mode,
   }) {
     final enemy = _TeamSection(
-      title: '敌方 · ${ownIsBlue ? '红方' : '蓝方'}',
+      title: 'enemy',
       color: ownIsBlue ? rmRedTeamColor : rmBlueTeamColor,
       defs: _teamDefs(isBlue: !ownIsBlue, isEnemy: true),
     );
@@ -158,21 +236,31 @@ class RobotStatusList extends ConsumerWidget {
       return [enemy];
     }
     final own = _TeamSection(
-      title: '己方 · ${ownIsBlue ? '蓝方' : '红方'}',
+      title: 'own',
       color: ownIsBlue ? rmBlueTeamColor : rmRedTeamColor,
       defs: _teamDefs(isBlue: ownIsBlue, isEnemy: false),
     );
     return [own, enemy];
   }
 
-  Widget _buildSectionList(BuildContext context, List<_TeamSection> sections, GameState gameState) {
-    // 双方都显示时（两栏）横向并列；单栏时（敌方详情）保持纵向铺满。
+  Widget _buildSectionList(
+    BuildContext context,
+    List<_TeamSection> sections,
+    GameState gameState,
+  ) {
     if (sections.length > 1) {
       final columns = <Widget>[];
       for (var i = 0; i < sections.length; i++) {
         if (i > 0) columns.add(context.sizedBox(w: 16));
         columns.add(
-          Expanded(child: _buildSectionColumn(sections[i], gameState)),
+          Expanded(
+            child: _buildSectionColumn(
+              context,
+              sections[i],
+              gameState,
+              isSingle: false,
+            ),
+          ),
         );
       }
       return Row(
@@ -180,51 +268,230 @@ class RobotStatusList extends ConsumerWidget {
         children: columns,
       );
     }
-    return _buildSectionColumn(sections.first, gameState);
+    return _buildSectionColumn(
+      context,
+      sections.first,
+      gameState,
+      isSingle: true,
+    );
   }
 
   /// Builds a single scrollable column for one team section.
-  Widget _buildSectionColumn(_TeamSection section, GameState gameState) {
+  Widget _buildSectionColumn(
+    BuildContext context,
+    _TeamSection section,
+    GameState gameState, {
+    required bool isSingle,
+  }) {
     final children = <Widget>[
       _SectionHeader(title: section.title, color: section.color),
+      context.sizedBox(h: 6),
       for (final def in section.defs)
-        _RobotStatusRow(def: def, gameState: gameState),
+        _RobotStatusRow(def: def, gameState: gameState, compact: !isSingle),
     ];
     return ListView(children: children);
   }
 
-  Widget _buildHeader(BuildContext context, GameState gameState) {
-    // 己方累计允许载弹量 = Σ robot_bullets[0..4]（协议字段12）。
-    final totalBullets = gameState.allyTotalBullets;
-    final muted = rmTextSecondary(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Text(
-          '机器人状态',
-          style: TextStyle(fontSize: context.fontSize(18), fontWeight: FontWeight.bold),
+  /// Suggestion bar: highlights which enemy robot has the lowest health.
+  Widget _buildSuggestionBar(
+    BuildContext context,
+    GameState gameState,
+    List<_RobotDef> enemyDefs,
+  ) {
+    _RobotDef? lowestDef;
+    var lowestHp = double.infinity;
+    int? lowestHealth;
+    for (final def in enemyDefs) {
+      final hp = _getHealth(def, gameState);
+      final maxHp = def.maxHealth;
+      if (maxHp <= 0) continue;
+      final ratio = hp / maxHp;
+      if (ratio < lowestHp) {
+        lowestHp = ratio;
+        lowestDef = def;
+        lowestHealth = hp;
+      }
+    }
+
+    if (lowestDef == null || lowestHp > _criticalThreshold) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: EdgeInsets.only(top: context.sp(8)),
+      child: Container(
+        padding: context.insetSym(h: 12, v: 8),
+        decoration: BoxDecoration(
+          color: rmHealthLowColor.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(context.sp(8)),
+          border: Border.all(color: rmHealthLowColor.withValues(alpha: 0.3)),
         ),
-        const Spacer(),
-        Icon(Icons.adjust, size: context.iconSize(16), color: muted),
-        context.sizedBox(w: 4),
-        Text(
-          '己方累计载弹量: ',
-          style: TextStyle(fontSize: context.fontSize(13), color: muted),
+        child: Row(
+          children: [
+            Icon(
+              Icons.whatshot,
+              size: context.iconSize(18),
+              color: rmHealthLowColor,
+            ),
+            context.sizedBox(w: 8),
+            Expanded(
+              child: Text(
+                '集火目标 · ${lowestDef.name}  剩余 $lowestHealth / ${lowestDef.maxHealth}',
+                style: context.textTheme.bodySmall!.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: rmHealthLowColor,
+                ),
+              ),
+            ),
+          ],
         ),
-        Text(
-          totalBullets?.toString() ?? '—',
-          style: TextStyle(
-            fontSize: context.fontSize(16),
-            fontWeight: FontWeight.bold,
-            color: rmHealthBarColor,
+      ),
+    );
+  }
+
+  /// Reads health from [gameState] for [def].
+  static int _getHealth(_RobotDef def, GameState gameState) {
+    if (def.dataIndex < 0) return 0;
+    final list = gameState.globalUnitStatus?.robotHealth;
+    if (list == null || def.dataIndex >= list.length) return 0;
+    return list[def.dataIndex];
+  }
+}
+
+// ======================================================================
+// _TeamHealthSummary — compact side-by-side HP bars
+// ======================================================================
+
+/// Compact bar showing ally vs enemy total health as a pair of
+/// red/blue progress bars with HP values overlaid.
+class _TeamHealthSummary extends StatelessWidget {
+  const _TeamHealthSummary({required this.gameState, required this.ownIsBlue});
+
+  final GameState gameState;
+  final bool ownIsBlue;
+
+  @override
+  Widget build(BuildContext context) {
+    final allyTotal = gameState.allyTotalHealth ?? 0;
+    final enemyTotal = gameState.enemyTotalHealth ?? 0;
+    final combined = (allyTotal + enemyTotal).toDouble();
+    final allyRatio = combined > 0 ? allyTotal / combined : 0.5;
+    final enemyRatio = combined > 0 ? enemyTotal / combined : 0.5;
+
+    final allyColor = ownIsBlue ? rmBlueTeamColor : rmRedTeamColor;
+    final enemyColor = ownIsBlue ? rmRedTeamColor : rmBlueTeamColor;
+
+    return Container(
+      padding: context.insetSym(h: 10, v: 6),
+      decoration: BoxDecoration(
+        color: Theme.of(context).brightness == Brightness.dark
+            ? Colors.white.withValues(alpha: 0.03)
+            : Colors.black.withValues(alpha: 0.02),
+        borderRadius: BorderRadius.circular(context.sp(6)),
+      ),
+      child: Row(
+        children: [
+          // Ally bar segment
+          Expanded(
+            flex: (allyRatio * 100).round().clamp(1, 99),
+            child: _TeamBarSegment(
+              value: allyRatio,
+              color: allyColor,
+              label: 'HP $allyTotal',
+            ),
           ),
-        ),
-      ],
+          context.sizedBox(w: 2),
+          // Enemy bar segment
+          Expanded(
+            flex: (enemyRatio * 100).round().clamp(1, 99),
+            child: _TeamBarSegment(
+              value: enemyRatio,
+              color: enemyColor,
+              label: 'HP $enemyTotal',
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
-/// A team divider pill used between robot groups.
+// ======================================================================
+// _TeamBarSegment — single colored bar with HP label
+// ======================================================================
+
+/// A single side of the health comparison bar with an animated fill
+/// and a compact HP label overlaid on the left side.
+class _TeamBarSegment extends StatelessWidget {
+  const _TeamBarSegment({
+    required this.value,
+    required this.color,
+    required this.label,
+  });
+
+  final double value;
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: value.clamp(0.0, 1.0)),
+      duration: const Duration(milliseconds: 600),
+      curve: Curves.easeOutCubic,
+      builder: (context, t, _) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(context.sp(3)),
+          child: SizedBox(
+            height: context.sp(16),
+            child: Stack(
+              children: [
+                // Background track
+                Positioned.fill(
+                  child: Container(color: color.withValues(alpha: 0.10)),
+                ),
+                // Animated fill
+                FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: t,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [color.withValues(alpha: 0.7), color],
+                      ),
+                    ),
+                  ),
+                ),
+                // HP label (always visible)
+                Positioned(
+                  left: context.sp(6),
+                  top: 0,
+                  bottom: 0,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      label,
+                      style: context.textTheme.labelSmall!.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ======================================================================
+// _SectionHeader — minimal team accent bar
+// ======================================================================
+
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({required this.title, required this.color});
 
@@ -234,157 +501,56 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(top: context.sp(6), bottom: context.sp(2)),
-      child: Row(
-        children: [
-          Container(width: context.sp(4), height: context.sp(16), color: color),
-          context.sizedBox(w: 6),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: context.fontSize(14),
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-        ],
+      padding: EdgeInsets.only(top: context.sp(2), bottom: context.sp(4)),
+      child: Container(
+        height: context.sp(2),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(context.sp(1)),
+        ),
       ),
     );
   }
 }
 
-/// Single robot status row: icon, label, progress bar, value.
+// ======================================================================
+// _RobotStatusRow — single robot health row with animated bar
+// ======================================================================
+
+/// A single robot health row with a gradient health bar, percentage label,
+/// and critical-health pulse animation.
 class _RobotStatusRow extends StatelessWidget {
-  const _RobotStatusRow({required this.def, required this.gameState});
+  const _RobotStatusRow({
+    required this.def,
+    required this.gameState,
+    this.compact = false,
+  });
 
   final _RobotDef def;
   final GameState gameState;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final health = _getHealth();
-    final healthPercent = (health / def.maxHealth).clamp(0.0, 1.0);
-    final hasData = def.dataIndex >= 0 &&
+    final hasData =
+        def.dataIndex >= 0 &&
         (gameState.globalUnitStatus?.robotHealth.length ?? 0) > def.dataIndex;
+    final healthPercent = hasData
+        ? (health / def.maxHealth).clamp(0.0, 1.0)
+        : 0.0;
+    final isCritical = hasData && healthPercent < _criticalThreshold;
 
     return Padding(
-      padding: context.insetSym(v: 6),
-      child: Row(
-        children: [
-          _buildIcon(context),
-          context.sizedBox(w: 10),
-          _buildLabel(context),
-          context.sizedBox(w: 10),
-          _buildProgressSection(context, health, healthPercent, hasData),
-          context.sizedBox(w: 10),
-          _buildValueDisplay(context, health, hasData),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildIcon(BuildContext context) {
-    return ClipOval(
-      child: Image.asset(
-        def.iconAsset,
-        width: context.rmRobotIconSize,
-        height: context.rmRobotIconSize,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => Icon(
-          Icons.smart_toy,
-          size: context.rmRobotIconSize,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLabel(BuildContext context) {
-    return Container(
-      padding: context.insetSym(h: 10, v: 4),
-      decoration: BoxDecoration(
-        color: def.sideColor.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(context.sp(16)),
-      ),
-      child: Text(
-        def.name,
-        style: TextStyle(
-          fontSize: context.fontSize(13),
-          fontWeight: FontWeight.w500,
-          color: def.sideColor,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProgressSection(
-      BuildContext context, int health, double healthPercent, bool hasData) {
-    final (label, progressValue, barColor) = def.isDrone
-        ? _droneCounterInfo()
-        : (
-            hasData ? '血量: $health / ${def.maxHealth}' : '血量: 等待数据',
-            healthPercent,
-            def.sideColor,
-          );
-
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: TextStyle(fontSize: context.fontSize(12), color: rmTextSecondary(context)),
-          ),
-          context.sizedBox(h: 4),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(context.sp(6)),
-            child: LinearProgressIndicator(
-              value: progressValue,
-              minHeight: context.sp(12),
-              backgroundColor: rmTrackFill(context),
-              valueColor: AlwaysStoppedAnimation<Color>(barColor),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Returns the drone counter (标签, 进度0~1, 颜色).
-  ///
-  /// The air-support counter (AirSupportStatusSync) is己方-relative, so only
-  /// the own-side drone shows live progress; the enemy drone has no telemetry.
-  (String, double, Color) _droneCounterInfo() {
-    if (def.isEnemy) {
-      return ('反制进度: 无遥测', 0, rmCounterBarColor);
-    }
-    final sync = gameState.airSupportStatusSync;
-    if (sync == null) {
-      return ('反制进度: 等待数据', 0, rmCounterBarColor);
-    }
-    final progress = sync.shooterStatus.clamp(0, 100);
-    return ('反制进度: $progress%', progress / 100.0, rmCounterBarColor);
-  }
-
-  Widget _buildValueDisplay(BuildContext context, int health, bool hasData) {
-    final String text;
-    if (def.isDrone) {
-      final sync = gameState.airSupportStatusSync;
-      text = (def.isEnemy || sync == null)
-          ? '—'
-          : '${sync.shooterStatus.clamp(0, 100)}';
-    } else {
-      text = !hasData ? '—' : '$health';
-    }
-    return SizedBox(
-      width: context.sp(56),
-      child: Text(
-        text,
-        textAlign: TextAlign.right,
-        style: TextStyle(
-          fontSize: context.fontSize(22),
-          fontWeight: FontWeight.bold,
-          color: def.sideColor,
-        ),
+      padding: EdgeInsets.symmetric(vertical: context.sp(compact ? 4 : 6)),
+      child: _AnimatedHealthRow(
+        def: def,
+        health: health,
+        healthPercent: healthPercent,
+        hasData: hasData,
+        isCritical: isCritical,
+        compact: compact,
+        gameState: gameState,
       ),
     );
   }
@@ -394,5 +560,338 @@ class _RobotStatusRow extends StatelessWidget {
     final list = gameState.globalUnitStatus?.robotHealth;
     if (list == null || def.dataIndex >= list.length) return 0;
     return list[def.dataIndex];
+  }
+}
+
+// ======================================================================
+// _AnimatedHealthRow — smoothly animates health changes
+// ======================================================================
+
+class _AnimatedHealthRow extends StatefulWidget {
+  const _AnimatedHealthRow({
+    required this.def,
+    required this.health,
+    required this.healthPercent,
+    required this.hasData,
+    required this.isCritical,
+    required this.compact,
+    required this.gameState,
+  });
+
+  final _RobotDef def;
+  final int health;
+  final double healthPercent;
+  final bool hasData;
+  final bool isCritical;
+  final bool compact;
+  final GameState gameState;
+
+  @override
+  State<_AnimatedHealthRow> createState() => _AnimatedHealthRowState();
+}
+
+class _AnimatedHealthRowState extends State<_AnimatedHealthRow>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    _pulseAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOutSine),
+    );
+    if (widget.isCritical) {
+      _pulseController.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void didUpdateWidget(_AnimatedHealthRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isCritical && !_pulseController.isAnimating) {
+      _pulseController.repeat(reverse: true);
+    } else if (!widget.isCritical && _pulseController.isAnimating) {
+      _pulseController
+        ..stop()
+        ..reset();
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            _buildIcon(context),
+            context.sizedBox(w: 10),
+            Expanded(child: _buildInfoColumn(context)),
+            context.sizedBox(w: 8),
+            _buildValueDisplay(context),
+          ],
+        ),
+        context.sizedBox(h: 4),
+        _buildCompactBar(context),
+      ],
+    );
+  }
+
+  Widget _buildIcon(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _pulseAnimation,
+      builder: (context, child) {
+        final pulseValue = widget.isCritical
+            ? 0.7 + _pulseAnimation.value * 0.3
+            : 1.0;
+        return Transform.scale(
+          scale: pulseValue,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: widget.isCritical
+                  ? [
+                      BoxShadow(
+                        color: rmHealthLowColor.withValues(
+                          alpha: 0.4 * _pulseAnimation.value,
+                        ),
+                        blurRadius: context.sp(8),
+                        spreadRadius: context.sp(2),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: ClipOval(
+              child: Image.asset(
+                widget.def.iconAsset,
+                width: context.rmRobotIconSize * (widget.compact ? 0.75 : 0.85),
+                height:
+                    context.rmRobotIconSize * (widget.compact ? 0.75 : 0.85),
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => Icon(
+                  Icons.smart_toy,
+                  size: context.rmRobotIconSize * 0.85,
+                  color: widget.def.sideColor,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildInfoColumn(BuildContext context) {
+    final muted = rmTextSecondary(context);
+    final healthPercent = widget.healthPercent;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            // Role name pill
+            Container(
+              padding: context.insetSym(h: 8, v: 2),
+              decoration: BoxDecoration(
+                color: widget.def.sideColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(context.sp(12)),
+              ),
+              child: Text(
+                _shortName(widget.def.name),
+                style: context.textTheme.bodySmall!.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: widget.def.sideColor,
+                ),
+              ),
+            ),
+            context.sizedBox(w: 6),
+            // Critical badge
+            if (widget.isCritical)
+              Container(
+                padding: context.insetSym(h: 6, v: 1),
+                decoration: BoxDecoration(
+                  color: rmHealthLowColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(context.sp(8)),
+                ),
+                child: Text(
+                  '致命',
+                  style: context.textTheme.labelSmall!.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: rmHealthLowColor,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        context.sizedBox(h: 3),
+        // Health text
+        if (widget.def.isDrone)
+          _droneLabel(context)
+        else
+          Text(
+            widget.hasData
+                ? 'HP ${widget.health} / ${widget.def.maxHealth}  ·  ${(healthPercent * 100).round()}%'
+                : '血量: 等待数据',
+            style: context.textTheme.labelSmall!.copyWith(
+              color: muted,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _droneLabel(BuildContext context) {
+    final muted = rmTextSecondary(context);
+    final sync = widget.gameState.airSupportStatusSync;
+    if (widget.def.isEnemy || sync == null) {
+      return Text(
+        '反制进度: 无遥测',
+        style: context.textTheme.labelSmall!.copyWith(color: muted),
+      );
+    }
+    final progress = sync.shooterStatus.clamp(0, 100);
+    return Text(
+      '反制 $progress%',
+      style: context.textTheme.labelSmall!.copyWith(
+        color: rmCounterBarColor,
+        fontWeight: FontWeight.w500,
+      ),
+    );
+  }
+
+  Widget _buildValueDisplay(BuildContext context) {
+    final healthPercent = widget.healthPercent;
+    final healthColor = widget.hasData
+        ? _healthColor(healthPercent)
+        : rmTextSecondary(context);
+
+    if (widget.def.isDrone) {
+      final sync = widget.gameState.airSupportStatusSync;
+      final text = (widget.def.isEnemy || sync == null)
+          ? '—'
+          : '${sync.shooterStatus.clamp(0, 100)}';
+      return _valueText(context, text, rmCounterBarColor);
+    }
+
+    final text = !widget.hasData ? '—' : '${widget.health}';
+    return _valueText(context, text, healthColor);
+  }
+
+  Widget _valueText(BuildContext context, String text, Color color) {
+    return SizedBox(
+      width: context.sp(48),
+      child: Text(
+        text,
+        textAlign: TextAlign.right,
+        style: context.textTheme.titleLarge!.copyWith(
+          fontWeight: FontWeight.bold,
+          color: color,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+      ),
+    );
+  }
+
+  /// Compact progress bar positioned below the info row.
+  Widget _buildCompactBar(BuildContext context) {
+    final progressValue = widget.def.isDrone
+        ? _droneProgress()
+        : widget.healthPercent;
+    final barColor = widget.def.isDrone
+        ? rmCounterBarColor
+        : (widget.hasData
+              ? _healthColor(widget.healthPercent)
+              : rmTrackFill(context));
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(context.sp(3)),
+      child: _AnimatedHealthBar(
+        value: progressValue,
+        color: barColor,
+        height: widget.compact ? context.sp(4) : context.sp(6),
+      ),
+    );
+  }
+
+  double _droneProgress() {
+    if (widget.def.isEnemy) return 0;
+    final sync = widget.gameState.airSupportStatusSync;
+    if (sync == null) return 0;
+    return sync.shooterStatus.clamp(0, 100) / 100.0;
+  }
+
+  /// Extracts the short role name from "蓝方 英雄" → "英雄".
+  static String _shortName(String full) {
+    final idx = full.indexOf(' ');
+    return idx >= 0 ? full.substring(idx + 1) : full;
+  }
+}
+
+// ======================================================================
+// _AnimatedHealthBar — animated linear progress indicator
+// ======================================================================
+
+/// Smoothly animated health bar that transitions when [value] or [color] changes.
+class _AnimatedHealthBar extends StatelessWidget {
+  const _AnimatedHealthBar({
+    required this.value,
+    required this.color,
+    this.height = 6,
+  });
+
+  final double value;
+  final Color color;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: value.clamp(0.0, 1.0)),
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeOutCubic,
+      builder: (context, t, _) {
+        return Container(
+          height: height,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(height / 2),
+          ),
+          child: FractionallySizedBox(
+            alignment: Alignment.centerLeft,
+            widthFactor: t,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [color.withValues(alpha: 0.8), color],
+                ),
+                borderRadius: BorderRadius.circular(height / 2),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.3),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 }

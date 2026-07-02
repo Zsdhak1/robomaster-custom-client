@@ -25,14 +25,14 @@ class DebugPanel extends ConsumerWidget {
         width: context.sp(480),
         height: context.sp(360),
         decoration: BoxDecoration(
-          color: Colors.grey.shade900,
+          color: Theme.of(context).colorScheme.surfaceContainerHigh,
           borderRadius: BorderRadius.circular(context.rmCardRadius),
-          border: Border.all(color: Colors.grey.shade700),
+          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
         ),
         child: Column(
           children: [
             _buildHeader(context, ref, log.entries.length),
-            Expanded(child: _buildBody(topics, log)),
+            Expanded(child: _buildBody(context, topics, log)),
           ],
         ),
       ),
@@ -43,7 +43,7 @@ class DebugPanel extends ConsumerWidget {
     return Container(
       padding: context.insetSym(h: 12, v: 8),
       decoration: BoxDecoration(
-        color: Colors.grey.shade800,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(context.rmCardRadius),
         ),
@@ -54,15 +54,14 @@ class DebugPanel extends ConsumerWidget {
           context.sizedBox(w: 8),
           Text(
             'Debug — $count 条记录',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: context.fontSize(14),
+            style: context.textTheme.bodyMedium!.copyWith(
+              color: Theme.of(context).colorScheme.onSurface,
               fontWeight: FontWeight.w500,
             ),
           ),
           const Spacer(),
           IconButton(
-            icon: const Icon(Icons.delete_outline, color: Colors.grey, size: 18),
+            icon: const Icon(Icons.delete_outline, size: 18),
             tooltip: '清空',
             onPressed: () => ref.read(debugMessageLogProvider.notifier).clear(),
           ),
@@ -71,13 +70,15 @@ class DebugPanel extends ConsumerWidget {
     );
   }
 
-  Widget _buildBody(List<String> topics, DebugMessageLog log) {
+  Widget _buildBody(BuildContext context, List<String> topics, DebugMessageLog log) {
     if (topics.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
           '暂无数据\n等待 MQTT 消息...',
           textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.grey, fontSize: 14),
+          style: context.textTheme.bodyMedium!.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
       );
     }
@@ -87,8 +88,6 @@ class DebugPanel extends ConsumerWidget {
         children: [
           TabBar(
             isScrollable: true,
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.grey,
             indicatorColor: rmPrimaryBlue,
             tabs: topics.map((t) => Tab(text: t)).toList(),
           ),
@@ -139,7 +138,7 @@ class _LogEntryTile extends StatelessWidget {
       margin: context.insetOnly(b: 6),
       padding: context.insetAll(8),
       decoration: BoxDecoration(
-        color: const Color(0xFF303030),
+        color: Theme.of(context).colorScheme.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(context.sp(6)),
       ),
       child: Column(
@@ -161,9 +160,8 @@ class _LogEntryTile extends StatelessWidget {
       children: [
         Text(
           time,
-          style: TextStyle(
-            color: Colors.grey.shade500,
-            fontSize: context.fontSize(11),
+          style: context.textTheme.labelSmall!.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
             fontFamily: 'monospace',
           ),
         ),
@@ -179,17 +177,15 @@ class _LogEntryTile extends StatelessWidget {
         context.sizedBox(w: 6),
         Text(
           entry.isRecognized ? '已解析' : '未识别',
-          style: TextStyle(
+          style: context.textTheme.labelSmall!.copyWith(
             color: entry.isRecognized ? Colors.green : Colors.orange,
-            fontSize: context.fontSize(11),
           ),
         ),
         const Spacer(),
         Text(
           '${entry.rawBytes.length} 字节',
-          style: TextStyle(
-            color: Colors.grey.shade600,
-            fontSize: context.fontSize(10),
+          style: context.textTheme.labelSmall!.copyWith(
+            color: rmTextSecondary(context),
             fontFamily: 'monospace',
           ),
         ),
@@ -202,9 +198,8 @@ class _LogEntryTile extends StatelessWidget {
       // Unrecognized or empty message: fall back to hex.
       return Text(
         entry.isRecognized ? '(空消息)' : entry.hexSummary,
-        style: TextStyle(
-          color: Colors.grey.shade400,
-          fontSize: context.fontSize(12),
+        style: context.textTheme.bodySmall!.copyWith(
+          color: rmTextSecondary(context),
           fontFamily: 'monospace',
         ),
       );
@@ -225,9 +220,8 @@ class _LogEntryTile extends StatelessWidget {
             width: context.sp(140),
             child: Text(
               field.name,
-              style: TextStyle(
+              style: context.textTheme.bodySmall!.copyWith(
                 color: rmPrimaryBlue,
-                fontSize: context.fontSize(12),
                 fontFamily: 'monospace',
                 fontWeight: FontWeight.w500,
               ),
@@ -237,9 +231,8 @@ class _LogEntryTile extends StatelessWidget {
           Expanded(
             child: Text(
               field.value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
+              style: context.textTheme.bodySmall!.copyWith(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontFamily: 'monospace',
               ),
             ),

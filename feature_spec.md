@@ -75,8 +75,8 @@
 | 2.2 | 关键数据显示 | 实现核心数据卡片组件：比赛剩余时间、双方血量、经济/发弹量、能量机关状态。数据从 `gameStateProvider` 读取（由 MQTT Protobuf 消息驱动）。 | `lib/features/dashboard/presentation/widgets/robot_status_list.dart`, `game_status_card.dart` | `[x]` |
 | 2.3 | 实时状态图表 | 使用 fl_chart 绘制：己方总血量变化曲线、金币/发弹量实时柱状图。数据源为 `gameStateProvider` 的历史缓存（最近 120 秒）。 | `lib/features/dashboard/presentation/widgets/health_chart.dart` | `[x]` |
 | 2.4 | 关键事件列表 | 实现事件列表组件，监听 MQTT 下发的比赛事件消息（击杀、摧毁、占领、判罚等），按时间倒序显示，限制最近 50 条。 | `lib/features/dashboard/presentation/widgets/event_timeline_panel.dart` | `[x]` |
-| 2.5 | 实时操作面板 | 实现辅助信息区域：飞镖发射倒计时、空中支援状态、哨兵决策状态。数据来自 MQTT 状态消息。 | `lib/features/dashboard/presentation/widgets/operation_panel.dart` | `[ ]` |
-| 2.6 | 视频流显示（可选） | 实现视频面板 Widget，接收 `videoFrameProvider` 的 AnnexB 帧，通过平台 View 或外部播放器渲染 HEVC 流。提供"显示/隐藏视频"开关。 | `lib/features/dashboard/presentation/widgets/video_panel.dart` | `[ ]` |
+| 2.5 | 实时操作面板 | 实现辅助信息区域：飞镖发射倒计时、空中支援状态、哨兵决策状态。数据来自 MQTT 状态消息。 | `lib/features/dashboard/presentation/widgets/operation_panel.dart` | `[x]` |
+| 2.6 | 视频流显示（可选） | 实现视频面板 Widget，接收 `videoFrameProvider` 的 AnnexB 帧，通过平台 View 或外部播放器渲染 HEVC 流。提供"显示/隐藏视频"开关。 | `lib/features/dashboard/presentation/widgets/video_panel.dart` | `[x]` |
 | 2.7 | 数据流连接控制 | 添加连接/断开按钮，控制 MQTT Service 与 UDP Service 的启动和停止。连接状态实时显示。连接/断开操作收敛至 Dashboard 页面级 `PageFabMenu`（已连接显示「断开连接」、未连接显示「重新连接」并跳转登录页）；顶部状态栏实时显示连接状态点与登录身份。 | `lib/core/navigation/page_fab_menu.dart`, `connection_screen.dart`, `dashboard_screen.dart` | `[x]` |
 | 2.8 | Debug 面板 | 实现原始数据查看面板：MQTT 消息十六进制 + Protobuf 解析后字段树；UDP 分片重组统计（帧ID、分片数、丢包数）。可通过设置开关显示/隐藏。 | `lib/features/dashboard/presentation/widgets/debug_panel.dart` | `[x]` |
 
@@ -123,7 +123,7 @@
 | 5.3 | 性能优化 | 大数据量场景优化：事件列表使用 `ListView.builder`，图表数据采样（每 1 秒取一个点），内存中消息数量限制，视频帧缓存上限（避免内存泄漏）。 | 全局 | `[x]` |
 | 5.4 | 多平台适配 | 验证 Android 和 Linux 桌面端的 UI 适配：字体大小、触摸目标、文件选择器、MQTT/UDP 网络权限。 | 全局 | `[x]` |
 | 5.5 | 最终代码审计 | 执行完整自审计：函数长度、重复代码、命名规范、导入顺序、空安全、错误处理、无 `dynamic` 隐式使用。 | - | `[x]` |
-| 5.6 | 运行全部测试 | 运行 `flutter analyze`、`flutter test`，确保零警告、所有测试通过。 | - | `[ ]` |
+| 5.6 | 运行全部测试 | 运行 `flutter analyze`、`flutter test`，确保零警告、所有测试通过。 | - | `[x]` |
 
 **Phase 5 验收标准：** 应用在两平台运行正常，零 Lint 警告，所有功能完整可用，视频流（若开启）稳定。
 
@@ -293,6 +293,215 @@
 
 ---
 
+#### Phase 2: 主监控通知实验
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.1.0 Phase 2, Task 1 | 监控页通知样式实验台 | 为 Dashboard 增加多种可切换的事件通知覆盖样式（自动响应 `Event` Topic，并支持手动触发样例通知预览）；通知需足够醒目但尽量避让关键监控区域；监控页内提供样式切换、预览面板开关与样例事件触发按钮，便于现场比较后决定最终方案 | `lib/features/dashboard/logic/dashboard_notification*.dart`, `lib/features/dashboard/presentation/dashboard_screen.dart`, `lib/features/settings/logic/settings_providers.dart` | `[x]` |
+
+**Phase 2 验收标准：**
+- Dashboard 页面可在不离开监控视图的情况下切换通知样式；
+- 至少 3 种通知样式可手动触发预览，并在数秒后自动收起；
+- 实时收到 `Event` Topic 时可自动弹出通知，不影响现有事件时间轴；
+- `flutter analyze` 零新增问题。
+
+##### Phase 2 补充规格：Dashboard 通知模板参数基线（供后续开发）
+
+> 本节记录当前通知实验台已经落地的数据模型、样式枚举、堆叠与动画基线，并约束后续“通知模板编辑器 / 样式配置面板”的参数来源。后续继续开发通知系统时，以本节为单一规格来源，避免在 `models`、`factory`、`provider`、`overlay`、`settings` 中出现分叉定义。
+
+**1. 当前通知内容模板（`DashboardNotificationContent`）**
+
+| 字段 | 类型 | 当前用途 | 后续开发建议 |
+|------|------|----------|--------------|
+| `headline` | `String` | 主标题，承担第一注意力焦点 | 保持单行高显著展示；后续可增加基于优先级的文案规范 |
+| `detail` | `String` | 描述信息，补充持续时间、增益、返场等细节 | 后续可拆分为“关键数值片段 + 普通描述片段”以支持差异化字号/颜色 |
+| `badge` | `String` | 标签/类别名，如“高优先级”“战场告警” | 后续建议改为枚举 + 文案映射，避免自由文本不一致 |
+| `icon` | `IconData` | 事件识别图标 | 后续可改为按事件类别自动映射，模板层只存类别 |
+| `accentColor` | `Color` | 主色，驱动背景、边框、光晕、阴影 | 后续可细分为 `baseColor` / `glowColor` / `textAccentColor` |
+| `duration` | `Duration` | 自动消失时长 | 后续可按优先级分层设置最短/最长显示时间 |
+
+**2. 当前预览模板（`DashboardNotificationPreset`）**
+
+| 字段 | 类型 | 当前用途 | 后续开发建议 |
+|------|------|----------|--------------|
+| `label` | `String` | 实验面板中的预览按钮文字 | 保持短文本；后续可支持按分类分组显示 |
+| `content` | `DashboardNotificationContent` | 点击按钮后触发的通知内容模板 | 作为人工验样、动画对比、现场挑选样式的样本来源 |
+
+**3. 当前通知样式枚举（`DashboardNotificationStyle`）**
+
+| 枚举值 | 布局定位 | 当前意图 |
+|--------|----------|----------|
+| `topBanner` | 顶部居中横幅 | 最高显著性，适合极高优先级事件 |
+| `rightCorner` | 右上悬浮卡片 | 信息完整、对主监控区遮挡较小 |
+| `sideBeacon` | 左侧信标卡片 | 方向感强，适合连续事件扫视 |
+
+**4. 当前显示与堆叠基线**
+
+- 通知支持同时显示多条，按“最新在上”进行竖向堆叠。
+- 当前最大同时显示数为 `4`；超过上限时，新通知进入，最旧通知被移出。
+- 每条通知独立计时并自动消失，也可手动关闭。
+- 新通知出现时，既有通知仅执行位置下移补位，不应重新播放进入动画。
+- 退场时应保持“向后堆叠缩小并淡出”的观感，同时释放纵向占位供其余通知补位。
+
+**5. 当前动画基线**
+
+- 进入动画：淡入 + 定向滑入 + 放大过冲回弹 + 短时增强外发光。
+- 常驻状态：通知外缘存在弱脉冲动态光晕，用于维持可见性。
+- 退出动画：轻微后撤、缩小、淡出，最后压缩高度完成堆叠补位。
+- 任何裁剪、重建或 key 复用问题都不应破坏上述三类动画语义。
+
+**6. 后续建议开放为可编辑配置的参数**
+
+| 参数组 | 建议字段 |
+|--------|----------|
+| 文案层 | `headline` 字号、`detail` 字号、关键片段高亮规则、最大行数 |
+| 颜色层 | 主色、边框色、光晕色、文字色、渐变强度 |
+| 布局层 | 横幅/卡片宽度、顶部偏移、左右边距、堆叠间距、图标尺寸、圆角、内边距 |
+| 行为层 | 自动消失时长、最大同时显示数、手动关闭开关、不同优先级的覆盖策略 |
+| 动画层 | 进入/退出时长、滑入偏移、放大过冲幅度、回弹强度、光晕脉冲周期、退场后撤幅度 |
+
+**7. 未来参数化开发约束**
+
+- 数据模板参数与渲染样式参数分离：`DashboardNotificationContent` 只描述“通知是什么”，样式配置只描述“通知怎么显示”。
+- 自动事件映射（`Event -> NotificationContent`）与手动预览模板必须共用同一内容模型，避免两套字段体系。
+- 若后续引入可持久化模板配置，优先落在 Dashboard / Settings 对应 Provider 中，并保证默认值可完全复现当前实验台效果。
+- 若后续新增第 4 种及以上样式，必须同步补充本节第 3、4、5、6 小节，确保规格与实现一致。
+
+---
+
+### v0.1.1 — Material 3 合规优化：排版令牌化、颜色收口、自适应布局、Elevation 色调化、M3 动效（2026-06-28）
+
+> **状态：已发布。** 本版本不引入新业务功能，目标是把 UI 层从"能跑"提升到"符合 Material 3 设计系统"，为后续视觉迭代与多端适配打底。
+>
+> **审计基线（2026-06-23，源码静态分析，总分 52/100）：**
+> | 维度 | 当前 | 目标 | 核心证据 |
+> |------|------|------|----------|
+> | Typography 排版 | 3/10 | ≥8 | `TextStyle(fontSize:)` 写死字号 **139 处**，`textTheme.*` 角色仅 1 处 |
+> | Color 颜色令牌 | 5/10 | ≥8 | `Colors.white/black/grey` 硬编码 **117 处**，业务层 `Color(0x..)` **23 处** |
+> | Shape 形状 | 6/10 | ≥8 | `BorderRadius.circular()` 魔法数 **47 处** |
+> | Layout 布局 | 5/10 | ≥8 | `MediaQuery/LayoutBuilder` 仅 4 处，无窗口尺寸类自适应 |
+> | Accessibility 无障碍 | 5/10 | ≥8 | `Semantics/tooltip` 仅 **12 处**，灰字未校验对比度 |
+> | Elevation 高程 | 3/10 | ≥8 | `CardThemeData(elevation: 2)` 使用阴影传达层级而非色调表面；卡片同时叠加阴影+边框；无 `surfaceContainer*` 变体使用 |
+> | Motion 动效 | 0/10 | ≥7 | 无 spring 物理动画、无自定义页面过渡、无 M3 emphasized/standard 曲线、无组件交互动效 |
+>
+> **保留项（已达标，本版本不动）：** Theming 9/10（`fromSeed` + light/dark/team 三态）、Navigation 8/10（`NavigationRail` + `IndexedStack` 正确使用）、Components 7/10（全原生 M3，视频面板手动布局可后续再迭代）。
+>
+> **设计底线：** 承载协议语义的固定色（红/蓝方、血量红绿、连接状态）跨明暗主题必须保持不变，仅做"集中化"而非"令牌化"，避免动态换肤误改比赛语义。
+
+#### Phase 1: 排版令牌化（Typography 3/10 → ≥8）
+
+> 抓手：让 `MaterialTheme.textTheme` 成为字号单一事实源，缩放在 `TextTheme` 上统一乘一次，业务侧改用 type scale 角色，消化散落 139 处的裸 `fontSize`。
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.1.1 Phase 1, Task 1 | 缩放型 TextTheme 注入 | 在 `_buildThemeWithAccent` 中基于 MD3 五档 type scale（Display/Headline/Title/Body/Label）构建 `TextTheme`，并提供 `scaledTextTheme(BuildContext)` 使其随 `context.scale` 等比缩放；保持与 `responsive_ext` 缩放因子一致 | `lib/core/theme/app_theme.dart` | `[x]` |
+| v0.1.1 Phase 1, Task 2 | type scale 角色映射约定 + 迁移样板 | 在 `responsive_ext.dart` 增补 `context.textTheme` getter；将违规最多的 `data_export_screen.dart`（14 处）迁移为 `textTheme.titleMedium/bodyMedium` 等角色 + `.copyWith()`，作为后续迁移的范式样板 | `lib/core/responsive/responsive_ext.dart`, `lib/features/data_export/presentation/data_export_screen.dart` | `[x]` |
+| v0.1.1 Phase 1, Task 3 | 视频/调试面板排版迁移 | 迁移 `video_panel.dart`（11）、`custom_video_debug_panel.dart`（9）、`video_debug_panel.dart`（8）、`robot_status_list.dart`（8）、`debug_panel.dart`（8）中的裸 `fontSize` 为 type scale 角色 | 上述 5 个文件 | `[x]` |
+| v0.1.1 Phase 1, Task 4 | 设置页与对话框排版迁移 | 迁移 `video_settings_screen.dart`（9）、`record_config_screen.dart`（9）、`update_dialog.dart`（9）、`replay_screen.dart`（5）及剩余文件的裸 `fontSize` | 上述文件及其余 `fontSize` 残留点 | `[x]` |
+| v0.1.1 Phase 1, Task 5 | 排版收尾与守卫 | 全库复扫 `TextStyle(fontSize:)` 降至仅保留必要特例（如 `_NumberBadge` 微型徽标）；在 `analysis_options.yaml` 评估加入自定义 lint 注释约定防回潮；`flutter analyze` 零新增问题 | `analysis_options.yaml`, 收尾文件 | `[x]` |
+
+**Phase 1 验收标准：**
+- `grep -rn "fontSize:" lib --include="*.dart" | grep -v generated` 从 139 降至 < 15（仅保留徽标/画布等特例并注释说明）；
+- `textTheme.*` 角色用法显著上升，文本样式统一从主题派生；
+- 字体随窗口缩放行为与改造前一致，无视觉回归；
+- `flutter analyze` 零新增问题，`flutter test` 全通过。
+
+#### Phase 2: 颜色令牌双轨收口（Color 5/10 → ≥8）
+
+> 双轨：① 协议语义色 → 集中为 `app_theme.dart` 具名常量（保持固定）；② 装饰/中性色 → 改用 `colorScheme` 角色（随主题变化）。
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.1.1 Phase 2, Task 1 | 协议语义色集中化 | 将散落的协议色（`robot_status_list.dart` 血量渐变 `0xFFEF4444`/`0xFFF59E0B`/`0xFF22C55E`、`feedback_messenger.dart:48` 成功绿、准星色等）抽到 `app_theme.dart` 具名常量，统一命名风格（参照现有 `rmHealthBarColor`）；业务侧引用常量而非裸十六进制 | `lib/core/theme/app_theme.dart`, `robot_status_list.dart`, `feedback_messenger.dart`, `crosshair_painter.dart` | `[x]` |
+| v0.1.1 Phase 2, Task 2 | 视频深色底改用 surface 令牌 | 将 `video_panel.dart`（4 处）、`custom_video_panel.dart`（4 处）、`custom_ffplay_panel.dart`、`debug_panel.dart:142` 中的 `Color(0xFF101418)`/`0xFF303030` 改为 `colorScheme.surfaceContainerLowest` 或 `surfaceContainerHigh`，使播放器底色随明暗主题适配 | 上述文件 | `[x]` |
+| v0.1.1 Phase 2, Task 3 | 中性色迁移 colorScheme 角色 | 迁移 `Colors.white/black/grey` 高发文件（`video_panel.dart` 25、`custom_video_panel.dart` 13、`debug_panel.dart` 12、`video_debug_panel.dart` 7）为 `onSurface/onSurfaceVariant/surface` 等角色；导航徽标 `app_navigation_rail.dart:209` 的 `Colors.white` 边框改 `colorScheme.surface` | 上述文件 | `[x]` |
+| v0.1.1 Phase 2, Task 4 | 颜色收尾审查 | 全库复扫剩余 `Colors.white/black/grey` 与裸 `Color(0x..)`，确认仅协议语义常量保留；明暗双主题下逐页目检对比度无异常 | 收尾文件 | `[x]` |
+
+**Phase 2 验收标准：**
+- `Colors.white/black/grey` 从 117 降至 < 20（仅协议语义/特例并注释）；
+- 业务层 `Color(0x..)` 仅保留 `app_theme.dart` 集中定义的协议常量；
+- 暗色主题下播放器底、调试面板、状态行均正确适配，无突兀亮块；
+- `flutter analyze` 零新增问题。
+
+#### Phase 3: 自适应布局（Layout 5/10 → ≥8）
+
+> 在保留现有等比缩放方案的前提下，叠加 MD3 窗口尺寸类（compact/medium/expanded）以切换导航形态。导航（Navigation）已达标 8/10（`NavigationRail` + `IndexedStack` 正确使用），自适应降级作为布局增强纳入本 Phase。
+> **说明：** 宽屏内容宽度约束已移除——等比例缩放（`context.sp()`）是预期行为，窗口拉宽时字体与间距同步放大，无需人工 `ConstrainedBox` 限宽。
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.1.1 Phase 3, Task 1 | 窗口尺寸类工具 | 在 `core/responsive` 新增 `WindowSizeClass`（compact <600 / medium 600–839 / expanded ≥840）与 `context.windowSizeClass` getter，统一断点判定来源 | `lib/core/responsive/window_size_class.dart`, `responsive_ext.dart` | `[x]` |
+| v0.1.1 Phase 3, Task 2 | AppShell 自适应导航 | `app_shell.dart` 按尺寸类切换：compact → 底部 `NavigationBar`、medium → 收起 `NavigationRail`、expanded → 可展开 `NavigationRail`；保持 `IndexedStack` 页面状态不丢失 | `lib/core/navigation/app_shell.dart`, `app_navigation_rail.dart` | `[x]` |
+| v0.1.1 Phase 3, Task 3 | 多窗口尺寸验证 | 在 Windows 桌面调整窗口至 <600 / 600–839 / ≥840 三档，确认导航形态切换正确、页面状态保留、无溢出告警 | （验证任务，无新增文件） | `[x]` |
+
+**Phase 3 验收标准：**
+- 窄窗（<600）显示底部导航栏，宽窗显示侧边 rail，切换无状态丢失；
+- 无 `RenderFlex overflow` 告警；
+- `flutter analyze` 零新增问题。
+
+#### Phase 4: Elevation 色调表面化（Elevation 3/10 → ≥8）
+
+> MD3 使用 **色调表面颜色**（tonal surface color）而非阴影来传达高程层级。当前代码 `CardThemeData(elevation: 2)` + 卡片边框是 MD2 遗风，与 MD3 设计准则冲突。本 Phase 将阴影 + 边框替换为 `surfaceContainer*` 色调表面链，使 UI 层级感知随明暗主题正确适配。
+>
+> **色调表面层级映射（MD3 规范）：**
+> | 层级 | Token | 用途 |
+> |------|-------|------|
+> | 最低 | `surfaceContainerLowest` | 播放器深色底、模态背景 |
+> | 低 | `surfaceContainerLow` | 默认卡片背景 |
+> | 中 | `surfaceContainer` | 导航区域、侧栏背景 |
+> | 高 | `surfaceContainerHigh` | 悬浮面板、弹出菜单 |
+> | 最高 | `surfaceContainerHighest` | 搜索栏、输入框填充 |
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.1.1 Phase 4, Task 1 | 卡片色调表面化 | 移除 `CardThemeData(elevation: 2)`，改为 `CardThemeData(color: colorScheme.surfaceContainerLow)`；移除卡片边框 `BorderSide(color: rmCardBorder/rmCardBorderDark)`，MD3 filled card 无边框，outlined card 应使用 `colorScheme.outlineVariant` | `lib/core/theme/app_theme.dart` | `[x]` |
+| v0.1.1 Phase 4, Task 2 | 视频面板深色底 surface 化 | 将 `video_panel.dart` / `custom_video_panel.dart` / `custom_ffplay_panel.dart` 中的 `Color(0xFF101418)` 硬编码改为 `colorScheme.surfaceContainerLowest`；`debug_panel.dart` 的 `0xFF303030` 改为 `colorScheme.surfaceContainerHigh` | 上述文件 | `[x]` |
+| v0.1.1 Phase 4, Task 3 | 覆盖层色调表面化 | 将视频覆盖层（`Colors.black.withValues(alpha: 0.55)`）改为 `colorScheme.scrim.withValues(alpha: 0.55)`，使覆盖层在明暗主题下均有合理对比 | `custom_mediakit_player.dart`, `mqtt_login_badge.dart` | `[x]` |
+| v0.1.1 Phase 4, Task 4 | 导航/侧栏色调表面化 | 确认 `NavigationRail` 的 `backgroundColor: scheme.surface` 已正确 — 无需改动 | `app_navigation_rail.dart` | `[x]` |
+| v0.1.1 Phase 4, Task 5 | Elevation 收尾审查 | 全库复扫 `elevation:` 关键字：`debug_panel.dart` 浮窗 `elevation:8` 保留（浮动面板需阴影），`settings_screen.dart` 卡片 `elevation:2` 改为 `0` | 全库 | `[x]` |
+
+**Phase 4 验收标准：**
+- `CardThemeData` 中 `elevation` 已移除，卡片无阴影，背景使用 `surfaceContainerLow`；
+- 视频播放器底色随明暗主题切换正确适配（暗色≈`0xFF101418`，亮色≈白色系）；
+- 覆盖层使用 `scrim` 语义，在明暗主题下均有可比对的视觉降噪效果；
+- 无 `elevation:` 残留在非必要位置；
+- `flutter analyze` 零新增问题。
+
+#### Phase 6: M3 动效系统（Motion 0/10 → ≥7）
+
+> MD3 Expressive（2025年5月）引入了基于弹簧的物理运动（spring-based motion physics）取代传统的缓动/持续时间系统。本 Phase 为关键导航与组件交互注入 M3 动效，包括页面过渡、组件交互动画与加载反馈。
+>
+> **动效系统架构：**
+> | 层级 | 类型 | MD3 规范 | 适用场景 |
+> |------|------|----------|----------|
+> | 导航过渡 | 进入/退出/共享轴 | Emphasized 500ms / Decelerate 400ms / Accelerate 200ms | 页面切换、Tab 切换 |
+> | 组件交互 | 按压/悬停/展开 | Spring 物理（stiffness=300-500, damping=20-30） | 按钮按下、卡片展开、FAB 弹出 |
+> | 反馈动效 | 加载/成功/错误 | Standard 300ms + 透明度/缩放 | 连接状态变化、数据刷新、操作确认 |
+> | 容器变换 | 列表/面板 | Shared axis Z/X/Y | 列表项展开、面板折叠 |
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.1.1 Phase 6, Task 1 | M3 页面过渡动画 | 在 `MaterialApp` 配置 `theme.pageTransitionsTheme`，注册 `M3PageTransitionsBuilder`（自定义实现：使用 MD3 emphasized 曲线 `cubic-bezier(0.2, 0, 0, 1)` + 500ms slide+fade） | `lib/core/theme/app_theme.dart` | `[x]` |
+| v0.1.1 Phase 6, Task 2 | NavigationRail 交互动画 | 为 NavigationRail 的展开/收起添加容器宽度动画（`AnimatedContainer` + `Curves.fastOutSlowIn`，300ms） | `lib/core/navigation/app_shell.dart` | `[x]` |
+| v0.1.1 Phase 6, Task 3 | 卡片/面板进入动效 | 为 Dashboard 数据卡片添加入场动画（`TweenAnimationBuilder` + fade+slide，MD3 emphasized 曲线 400ms） | `robot_status_list.dart`, `event_timeline_panel.dart`, `health_chart.dart` | `[x]` |
+| v0.1.1 Phase 6, Task 4 | 连接状态动画 | MQTT 连接状态指示点使用弹簧动画切换颜色（`AnimatedContainer` + `Curves.fastOutSlowIn`）；登录徽标图标使用 `AnimatedSwitcher` 过渡 | `mqtt_login_badge.dart`, `dashboard_screen.dart` | `[x]` |
+| v0.1.1 Phase 6, Task 5 | FAB 菜单动效 | `PageFabMenu` 展开/收起使用 `AnimationController` + `Curves.fastOutSlowIn` 旋转动画（90°）+ `SingleTickerProviderStateMixin` | `lib/core/navigation/page_fab_menu.dart` | `[x]` |
+| v0.1.1 Phase 6, Task 6 | 加载反馈动效 | 视频流"等待关键帧"使用 M3 `CircularProgressIndicator`；数据导出加载使用 `CircularProgressIndicator`（均为 M3 原生动效组件） | `custom_video_panel.dart`, `data_export_screen.dart` | `[x]` |
+| v0.1.1 Phase 6, Task 7 | Motion 收尾与审计 | 全库确认：页面过渡 M3 emphasized 500ms；Rail 展开 300ms；卡片入场 400ms；连接状态 350ms；FAB 旋转 350ms；`flutter analyze` 零问题，`flutter test` 124/124 通过 | 全库 | `[x]` |
+
+**Phase 6 验收标准：**
+- 页面切换使用 MD3 强调曲线，过渡时长 ≥ 200ms ≤ 500ms；
+- NavigationRail 展开/收起有弹簧动画，不突兀；
+- 列表条目入场有交错淡入滑动效果；
+- 连接状态切换有平滑颜色过渡而非瞬间跳变；
+- `PageFabMenu` 展开/收起有扇形动画；
+- 所有动画在 `flutter run --release` 下满 60fps（无 jank）；
+- `flutter analyze` 零新增问题。
+
+**v0.1.1 整体验收标准：** MD3 合规审计总分从 52 提升至 ≥ 80；Typography/Color/Shape/Layout/ Elevation/Accessibility/Motion 七维均达目标分（≥8 或 ≥7）；全程不破坏现有业务功能（双图传线、数据导出、回放、同步），`flutter test` 全通过，`flutter analyze` 零问题。
+
+---
+
 ## 附录 A: 依赖清单
 
 ```yaml
@@ -444,7 +653,8 @@ class VideoFrame {
 
 | 版本 | 日期 | 变更摘要 |
 |------|------|----------|
-| 0.1.0 | 2026-06-21 | 新增 调试基础设施：三种可实时切换的拼包模式（verbatim/stripPrefix/fixed）、uint64 LE 序列号丢包检测与统计；新增 全面调试面板（CustomVideoDebugPanel）显示流水线红绿灯、NAL 类型计数、实时码率与丢包率；新增 解码器诊断信息模型（fvp/media_kit 上报 resolution/codec/fps/error 到滚动日志）；新增 20 秒 H.264 原始码流导出（保存 .h264 供 ffprobe 离线分析）；新增 准星点击移动交互；更新 Proto CustomByteBlock 新增 is_frame_start 字段 |
+| 0.1.1 | 2026-06-28 | 优化 Material 3 合规（审计基线 52/100 → 目标 ≥80）：排版令牌化（消化 139 处裸 fontSize，改用 type scale 角色）；颜色双轨收口（协议语义色集中、中性色改 colorScheme 角色，消化 117+23 处硬编码）；自适应布局（窗口尺寸类 + compact 降级 NavigationBar，宽屏适配移除——等比例缩放为预期行为）；Elevation 色调表面化（移除全局卡片阴影+边框，改用 surfaceContainer* 链，settings_screen 卡片 elevation 修复）；M3 动效系统（页面过渡 emphasized curve 500ms + slide+fade、NavigationRail 展开/收起 `AnimatedContainer` 300ms、Dashboard 三面板入场动画 400ms、连接状态 `AnimatedSwitcher` 350ms、FAB 菜单旋转动画 350ms）。无新增业务功能 |
+| 0.1.0 | 2026-06-21 | 新增 调试基础设施：三种可实时切换的拼包模式（verbatim/stripPrefix/fixed）、uint64 LE 序列号丢包检测与统计；新增 全面调试面板（CustomVideoDebugPanel）显示流水线红绿灯、NAL 类型计数、实时码率与丢包率；新增 解码器诊断信息模型（fvp/media_kit 上报 resolution/codec/fps/error 到滚动日志）；新增 20 秒 H.264 原始码流导出（保存 .h264 供 ffprobe 离线分析）；新增 准星点击移动交互；新增 Dashboard 事件通知样式实验台（监控页内切换多种高显著通知样式并手动预览）；更新 Proto CustomByteBlock 新增 is_frame_start 字段 |
 | 0.0.4 | 2026-06-19 | 新增 自定义图传后端切换（fvp/media_kit/ffplay）；新增 MPEG-TS 封装模式（media_kit 缺裸 H.264 解封装，包 TS 后可正常播放）；新增 桥端关键帧缓存与后连接客户端补发机制（修复解码器连接竞态白屏）；新增 自定义图传设置页独立后端选择与 TS 开关；新增 Windows 端 ffplay 验证面板；新增 pure-Dart MPEG-TS muxer（ffprobe/ffmpeg 验证可完整解码） |
 | 0.0.3 | 2026-06-18 | 新增 自定义数据图传线（0x0310 / CustomByteBlock / H.264）监控页面；新增 Windows 端本地模拟器（H.264 编码 + MQTT 发送）；复用现有 media_kit/fvp 解码桥，与官方 UDP 3334 图传线并存；新增 准星叠加与解码统计覆盖层 |
 | 0.0.1 | 2026-06-14 | 新增 RoboMaster Monitor 首个正式版本：MQTT 3333 / UDP 3334 双链路监控、实时面板、数据导出与回放、多客户端合并、GitHub 远程同步 |
@@ -458,7 +668,59 @@ class VideoFrame {
 
 ---
 
-*文档版本：v2.5（新增 v0.1.0 调试基础设施：NAL 诊断、丢包检测、拼包切片、H.264 导出）*
+## 附录 F: 设置页面 Master–Detail 布局规范（v0.1.1+）
+
+### F.1 布局结构
+
+设置页面采用三层自适应布局：
+
+```
+┌─────────────────────────────────────────────────────────┐
+│   NavigationRail (AppShell 持有)                        │
+├──────────┬──────────────────────────────────────────────┤
+│  Master  │  Detail                                      │
+│  (360dp) │  ┌─ [← 返回] [标题] ─────────────────────┐  │
+│          │  ├────────────────────────────────────────┤  │
+│  卡片列表 │  │  Nested Navigator                     │  │
+│  选中态   │  │  (子页面 + 二级子页面)                │  │
+│  primary  │  │                                        │  │
+│  Container│  │  sub‑sub‑screen pushed via              │  │
+│          │  │  Navigator.of(context).push()            │  │
+│          │  │  → 局限在此区域内                        │  │
+│          │  └────────────────────────────────────────┘  │
+└──────────┴──────────────────────────────────────────────┘
+```
+
+### F.2 关键实现决策
+
+| 决策 | 实现 |
+|------|------|
+| 外层路由 | `Navigator.push`（窄屏 <600dp）/ 本地 State（宽屏 ≥600dp） |
+| 二级路由 | 嵌套 `Navigator` widget + `pages` API，局限在 Detail 区域 |
+| 三级路由 | 从子页面 `push(MaterialPageRoute)` 自动进入嵌套 Navigator |
+| 返回行为 | 先 pop 嵌套 Navigator（三级→二级），再关闭 Detail 面板（二级→一级） |
+| 入场动画 | `SlideTransition` + `Curves.easeInOutCubicEmphasized`，350ms |
+| 退场动画 | 无——旧页面被 `ValueKey<int>` 驱动的 widget 生命周期直接卸载 |
+| 子页面 AppBar | 通过 `embedded` 参数跳过（只渲染 body） |
+
+### F.3 文件清单
+
+| 角色 | 文件 |
+|------|------|
+| Master–Detail 容器 | `lib/features/settings/presentation/settings_screen.dart` |
+| 入场动画 wrapper | `_AnimatedDetailPage`（stateful, AnimationController） |
+| 接收 `embedded` 的子页面 | `GeneralSettingsScreen`, `DashboardSettingsScreen`, `VideoSettingsScreen`, `PlaybackSettingsScreen`, `DeveloperSettingsScreen`, `AboutScreen` |
+
+### F.4 添加新子页面的规范
+
+1. 子页面必须接受 `embedded` 参数（`const XxxScreen({super.key, this.embedded = false})`）
+2. 当 `embedded=true` 时，只返回 body 内容，不渲染 `Scaffold` + `AppBar`
+3. 当 `embedded=false` 时，渲染完整 `Scaffold` + `AppBar`（窄屏 fallback 用）
+4. 在 `_categories` 中分别注册 `screenBuilder`（full）和 `bodyBuilder`（embedded）
+
+---
+
+*文档版本：v2.10（Phase 3 自适应布局完成—宽屏适配已移除；Phase 4 Elevation 色调表面化完成；Phase 6 M3 动效系统完成；全 v0.1.1 功能已交付）*
 *适配协议：RoboMaster 2026 自定义客户端协议（MQTT 3333 + UDP 3334）*
-*参考依据：V1.3.1 第2章 + 自定义客户端 UDP 流问答 + 0x0310 抓包分析*
-*修正日期：2026-06-21*
+*参考依据：V1.3.1 第2章 + 自定义客户端 UDP 流问答 + 0x0310 抓包分析 + MD3 合规审计（2026-06-23）*
+*修正日期：2026-06-25*

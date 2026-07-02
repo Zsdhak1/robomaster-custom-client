@@ -19,23 +19,37 @@ class EventTimelinePanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final gameState = ref.watch(gameStateProvider);
 
-    return Padding(
-      padding: context.insetAll(12),
-      child: Card(
-        child: Padding(
-          padding: context.insetAll(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(context, gameState.eventList.length),
-              const Divider(),
-              Expanded(
-                child: EventTimelineView(
-                  events: gameState.eventList,
-                  matchStart: gameState.matchStartTime,
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 400),
+      curve: const Cubic(0.2, 0, 0, 1), // MD3 emphasized decelerate
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - value) * 20),
+            child: child,
+          ),
+        );
+      },
+      child: Padding(
+        padding: context.insetAll(12),
+        child: Card(
+          child: Padding(
+            padding: context.insetAll(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeader(context, gameState.eventList.length),
+                const Divider(),
+                Expanded(
+                  child: EventTimelineView(
+                    events: gameState.eventList,
+                    matchStart: gameState.matchStartTime,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -53,15 +67,14 @@ class EventTimelinePanel extends ConsumerWidget {
         context.sizedBox(w: 8),
         Text(
           '事件时间轴',
-          style: TextStyle(
-            fontSize: context.fontSize(16),
+          style: context.textTheme.titleMedium!.copyWith(
             fontWeight: FontWeight.bold,
           ),
         ),
         const Spacer(),
         Text(
           '$count',
-          style: TextStyle(fontSize: context.fontSize(13), color: rmTextSecondary(context)),
+          style: context.textTheme.bodySmall!.copyWith(color: Colors.grey),
         ),
       ],
     );
@@ -74,11 +87,7 @@ class EventTimelinePanel extends ConsumerWidget {
 /// events as well as live ones.
 class EventTimelineView extends StatelessWidget {
   /// Creates an [EventTimelineView].
-  const EventTimelineView({
-    required this.events,
-    this.matchStart,
-    super.key,
-  });
+  const EventTimelineView({required this.events, this.matchStart, super.key});
 
   /// Events to display, newest first.
   final List<TimedEvent> events;
@@ -89,10 +98,12 @@ class EventTimelineView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (events.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
           '暂无事件',
-          style: TextStyle(color: Colors.grey),
+          style: context.textTheme.bodyMedium!.copyWith(
+            color: rmTextSecondary(context),
+          ),
         ),
       );
     }
@@ -100,10 +111,7 @@ class EventTimelineView extends StatelessWidget {
       itemCount: events.length,
       itemBuilder: (context, index) {
         final timed = events[index];
-        return _EventTile(
-          timed: timed,
-          matchStart: matchStart,
-        );
+        return _EventTile(timed: timed, matchStart: matchStart);
       },
     );
   }
@@ -137,8 +145,7 @@ class _EventTile extends StatelessWidget {
                   children: [
                     Text(
                       decoded.title,
-                      style: TextStyle(
-                        fontSize: context.fontSize(13),
+                      style: context.textTheme.bodySmall!.copyWith(
                         fontWeight: FontWeight.w600,
                         color: decoded.color,
                       ),
@@ -146,8 +153,7 @@ class _EventTile extends StatelessWidget {
                     context.sizedBox(w: 6),
                     Text(
                       timeLabel,
-                      style: TextStyle(
-                        fontSize: context.fontSize(11),
+                      style: context.textTheme.labelSmall!.copyWith(
                         color: rmTextSecondary(context),
                         fontFamily: 'monospace',
                       ),
@@ -157,8 +163,7 @@ class _EventTile extends StatelessWidget {
                 context.sizedBox(h: 2),
                 Text(
                   decoded.detail,
-                  style: TextStyle(
-                    fontSize: context.fontSize(12),
+                  style: context.textTheme.bodySmall!.copyWith(
                     color: rmTextPrimary(context).withValues(alpha: 0.85),
                   ),
                 ),

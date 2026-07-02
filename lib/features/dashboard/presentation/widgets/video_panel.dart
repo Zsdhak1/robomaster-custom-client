@@ -18,7 +18,10 @@ import 'package:video_player/video_player.dart';
 
 import '../../../../core/responsive/responsive_ext.dart';
 import '../../../../core/video/video_frame.dart';
+import '../../../../core/widgets/video_overlay_controls.dart';
+import '../../../../core/widgets/video_placeholder_card.dart';
 import '../../../../core/widgets/video_side_panel.dart';
+import '../../../../core/widgets/video_two_pane_layout.dart';
 import '../../../settings/logic/settings_providers.dart';
 import '../../logic/stream_providers.dart';
 import 'video_debug_panel.dart';
@@ -39,33 +42,19 @@ class VideoPanel extends ConsumerWidget {
         ? ref.read(videoStreamServiceProvider).streamUrl
         : null;
 
-    return Padding(
-      padding: context.insetAll(12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            flex: 2,
-            child: isListening && url != null
-                ? _buildPlayer(url, backend, hwdec, developerMode: developerMode)
-                : _PreviewPlaceholder(
-                    isListening: isListening,
-                  ),
-          ),
-          context.sizedBox(w: 12),
-          Expanded(
-            child: VideoSidePanel(
-              title: '视频流状态',
-              developerMode: developerMode,
-              basicInfo: _BasicInfo(
-                isListening: isListening,
-                frame: latestFrame,
-                url: url,
-              ),
-              debugSection: const _DebugSection(),
-            ),
-          ),
-        ],
+    return VideoTwoPaneLayout(
+      player: isListening && url != null
+          ? _buildPlayer(url, backend, hwdec, developerMode: developerMode)
+          : _PreviewPlaceholder(isListening: isListening),
+      sidePanel: VideoSidePanel(
+        title: '视频流状态',
+        developerMode: developerMode,
+        basicInfo: _BasicInfo(
+          isListening: isListening,
+          frame: latestFrame,
+          url: url,
+        ),
+        debugSection: const VideoDebugContent(),
       ),
     );
   }
@@ -78,10 +67,10 @@ class VideoPanel extends ConsumerWidget {
   }) {
     return switch (backend) {
       VideoDecoderBackend.mediaKit => _MediaKitPlayer(
-          url: url,
-          hwdec: hwdec.value,
-          developerMode: developerMode,
-        ),
+        url: url,
+        hwdec: hwdec.value,
+        developerMode: developerMode,
+      ),
       VideoDecoderBackend.fvp => _FvpPlayer(url: url),
       VideoDecoderBackend.ffplay => const _FfplayPanel(),
     };
@@ -135,9 +124,7 @@ class _MediaKitPlayerState extends State<_MediaKitPlayer> {
     // can see WHY a decoder fails to attach to the TCP bridge (the default
     // `error` level hides "Connection failed"/"Failed to open" lines).
     _player = Player(
-      configuration: const PlayerConfiguration(
-        logLevel: MPVLogLevel.warn,
-      ),
+      configuration: const PlayerConfiguration(logLevel: MPVLogLevel.warn),
     );
     _controller = VideoController(_player);
 
@@ -280,44 +267,48 @@ class _MediaKitOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!developerMode) {
       // Keep only the reconnect affordance for end users.
-      return _pill(child: _reconnectButton());
+      return _pill(context, child: _reconnectButton(context));
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        _buildStatusChip(),
-        if (error != null) _buildErrorBox(),
+        _buildStatusChip(context),
+        if (error != null) _buildErrorBox(context),
       ],
     );
   }
 
-  Widget _reconnectButton() {
+  Widget _reconnectButton(BuildContext context) {
     return InkWell(
       onTap: onReconnect,
-      child: const Row(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.refresh, color: Colors.white, size: 14),
-          SizedBox(width: 2),
-          Text('重连', style: TextStyle(color: Colors.white, fontSize: 11)),
+          const Icon(Icons.refresh, color: Colors.white, size: 14),
+          const SizedBox(width: 2),
+          Text(
+            '重连',
+            style: context.textTheme.labelSmall!.copyWith(color: Colors.white),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildStatusChip() {
+  Widget _buildStatusChip(BuildContext context) {
     final hasError = error != null;
     final color = hasError
         ? Colors.red
         : playing
-            ? Colors.green
-            : Colors.orange;
+        ? Colors.green
+        : Colors.orange;
     final label = hasError
         ? '解码错误'
         : playing
-            ? '播放中'
-            : '连接中…';
+        ? '播放中'
+        : '连接中…';
     return _pill(
+      context,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -329,24 +320,25 @@ class _MediaKitOverlay extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             '$label (第 $attempt 次)',
-            style: const TextStyle(color: Colors.white, fontSize: 11),
+            style: context.textTheme.labelSmall!.copyWith(color: Colors.white),
           ),
           const SizedBox(width: 8),
-          _reconnectButton(),
+          _reconnectButton(context),
         ],
       ),
     );
   }
 
-  Widget _buildErrorBox() {
+  Widget _buildErrorBox(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(top: 4),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 280),
         child: _pill(
+          context,
           child: Text(
             error!,
-            style: const TextStyle(color: Colors.orange, fontSize: 10),
+            style: context.textTheme.labelSmall!.copyWith(color: Colors.orange),
           ),
         ),
       ),
@@ -354,17 +346,8 @@ class _MediaKitOverlay extends StatelessWidget {
   }
 
   /// Translucent rounded container shared by the status chip and error box.
-  Widget _pill({required Widget child}) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.55),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: child,
-      ),
-    );
+  Widget _pill(BuildContext context, {required Widget child}) {
+    return VideoOverlayPill(child: child);
   }
 }
 
@@ -394,16 +377,18 @@ class _FvpPlayerState extends State<_FvpPlayer> {
 
   void _initController() {
     _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
-      ..initialize().then((_) {
-        if (mounted) {
-          setState(() {});
-          _controller.play();
-        }
-      }).catchError((Object e) {
-        if (mounted) {
-          setState(() => _error = '初始化失败: $e');
-        }
-      });
+      ..initialize()
+          .then((_) {
+            if (mounted) {
+              setState(() {});
+              _controller.play();
+            }
+          })
+          .catchError((Object e) {
+            if (mounted) {
+              setState(() => _error = '初始化失败: $e');
+            }
+          });
   }
 
   @override
@@ -468,21 +453,10 @@ class _FvpPlayerState extends State<_FvpPlayer> {
                 ),
               ],
             )
-          : const ColoredBox(
-              color: Color(0xFF101418),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(color: Colors.white),
-                    SizedBox(height: 12),
-                    Text(
-                      '正在初始化 fvp 播放器…',
-                      style: TextStyle(color: Colors.white54),
-                    ),
-                  ],
-                ),
-              ),
+          : const VideoPlaceholderCard(
+              title: '正在初始化 fvp 播放器…',
+              subtitle: '播放器正在连接本地 TCP 图传桥',
+              loading: true,
             ),
     );
 
@@ -501,34 +475,9 @@ class _FvpPlayerState extends State<_FvpPlayer> {
   }
 
   Widget _buildError() {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: ColoredBox(
-        color: const Color(0xFF101418),
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                const SizedBox(height: 12),
-                Text(
-                  _error!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'fvp 可能不支持 tcp:// 协议，请尝试切换到 media_kit',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white54, fontSize: 13),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return VideoErrorCard(
+      message: _error!,
+      hint: 'fvp 可能不支持 tcp:// 协议，请尝试切换到 media_kit',
     );
   }
 }
@@ -561,7 +510,8 @@ class _FvpControlsState extends State<_FvpControls> {
     return ValueListenableBuilder<VideoPlayerValue>(
       valueListenable: widget.controller,
       builder: (context, value, child) {
-        final showBigPlay = value.isInitialized && !value.isPlaying && !value.isBuffering;
+        final showBigPlay =
+            value.isInitialized && !value.isPlaying && !value.isBuffering;
         return Stack(
           fit: StackFit.expand,
           children: [
@@ -609,7 +559,7 @@ class _FvpControlsState extends State<_FvpControls> {
           end: Alignment.bottomCenter,
           colors: [
             Colors.transparent,
-            Colors.black.withValues(alpha: 0.7),
+            Theme.of(context).colorScheme.scrim.withValues(alpha: 0.7),
           ],
         ),
       ),
@@ -634,9 +584,8 @@ class _FvpControlsState extends State<_FvpControls> {
                 const SizedBox(width: 8),
                 Text(
                   '${_formatDuration(position)} / ${_formatDuration(duration)}',
-                  style: const TextStyle(
+                  style: context.textTheme.bodySmall!.copyWith(
                     color: Colors.white,
-                    fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -644,8 +593,7 @@ class _FvpControlsState extends State<_FvpControls> {
                 _ControlsButton(
                   icon: value.volume > 0 ? Icons.volume_up : Icons.volume_off,
                   onPressed: () {
-                    widget.controller
-                        .setVolume(value.volume > 0 ? 0.0 : 1.0);
+                    widget.controller.setVolume(value.volume > 0 ? 0.0 : 1.0);
                   },
                 ),
                 const SizedBox(width: 4),
@@ -681,7 +629,9 @@ class _FvpControlsState extends State<_FvpControls> {
         activeTrackColor: Theme.of(context).colorScheme.primary,
         inactiveTrackColor: Colors.white30,
         thumbColor: Theme.of(context).colorScheme.primary,
-        overlayColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+        overlayColor: Theme.of(
+          context,
+        ).colorScheme.primary.withValues(alpha: 0.2),
       ),
       child: Stack(
         alignment: Alignment.centerLeft,
@@ -724,7 +674,8 @@ class _FvpControlsState extends State<_FvpControls> {
     final minutes = totalSeconds ~/ 60;
     final seconds = totalSeconds % 60;
     final hours = d.inHours;
-    final mmss = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    final mmss =
+        '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
     return hours > 0 ? '${hours.toString().padLeft(2, '0')}:$mmss' : mmss;
   }
 }
@@ -798,13 +749,14 @@ class _FfplayPanelState extends ConsumerState<_FfplayPanel> {
     return Card(
       clipBehavior: Clip.antiAlias,
       child: ColoredBox(
-        color: const Color(0xFF101418),
+        color: Theme.of(context).colorScheme.surfaceContainerLowest,
         child: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: _statusItems(
+                context,
                 decoder.hasStarted,
                 decoder.resolvedPath,
                 decoder.lastError,
@@ -817,18 +769,22 @@ class _FfplayPanelState extends ConsumerState<_FfplayPanel> {
   }
 
   List<Widget> _statusItems(
+    BuildContext context,
     bool hasStarted,
     String? resolvedPath,
     String? lastError,
   ) {
     return [
-      const Icon(Icons.open_in_new, size: 56, color: Colors.white38),
+      Icon(
+        Icons.open_in_new,
+        size: 56,
+        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.38),
+      ),
       const SizedBox(height: 16),
-      const Text(
+      Text(
         'ffplay 在独立窗口播放',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 18,
+        style: context.textTheme.titleMedium!.copyWith(
+          color: Theme.of(context).colorScheme.onSurface,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -838,20 +794,24 @@ class _FfplayPanelState extends ConsumerState<_FfplayPanel> {
             ? '已收到关键帧，ffplay 正在解码。\n若 ffplay 窗口出图，说明拼包正确。'
             : '等待含 VPS/SPS/PPS 的关键帧后启动 ffplay…',
         textAlign: TextAlign.center,
-        style: const TextStyle(color: Colors.white54, fontSize: 13),
+        style: context.textTheme.bodySmall!.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
       ),
       const SizedBox(height: 12),
       Text(
         'ffplay 路径: ${resolvedPath ?? "查找中"}',
         textAlign: TextAlign.center,
-        style: const TextStyle(color: Colors.white30, fontSize: 11),
+        style: context.textTheme.labelSmall!.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
       ),
       if (lastError != null) ...[
         const SizedBox(height: 8),
         Text(
           lastError,
           textAlign: TextAlign.center,
-          style: const TextStyle(color: Colors.orange, fontSize: 11),
+          style: context.textTheme.labelSmall!.copyWith(color: Colors.orange),
         ),
       ],
     ];
@@ -869,59 +829,16 @@ class _PreviewPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: ColoredBox(
-        color: const Color(0xFF101418),
-        child: Center(child: _buildContent()),
-      ),
-    );
-  }
-
-  Widget _buildContent() {
     if (!isListening) {
-      return _placeholder(
-        icon: Icons.videocam_off,
+      return const VideoPlaceholderCard(
         title: '未接收视频流',
-        subtitle: '点击右上角播放按钮开始接收 UDP 3334 数据',
+        subtitle: '点击播放按钮开始接收 UDP 3334 图传',
       );
     }
-    return _placeholder(
-      icon: Icons.hourglass_empty,
-      title: '正在等待视频帧…',
-      subtitle: 'TCP 桥已就绪，等待 UDP 帧到达',
-    );
-  }
-
-  Widget _placeholder({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 64, color: Colors.white38),
-          const SizedBox(height: 16),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            subtitle,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white54, fontSize: 13),
-          ),
-        ],
-      ),
+    return const VideoPlaceholderCard(
+      title: '正在接收，等待画面…',
+      subtitle: 'TCP 桥已就绪，等待完整视频帧',
+      loading: true,
     );
   }
 }
@@ -947,7 +864,7 @@ class _BasicInfo extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _StatusRow(isListening: isListening),
+        VideoStatusRow(isRunning: isListening, runningLabel: '正在接收 (UDP 3334)'),
         context.sizedBox(h: 8),
         ..._buildFrameInfo(),
       ],
@@ -956,23 +873,21 @@ class _BasicInfo extends StatelessWidget {
 
   List<Widget> _buildFrameInfo() {
     if (!isListening) {
-      return [
-        const _InfoRow(label: '状态', value: '未开始接收'),
-      ];
+      return [const VideoInfoRow(label: '状态', value: '未开始接收')];
     }
     if (frame == null) {
       return [
-        _InfoRow(label: 'TCP 桥地址', value: url ?? '—'),
-        const _InfoRow(label: '帧', value: '尚未收到完整帧'),
+        VideoInfoRow(label: 'TCP 桥地址', value: url ?? '—'),
+        const VideoInfoRow(label: '帧', value: '尚未收到完整帧'),
       ];
     }
     final f = frame!;
     return [
-      _InfoRow(label: 'TCP 桥地址', value: url ?? '—'),
-      _InfoRow(label: '帧 ID', value: '${f.frameId}'),
-      _InfoRow(label: '分片数', value: '${f.packetCount}'),
-      _InfoRow(label: '帧大小', value: _formatBytes(f.annexbData.length)),
-      _InfoRow(
+      VideoInfoRow(label: 'TCP 桥地址', value: url ?? '—'),
+      VideoInfoRow(label: '帧 ID', value: '${f.frameId}'),
+      VideoInfoRow(label: '分片数', value: '${f.packetCount}'),
+      VideoInfoRow(label: '帧大小', value: _formatBytes(f.annexbData.length)),
+      VideoInfoRow(
         label: '重组耗时',
         value: '${f.reassemblyTime.inMilliseconds} ms',
       ),
@@ -984,75 +899,5 @@ class _BasicInfo extends StatelessWidget {
     final kb = bytes / 1024;
     if (kb < 1024) return '${kb.toStringAsFixed(1)} KB';
     return '${(kb / 1024).toStringAsFixed(2)} MB';
-  }
-}
-
-/// Developer-only debug section wrapping the dark debug content.
-class _DebugSection extends StatelessWidget {
-  const _DebugSection();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: context.insetAll(10),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade900,
-        borderRadius: BorderRadius.circular(context.sp(8)),
-      ),
-      child: const VideoDebugContent(),
-    );
-  }
-}
-
-class _StatusRow extends StatelessWidget {
-  const _StatusRow({required this.isListening});
-
-  final bool isListening;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isListening ? Colors.green : Colors.grey;
-    return Row(
-      children: [
-        Container(
-          width: context.rmStatusDotSize,
-          height: context.rmStatusDotSize,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        context.sizedBox(w: 8),
-        Text(
-          isListening ? '正在接收 (UDP 3334)' : '已停止',
-          style: const TextStyle(fontWeight: FontWeight.w500),
-        ),
-      ],
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: context.insetSym(v: 6),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: TextStyle(color: Colors.grey.shade600)),
-          Expanded(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }

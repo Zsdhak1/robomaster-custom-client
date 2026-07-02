@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../dashboard/logic/dashboard_notification_models.dart';
 import '../../data_export/data/default_export_directory.dart';
 
 // ============================================================
@@ -40,6 +41,101 @@ class ThemeModeNotifier extends StateNotifier<ThemeMode> {
 final themeModeProvider =
     StateNotifierProvider<ThemeModeNotifier, ThemeMode>(
   (ref) => ThemeModeNotifier(),
+);
+
+// ============================================================
+// Dashboard notification style
+// ============================================================
+
+const _keyDashboardNotificationStyle = 'dashboard_notification_style';
+
+/// Persists the chosen dashboard notification preview style.
+class DashboardNotificationStyleNotifier
+    extends StateNotifier<DashboardNotificationStyle> {
+  /// Creates the notifier and loads the persisted value.
+  DashboardNotificationStyleNotifier()
+      : super(DashboardNotificationStyle.topBanner) {
+    _load();
+  }
+
+  /// Persists [style] and updates state.
+  Future<void> set(DashboardNotificationStyle style) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyDashboardNotificationStyle, style.index);
+    state = style;
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final index = prefs.getInt(_keyDashboardNotificationStyle);
+    if (index != null &&
+        index >= 0 &&
+        index < DashboardNotificationStyle.values.length) {
+      state = DashboardNotificationStyle.values[index];
+    }
+  }
+}
+
+/// The dashboard event notification style currently selected by the user.
+final dashboardNotificationStyleProvider = StateNotifierProvider<
+    DashboardNotificationStyleNotifier, DashboardNotificationStyle>(
+  (ref) => DashboardNotificationStyleNotifier(),
+);
+
+// ============================================================
+// Custom video codec — H.264 or H.265 (HEVC)
+// ============================================================
+
+/// Video codec used by the custom 0x0310 video line.
+///
+/// The robot may stream either H.264 Annex‑B or HEVC Annex‑B over
+/// `CustomByteBlock`.  This setting tells the gate / demuxer / NAL scanner
+/// which bit layout to expect.
+enum CustomVideoCodec {
+  /// H.264 / AVC — 5‑bit nal_unit_type, parameter sets SPS=7 / PPS=8.
+  h264('H.264', 'sps=7, pps=8'),
+
+  /// H.265 / HEVC — 6‑bit nal_unit_type, parameter sets VPS=32 / SPS=33 / PPS=34.
+  h265('H.265 / HEVC', 'vps=32, sps=33, pps=34');
+
+  const CustomVideoCodec(this.label, this.nalDescription);
+
+  /// Short human‑readable label.
+  final String label;
+
+  /// What NAL types constitute “parameter sets” for this codec.
+  final String nalDescription;
+}
+
+const _keyCustomVideoCodec = 'custom_video_codec';
+
+/// Notifier persisting the chosen custom‑video codec (default H.264).
+class CustomVideoCodecNotifier extends StateNotifier<CustomVideoCodec> {
+  /// Creates the notifier and loads the persisted value.
+  CustomVideoCodecNotifier() : super(CustomVideoCodec.h264) {
+    _load();
+  }
+
+  /// Persists [codec] and updates state.
+  Future<void> set(CustomVideoCodec codec) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyCustomVideoCodec, codec.index);
+    state = codec;
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final i = prefs.getInt(_keyCustomVideoCodec);
+    if (i != null && i >= 0 && i < CustomVideoCodec.values.length) {
+      state = CustomVideoCodec.values[i];
+    }
+  }
+}
+
+/// The video codec the custom 0x0310 line should decode.
+final customVideoCodecProvider =
+    StateNotifierProvider<CustomVideoCodecNotifier, CustomVideoCodec>(
+  (ref) => CustomVideoCodecNotifier(),
 );
 
 // ============================================================
@@ -337,6 +433,24 @@ final customVideoTsWrapProvider =
   (ref) => CustomVideoTsWrapNotifier(),
 );
 
+/// The TS-wrap value actually applied to the pipeline (single source of truth).
+///
+/// media_kit's bundled libmpv ships without the raw-H.264 demuxer, so it can
+/// only decode this line when the bridge serves MPEG-TS. Selecting the
+/// media_kit backend therefore forces TS on regardless of the user's manual
+/// toggle; every other backend (fvp, ffplay) honours the user setting since
+/// they decode raw Annex-B fine.
+///
+/// Both the stream controller (which decides the bytes the bridge emits) and
+/// the panel (which decides the demuxer the player forces) read this, so the
+/// served format and the forced demuxer can never disagree — a mismatch is
+/// exactly what left media_kit stuck at 0:00.
+final customVideoEffectiveTsWrapProvider = Provider<bool>((ref) {
+  final userTsWrap = ref.watch(customVideoTsWrapProvider);
+  final backend = ref.watch(customVideoBackendProvider);
+  return userTsWrap || backend == VideoDecoderBackend.mediaKit;
+});
+
 // ============================================================
 // Custom video packet slicing — how each CustomByteBlock.data is turned
 // into the Annex-B byte stream fed to the decoder.
@@ -582,4 +696,39 @@ class ExportDirectoryNotifier extends StateNotifier<String> {
 final exportDirectoryProvider =
     StateNotifierProvider<ExportDirectoryNotifier, String>(
   (ref) => ExportDirectoryNotifier(),
+);
+
+// ============================================================
+// Show health trend chart on dashboard
+// ============================================================
+
+const _keyShowHealthTrend = 'show_health_trend';
+
+/// Notifier persisting whether the health trend chart is shown on the dashboard.
+class ShowHealthTrendNotifier extends StateNotifier<bool> {
+  /// Creates the notifier and loads the persisted value (default on).
+  ShowHealthTrendNotifier() : super(true) {
+    _load();
+  }
+
+  /// Persists [enabled] and updates state.
+  Future<void> set({required bool enabled}) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyShowHealthTrend, enabled);
+    state = enabled;
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    state = prefs.getBool(_keyShowHealthTrend) ?? true;
+  }
+}
+
+/// Whether the health trend line chart is visible on the dashboard.
+///
+/// When disabled, the bottom-bar area switches to show the operation panel
+/// and connection quality panel instead.
+final showHealthTrendProvider =
+    StateNotifierProvider<ShowHealthTrendNotifier, bool>(
+  (ref) => ShowHealthTrendNotifier(),
 );

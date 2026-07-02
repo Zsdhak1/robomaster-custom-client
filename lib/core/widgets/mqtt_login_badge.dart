@@ -35,7 +35,7 @@ class MqttLoginBadge extends ConsumerWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: onDark
-            ? Colors.black.withValues(alpha: 0.55)
+            ? Theme.of(context).colorScheme.scrim.withValues(alpha: 0.55)
             : Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(context.sp(8)),
       ),
@@ -44,19 +44,24 @@ class MqttLoginBadge extends ConsumerWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              isConnected ? Icons.cloud_done : Icons.cloud_off,
-              size: context.iconSize(16),
-              color: isConnected ? Colors.greenAccent : Colors.redAccent,
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 350),
+              switchInCurve: Curves.fastOutSlowIn,
+              switchOutCurve: Curves.fastOutSlowIn,
+              child: Icon(
+                isConnected ? Icons.cloud_done : Icons.cloud_off,
+                key: ValueKey<bool>(isConnected),
+                size: context.iconSize(16),
+                color: isConnected ? Colors.greenAccent : Colors.redAccent,
+              ),
             ),
             context.sizedBox(w: 6),
             Text(
               isConnected
                   ? '${robotDisplayName(selectedId)}（ID：$selectedId）'
                   : '未连接（离线）',
-              style: TextStyle(
+              style: context.textTheme.bodySmall!.copyWith(
                 color: fg,
-                fontSize: context.fontSize(13),
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -86,9 +91,8 @@ class _SideBadge extends StatelessWidget {
       ),
       child: Text(
         ownIsBlue ? '己方·蓝' : '己方·红',
-        style: TextStyle(
+        style: context.textTheme.labelSmall!.copyWith(
           color: Colors.white,
-          fontSize: context.fontSize(12),
           fontWeight: FontWeight.bold,
         ),
       ),

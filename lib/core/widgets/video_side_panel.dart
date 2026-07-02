@@ -58,8 +58,7 @@ class VideoSidePanel extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: TextStyle(
-                      fontSize: context.fontSize(18),
+                    style: context.textTheme.titleMedium!.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -72,7 +71,7 @@ class VideoSidePanel extends StatelessWidget {
                           basicInfo,
                           if (showDebug) ...[
                             const Divider(height: 24),
-                            debugSection!,
+                            VideoDebugSection(child: debugSection!),
                           ],
                         ],
                       ),
@@ -84,11 +83,113 @@ class VideoSidePanel extends StatelessWidget {
           ),
         ),
         // Bottom ~3/5: the dashboard enemy 血量 list, scaled to fit.
-        const Expanded(
-          flex: 3,
-          child: _ScaledEnemyHealth(),
+        const Expanded(flex: 3, child: _ScaledEnemyHealth()),
+      ],
+    );
+  }
+}
+
+/// Decorated debug section shared by video side panels.
+class VideoDebugSection extends StatelessWidget {
+  /// Creates a decorated debug section.
+  const VideoDebugSection({required this.child, super.key});
+
+  /// Debug content.
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: context.insetAll(10),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(context.sp(8)),
+      ),
+      child: child,
+    );
+  }
+}
+
+/// Shared status row for video side panels.
+class VideoStatusRow extends StatelessWidget {
+  /// Creates a status row with a coloured dot.
+  const VideoStatusRow({
+    required this.isRunning,
+    required this.runningLabel,
+    this.stoppedLabel = '已停止',
+    super.key,
+  });
+
+  /// Whether the stream is running.
+  final bool isRunning;
+
+  /// Label shown while running.
+  final String runningLabel;
+
+  /// Label shown while stopped.
+  final String stoppedLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isRunning
+        ? Colors.green
+        : Theme.of(context).colorScheme.onSurfaceVariant;
+    return Row(
+      children: [
+        Container(
+          width: context.rmStatusDotSize,
+          height: context.rmStatusDotSize,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        context.sizedBox(w: 8),
+        Text(
+          isRunning ? runningLabel : stoppedLabel,
+          style: context.textTheme.bodyMedium!.copyWith(
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ],
+    );
+  }
+}
+
+/// Shared label/value row for video side panels.
+class VideoInfoRow extends StatelessWidget {
+  /// Creates an info row.
+  const VideoInfoRow({required this.label, required this.value, super.key});
+
+  /// Left label.
+  final String label;
+
+  /// Right value.
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: context.insetSym(v: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: context.textTheme.bodySmall!.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              overflow: TextOverflow.ellipsis,
+              style: context.textTheme.bodySmall!.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

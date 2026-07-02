@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/feedback/feedback_messenger.dart';
+import '../../../core/responsive/responsive_ext.dart';
 import '../../../core/theme/app_theme.dart';
 import '../data/installer_downloader.dart';
 import '../domain/github_release.dart';
@@ -80,7 +81,9 @@ class UpdateDialog extends ConsumerWidget {
             const SizedBox(height: 16),
             Text(
               '发布时间：${_formatDate(release.publishedAt)}',
-              style: TextStyle(fontSize: 13, color: rmTextSecondary(context)),
+              style: context.textTheme.bodySmall!.copyWith(
+                color: rmTextSecondary(context),
+              ),
             ),
             const SizedBox(height: 12),
             _ReleaseNotes(body: release.body),
@@ -186,8 +189,7 @@ class _VersionBanner extends StatelessWidget {
         children: [
           Text(
             '最新版本：$latestVersion',
-            style: TextStyle(
-              fontSize: 16,
+            style: context.textTheme.titleMedium!.copyWith(
               fontWeight: FontWeight.bold,
               color: color,
             ),
@@ -195,7 +197,9 @@ class _VersionBanner extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             '当前版本：$currentVersion',
-            style: TextStyle(fontSize: 13, color: rmTextSecondary(context)),
+            style: context.textTheme.bodySmall!.copyWith(
+              color: rmTextSecondary(context),
+            ),
           ),
         ],
       ),
@@ -215,8 +219,7 @@ class _ReleaseNotes extends StatelessWidget {
       children: [
         Text(
           '更新内容',
-          style: TextStyle(
-            fontSize: 14,
+          style: context.textTheme.titleSmall!.copyWith(
             fontWeight: FontWeight.w600,
             color: rmTextPrimary(context),
           ),
@@ -233,10 +236,8 @@ class _ReleaseNotes extends StatelessWidget {
           child: SingleChildScrollView(
             child: SelectableText(
               body.isEmpty ? '（无详细说明）' : body,
-              style: TextStyle(
-                fontSize: 13,
+              style: context.textTheme.bodySmall!.copyWith(
                 color: rmTextPrimary(context),
-                height: 1.5,
               ),
             ),
           ),
@@ -257,7 +258,9 @@ class _AssetList extends StatelessWidget {
     if (assets.isEmpty) {
       return Text(
         '该版本未上传安装包',
-        style: TextStyle(fontSize: 13, color: rmTextSecondary(context)),
+        style: context.textTheme.bodySmall!.copyWith(
+          color: rmTextSecondary(context),
+        ),
       );
     }
 
@@ -266,8 +269,7 @@ class _AssetList extends StatelessWidget {
       children: [
         Text(
           '安装包',
-          style: TextStyle(
-            fontSize: 14,
+          style: context.textTheme.titleSmall!.copyWith(
             fontWeight: FontWeight.w600,
             color: rmTextPrimary(context),
           ),
@@ -286,14 +288,15 @@ class _AssetList extends StatelessWidget {
               ),
               title: Text(
                 asset.name,
-                style: TextStyle(
-                  fontSize: 13,
+                style: context.textTheme.bodySmall!.copyWith(
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                 ),
               ),
               subtitle: Text(
                 '${formatBytes(asset.sizeBytes)} · ${asset.contentType}',
-                style: TextStyle(fontSize: 12, color: rmTextSecondary(context)),
+                style: context.textTheme.bodySmall!.copyWith(
+                  color: rmTextSecondary(context),
+                ),
               ),
               trailing: isSelected
                   ? Icon(Icons.check_circle,

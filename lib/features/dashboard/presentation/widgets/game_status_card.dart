@@ -24,8 +24,7 @@ class GameStatusCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final GameState effectiveState =
-        gameState ?? ref.watch(gameStateProvider);
+    final GameState effectiveState = gameState ?? ref.watch(gameStateProvider);
     final status = effectiveState.gameStatus;
 
     return Padding(
@@ -42,7 +41,9 @@ class GameStatusCard extends ConsumerWidget {
                 context.sizedBox(h: 2),
                 Text(
                   '比赛阶段',
-                  style: TextStyle(fontSize: context.fontSize(13), color: rmTextSecondary(context)),
+                  style: context.textTheme.bodySmall!.copyWith(
+                    color: rmTextSecondary(context),
+                  ),
                 ),
                 _buildDetails(context, status),
               ],
@@ -57,8 +58,7 @@ class GameStatusCard extends ConsumerWidget {
     final phaseText = _phaseLabel(status?.currentStage ?? 0);
     return Text(
       phaseText,
-      style: TextStyle(
-        fontSize: context.fontSize(24),
+      style: context.textTheme.headlineSmall!.copyWith(
         fontWeight: FontWeight.bold,
       ),
     );
@@ -69,11 +69,10 @@ class GameStatusCard extends ConsumerWidget {
 
     final children = <Widget>[];
 
-    final roundText =
-        '第 ${status.currentRound} / ${status.totalRounds} 回合';
+    final roundText = '第 ${status.currentRound} / ${status.totalRounds} 回合';
     children
       ..add(context.sizedBox(h: 6))
-      ..add(Text(roundText, style: TextStyle(fontSize: context.fontSize(13))));
+      ..add(Text(roundText, style: context.textTheme.bodySmall));
 
     final scoreText = '红 ${status.redScore} : ${status.blueScore} 蓝';
     children
@@ -81,8 +80,7 @@ class GameStatusCard extends ConsumerWidget {
       ..add(
         Text(
           scoreText,
-          style: TextStyle(
-            fontSize: context.fontSize(15),
+          style: context.textTheme.titleSmall!.copyWith(
             fontWeight: FontWeight.w500,
             color: Theme.of(context).colorScheme.primary,
           ),
@@ -93,7 +91,7 @@ class GameStatusCard extends ConsumerWidget {
       final countdownText = '剩余 ${status.stageCountdownSec} 秒';
       children
         ..add(context.sizedBox(h: 4))
-        ..add(Text(countdownText, style: TextStyle(fontSize: context.fontSize(13))));
+        ..add(Text(countdownText, style: context.textTheme.bodySmall));
     }
 
     return Column(
@@ -103,12 +101,12 @@ class GameStatusCard extends ConsumerWidget {
   }
 
   static String _phaseLabel(int stage) => switch (stage) {
-        0 => '未开始',
-        1 => '准备阶段',
-        2 => '裁判系统自检',
-        3 => '五秒倒计时',
-        4 => '比赛中',
-        5 => '比赛结算中',
-        _ => '未知',
-      };
+    0 => '未开始',
+    1 => '准备阶段',
+    2 => '裁判系统自检',
+    3 => '五秒倒计时',
+    4 => '比赛中',
+    5 => '比赛结算中',
+    _ => '未知',
+  };
 }

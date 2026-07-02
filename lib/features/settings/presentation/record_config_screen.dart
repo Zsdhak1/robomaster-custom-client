@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/topic_registry.dart';
 import '../../../core/feedback/feedback_messenger.dart';
+import '../../../core/responsive/responsive_ext.dart';
 import '../../../core/sync/remote_sync_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../logic/github_sync_provider.dart';
@@ -82,7 +83,9 @@ class _SummaryBanner extends StatelessWidget {
               child: Text(
                 '当前记录 $enabled/$total 个 topic。仅订阅并记录这里勾选的项；'
                 '指令类 topic（客户端→服务器）不在记录范围内。',
-                style: TextStyle(fontSize: 13, color: rmTextSecondary(context)),
+                style: context.textTheme.bodySmall!.copyWith(
+                  color: rmTextSecondary(context),
+                ),
               ),
             ),
           ],
@@ -121,8 +124,7 @@ class _ScopeSection extends StatelessWidget {
               children: [
                 Text(
                   scope.label,
-                  style: TextStyle(
-                    fontSize: 15,
+                  style: context.textTheme.titleSmall!.copyWith(
                     fontWeight: FontWeight.bold,
                     color: Theme.of(context).colorScheme.primary,
                   ),
@@ -130,7 +132,9 @@ class _ScopeSection extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   scope.description,
-                  style: TextStyle(fontSize: 12, color: rmTextSecondary(context)),
+                  style: context.textTheme.bodySmall!.copyWith(
+                    color: rmTextSecondary(context),
+                  ),
                 ),
               ],
             ),
@@ -142,7 +146,7 @@ class _ScopeSection extends StatelessWidget {
               title: Text(info.displayName),
               subtitle: Text(
                 '${info.purpose} · ${info.frequency}',
-                style: const TextStyle(fontSize: 12),
+                style: context.textTheme.bodySmall,
               ),
               value: config.isEnabled(info.topic),
               onChanged: (v) => onToggle(info.topic, enabled: v),
@@ -175,10 +179,12 @@ class _RemoteSyncCard extends ConsumerWidget {
           children: [
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
                     '远程配置同步',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                    style: context.textTheme.titleSmall!.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 _SyncStatusPill(canPull: canPull, canPush: canPush),
@@ -190,7 +196,9 @@ class _RemoteSyncCard extends ConsumerWidget {
                   ? '仓库 ${syncConfig.repository} · 分支 ${syncConfig.branch}'
                       '${canPush ? '' : ' · 仅可拉取（填写令牌后可上传）'}'
                   : '配置 GitHub 仓库后，可在全队之间拉取/上传统一的记录配置。',
-              style: TextStyle(fontSize: 12, color: rmTextSecondary(context)),
+              style: context.textTheme.bodySmall!.copyWith(
+                color: rmTextSecondary(context),
+              ),
             ),
             const SizedBox(height: 8),
             Wrap(
@@ -277,8 +285,7 @@ class _SyncStatusPill extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             label,
-            style: TextStyle(
-              fontSize: 12,
+            style: context.textTheme.labelSmall!.copyWith(
               color: color,
               fontWeight: FontWeight.w600,
             ),
@@ -374,8 +381,7 @@ class _GitHubConfigDialogState extends State<_GitHubConfigDialog> {
                         const SizedBox(width: 4),
                         Text(
                           '令牌使用细粒度 PAT（单仓库授权）',
-                          style: TextStyle(
-                            fontSize: 12,
+                          style: context.textTheme.labelSmall!.copyWith(
                             fontWeight: FontWeight.w600,
                             color: rmTextPrimary(context),
                           ),
@@ -390,9 +396,7 @@ class _GitHubConfigDialogState extends State<_GitHubConfigDialog> {
                       '· Permissions → Repository → Contents：\n'
                       '   只读拉取选 Read，需上传则选 Read and write\n'
                       '令牌仅保存在本机，不写入共享配置文件。',
-                      style: TextStyle(
-                        fontSize: 11,
-                        height: 1.5,
+                      style: context.textTheme.labelSmall!.copyWith(
                         color: rmTextSecondary(context),
                       ),
                     ),

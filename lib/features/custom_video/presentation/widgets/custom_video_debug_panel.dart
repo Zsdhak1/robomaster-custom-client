@@ -1,4 +1,4 @@
-﻿/// Comprehensive debug panel for the custom H.264 video line (0x0310).
+﻿/// Comprehensive debug panel for the custom H.264/H.265 video line (0x0310).
 ///
 /// Surfaces the whole pipeline at a glance so a black screen can be triaged
 /// fast: MQTT ingest -> keyframe gate -> MPEG-TS mux -> TCP bridge -> decoder.
@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/responsive/responsive_ext.dart';
+import '../../../../features/settings/logic/settings_providers.dart';
 import '../../logic/custom_video_providers.dart';
 
 /// Full diagnostics panel shown beside the custom-video player.
@@ -85,7 +86,11 @@ class _PipelineHealth extends StatelessWidget {
         _HealthRow(
           label: '关键帧门控',
           ok: gateOk,
-          detail: gateOk ? '已打开' : '等待 SPS/PPS…',
+          detail: gateOk
+              ? '已打开'
+              : s?.codec == CustomVideoCodec.h265
+                  ? '等待 VPS/SPS/PPS…'
+                  : '等待 SPS/PPS…',
         ),
         _HealthRow(
           label: '解码器连接',
@@ -131,14 +136,13 @@ class _HealthRow extends StatelessWidget {
           context.sizedBox(w: 6),
           SizedBox(
             width: context.sp(92),
-            child: Text(label, style: TextStyle(fontSize: context.fontSize(12))),
+            child: Text(label, style: context.textTheme.bodySmall),
           ),
           Expanded(
             child: Text(
               detail,
               textAlign: TextAlign.right,
-              style: TextStyle(
-                fontSize: context.fontSize(12),
+              style: context.textTheme.bodySmall!.copyWith(
                 color: Colors.grey.shade600,
               ),
             ),
@@ -248,12 +252,25 @@ class _KeyframeSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = stats;
     final sinceKf = s?.millisSinceLastKeyframe;
+    final isHevc = s?.codec == CustomVideoCodec.h265;
     return _Section(
       title: '关键帧诊断 (NAL 统计)',
       children: [
-        _InfoRow(label: 'IDR 关键帧 (type 5)', value: '${s?.keyframesSeen ?? 0}'),
-        _InfoRow(label: 'SPS 参数集 (type 7)', value: '${s?.spsSeen ?? 0}'),
-        _InfoRow(label: '非关键帧 (type 1)', value: '${s?.nonIdrSeen ?? 0}'),
+        if (isHevc) ...[
+          _InfoRow(label: 'VPS 参数集 (type 32)', value: '${s?.vpsSeen ?? 0}'),
+          _InfoRow(label: 'SPS 参数集 (type 33)', value: '${s?.spsSeen ?? 0}'),
+          _InfoRow(
+            label: 'IDR 关键帧 (types 19+20)',
+            value: '${s?.keyframesSeen ?? 0}',
+          ),
+        ] else ...[
+          _InfoRow(label: 'IDR 关键帧 (type 5)', value: '${s?.keyframesSeen ?? 0}'),
+          _InfoRow(label: 'SPS 参数集 (type 7)', value: '${s?.spsSeen ?? 0}'),
+        ],
+        _InfoRow(
+          label: '非关键帧 (type ${isHevc ? '1' : '1'})',
+          value: '${s?.nonIdrSeen ?? 0}',
+        ),
         _InfoRow(
           label: '距上一关键帧',
           value: sinceKf == null ? '从未收到' : '$sinceKf ms',
@@ -281,7 +298,9 @@ class _BridgeSection extends StatelessWidget {
         _InfoRow(label: '桥地址', value: s?.streamUrl ?? '—'),
         _InfoRow(
           label: '封装模式',
-          value: (s?.tsWrap ?? false) ? 'MPEG-TS' : '原始 H.264',
+          value: (s?.tsWrap ?? false)
+              ? 'MPEG-TS'
+              : '原始 ${s?.codec == CustomVideoCodec.h265 ? "H.265" : "H.264"}',
         ),
         _InfoRow(label: '解码器连接数', value: '${s?.decoderClients ?? 0}'),
         _InfoRow(label: '待发关键帧前帧', value: '${s?.pendingFrames ?? 0}'),
@@ -361,7 +380,7 @@ class _DecoderSection extends StatelessWidget {
                   Expanded(
                     child: Text(
                       d.lastError!,
-                      style: const TextStyle(fontSize: 11, color: Colors.red),
+                      style: context.textTheme.labelSmall!.copyWith(color: Colors.red),
                     ),
                   ),
                 ],
@@ -390,7 +409,7 @@ class _DecoderLogSection extends StatelessWidget {
         if (logs.isEmpty)
           Text(
             '暂无日志',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+            style: context.textTheme.labelSmall!.copyWith(color: Colors.grey.shade600),
           )
         else
           // Newest first so the latest event is always visible without
@@ -424,9 +443,7 @@ class _LogLine extends StatelessWidget {
         children: [
           Text(
             ts,
-            style: TextStyle(
-              fontSize: 10,
-              fontFeatures: const [],
+            style: context.textTheme.labelSmall!.copyWith(
               color: Colors.grey.shade500,
             ),
           ),
@@ -434,7 +451,7 @@ class _LogLine extends StatelessWidget {
           Expanded(
             child: Text(
               entry.message,
-              style: TextStyle(fontSize: 10, color: color),
+              style: context.textTheme.labelSmall!.copyWith(color: color),
             ),
           ),
         ],
@@ -468,7 +485,7 @@ class _Section extends StatelessWidget {
         children: [
           Text(
             title,
-            style: TextStyle(fontSize: context.fontSize(13), fontWeight: FontWeight.w700),
+            style: context.textTheme.titleSmall!.copyWith(fontWeight: FontWeight.w700),
           ),
           context.sizedBox(h: 6),
           ...children,
@@ -493,14 +510,14 @@ class _InfoRow extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(fontSize: context.fontSize(12), color: Colors.grey.shade600),
+            style: context.textTheme.bodySmall!.copyWith(color: Colors.grey.shade600),
           ),
           context.sizedBox(w: 8),
           Expanded(
             child: Text(
               value,
               textAlign: TextAlign.right,
-              style: TextStyle(fontSize: context.fontSize(12), fontWeight: FontWeight.w600),
+              style: context.textTheme.bodySmall!.copyWith(fontWeight: FontWeight.w600),
             ),
           ),
         ],

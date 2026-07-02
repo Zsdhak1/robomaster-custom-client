@@ -114,7 +114,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('自定义图传 · CustomByteBlock'), findsOneWidget);
+      expect(find.text('自定义图传 · 0x0310'), findsOneWidget);
       expect(find.byType(CustomVideoScreen), findsOneWidget);
     });
   });

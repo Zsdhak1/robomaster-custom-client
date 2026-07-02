@@ -22,6 +22,13 @@ analyzer:
     - "**/*.freezed.dart"
     - "**/generated/**"
 
+# 排版约定（v0.1.1 Phase 1）
+# 业务代码应使用 context.textTheme.* 角色而非裸 fontSize。以下情况允许保留裸字号：
+# 1. 微型数字徽标（如 _NumberBadge）—— 尺寸由徽章容器硬限制，主题角色会溢出；
+# 2. 第三方库回调不提供 BuildContext（如 fl_chart 的 getTitlesWidget）；
+# 3. lib/core/theme/text_theme.dart 中 MD3 type scale 的定义本身。
+# 新增裸 fontSize 必须加注释说明理由，否则在 Code Review 中驳回。
+
 linter:
   rules:
     # 核心规则

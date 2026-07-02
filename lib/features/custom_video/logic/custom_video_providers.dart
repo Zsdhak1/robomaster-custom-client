@@ -1,4 +1,4 @@
-/// Riverpod providers for the custom H.264 video stream (0x0310 / CustomByteBlock).
+/// Riverpod providers for the custom H.264/H.265 video stream (0x0310 / CustomByteBlock).
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -41,8 +41,10 @@ class CustomVideoStats {
     required this.millisSinceLastChunk,
     this.keyframesSeen = 0,
     this.spsSeen = 0,
+    this.vpsSeen = 0,
     this.nonIdrSeen = 0,
     this.millisSinceLastKeyframe,
+    this.codec = CustomVideoCodec.h264,
     this.hasSequence = false,
     this.lastSequence = 0,
     this.seqPacketsSeen = 0,
@@ -76,8 +78,10 @@ class CustomVideoStats {
       millisSinceLastChunk: service.millisSinceLastChunk,
       keyframesSeen: service.keyframesSeen,
       spsSeen: service.spsSeen,
-      nonIdrSeen: service.nalCounts[1] ?? 0,
+      vpsSeen: service.vpsSeen,
+      nonIdrSeen: service.nonIdrSeen,
       millisSinceLastKeyframe: service.millisSinceLastKeyframe,
+      codec: service.codec,
       hasSequence: source.hasSequence,
       lastSequence: source.lastSequence,
       seqPacketsSeen: source.seqPacketsSeen,
@@ -123,17 +127,31 @@ class CustomVideoStats {
   /// Milliseconds since the last MQTT chunk arrived, or null if none yet.
   final int? millisSinceLastChunk;
 
-  /// IDR keyframe NAL units (type 5) seen over the post-slice stream.
+  /// IDR keyframe NAL units seen over the post-slice stream.
+  ///
+  /// H.264: type 5 (IDR).  H.265/HEVC: types 19 + 20 (IDR_W_RADL / IDR_N_LP).
   final int keyframesSeen;
 
-  /// SPS parameter-set NAL units (type 7) seen over the post-slice stream.
+  /// SPS parameter-set NAL units seen over the post-slice stream.
+  ///
+  /// H.264: type 7.  H.265/HEVC: type 33.
   final int spsSeen;
 
-  /// Non-IDR slice NAL units (type 1) seen over the post-slice stream.
+  /// VPS parameter-set NAL units seen over the post-slice stream.
+  ///
+  /// Always 0 for H.264 (no VPS).  H.265/HEVC: type 32.
+  final int vpsSeen;
+
+  /// Non-IDR slice NAL units seen over the post-slice stream.
+  ///
+  /// H.264: type 1.  H.265/HEVC: type 1 (TRAIL_R) and similar.
   final int nonIdrSeen;
 
   /// Milliseconds since the last keyframe/parameter-set NAL, or null if none.
   final int? millisSinceLastKeyframe;
+
+  /// The video codec configured for this session.
+  final CustomVideoCodec codec;
 
   /// Whether a packet sequence number has been observed yet.
   final bool hasSequence;
@@ -187,8 +205,10 @@ class CustomVideoStats {
       millisSinceLastChunk: millisSinceLastChunk,
       keyframesSeen: keyframesSeen,
       spsSeen: spsSeen,
+      vpsSeen: vpsSeen,
       nonIdrSeen: nonIdrSeen,
       millisSinceLastKeyframe: millisSinceLastKeyframe,
+      codec: codec,
       hasSequence: hasSequence,
       lastSequence: lastSequence,
       seqPacketsSeen: seqPacketsSeen,
@@ -274,7 +294,7 @@ final customVideoStatsProvider = StreamProvider<CustomVideoStats>((ref) {
   );
 });
 
-/// Reactive controller starting/stopping the custom H.264 video bridge.
+/// Reactive controller starting/stopping the custom H.264/H.265 video bridge.
 ///
 /// Mirrors the official line's [VideoStreamController] pattern: wires the MQTT
 /// [CustomByteBlockSource] chunk stream into the independent bridge and drives
@@ -295,7 +315,8 @@ class CustomVideoController extends StateNotifier<bool> {
     _source.start();
     await _service.start(
       _source.chunkStream,
-      tsWrap: _ref.read(customVideoTsWrapProvider),
+      tsWrap: _ref.read(customVideoEffectiveTsWrapProvider),
+      codec: _ref.read(customVideoCodecProvider),
     );
     state = true;
   }
@@ -311,13 +332,21 @@ class CustomVideoController extends StateNotifier<bool> {
   /// Toggles the bridge on/off.
   Future<void> toggle() => state ? Future.sync(stop) : start();
 
+  /// Stops and restarts the bridge so a changed served format (e.g. TS wrap
+  /// toggling on a live backend switch) takes effect. No-op when not running.
+  Future<void> restart() async {
+    if (!state) return;
+    stop();
+    await start();
+  }
+
   // ---------------------------------------------------------------
   // 20-second stream dump helpers
   // ---------------------------------------------------------------
 
-  /// Starts a 20-second dump of the raw H.264 stream.
+  /// Starts a 20-second dump of the raw video stream.
   ///
-  /// Returns a future that completes with the `.h264` file path.
+  /// Returns a future that completes with the `.h264` or `.hevc` file path.
   Future<String> startDump() => _service.startDump();
 
   /// Cancels an in-progress dump.
@@ -335,5 +364,15 @@ final customVideoControllerProvider =
     StateNotifierProvider<CustomVideoController, bool>((ref) {
   final source = ref.watch(customByteBlockSourceProvider);
   final service = ref.watch(customVideoStreamServiceProvider);
-  return CustomVideoController(source, service, ref);
+  final controller = CustomVideoController(source, service, ref);
+  // If the effective TS-wrap value changes while streaming (e.g. the user
+  // switches to/from the media_kit backend mid-stream), the bytes the bridge
+  // emits no longer match the demuxer the player forces. Restart the bridge to
+  // realign the served format with the decoder.
+  ref.listen<bool>(customVideoEffectiveTsWrapProvider, (prev, next) {
+    if (prev != null && prev != next) {
+      controller.restart();
+    }
+  });
+  return controller;
 });

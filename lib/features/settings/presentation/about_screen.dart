@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/feedback/feedback_messenger.dart';
+import '../../../core/responsive/responsive_ext.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/update/domain/github_release.dart';
 import '../../../core/update/logic/update_providers.dart';
@@ -14,13 +15,17 @@ import '../../../core/update/presentation/update_dialog.dart';
 /// Shows application metadata and lets the user manually check for updates.
 class AboutScreen extends StatelessWidget {
   /// Creates an [AboutScreen].
-  const AboutScreen({super.key});
+  const AboutScreen({super.key, this.embedded = false});
+
+  /// When true, renders only the body without its own Scaffold/AppBar.
+  final bool embedded;
 
   static const String _repoUrl =
       'https://github.com/Zsdhak1/robomaster-custom-client';
 
   @override
   Widget build(BuildContext context) {
+    if (embedded) return const _AboutBody();
     return Scaffold(
       appBar: AppBar(title: const Text('关于')),
       body: const _AboutBody(),
@@ -36,17 +41,22 @@ class _AboutBody extends ConsumerWidget {
     final versionAsync = ref.watch(appVersionProvider);
     final updateAsync = ref.watch(updateCheckResultProvider);
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        _AboutHeader(versionAsync: versionAsync),
-        const SizedBox(height: 24),
-        _UpdateCard(updateAsync: updateAsync),
-        const SizedBox(height: 16),
-        const _RepoCard(),
-        const SizedBox(height: 16),
-        const _InfoCard(),
-      ],
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 840),
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            _AboutHeader(versionAsync: versionAsync),
+            const SizedBox(height: 24),
+            _UpdateCard(updateAsync: updateAsync),
+            const SizedBox(height: 16),
+            const _RepoCard(),
+            const SizedBox(height: 16),
+            const _InfoCard(),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -89,7 +99,9 @@ class _VersionText extends StatelessWidget {
     return versionAsync.when(
       data: (v) => Text(
         '版本 $v',
-        style: TextStyle(fontSize: 15, color: rmTextSecondary(context)),
+        style: context.textTheme.bodyMedium!.copyWith(
+          color: rmTextSecondary(context),
+        ),
       ),
       loading: () => const SizedBox(
         width: 16,
@@ -98,7 +110,9 @@ class _VersionText extends StatelessWidget {
       ),
       error: (err, _) => Text(
         '版本未知',
-        style: TextStyle(fontSize: 15, color: rmTextSecondary(context)),
+        style: context.textTheme.bodyMedium!.copyWith(
+          color: rmTextSecondary(context),
+        ),
       ),
     );
   }
@@ -258,7 +272,9 @@ class _InfoCard extends StatelessWidget {
             Text(
               'RoboMaster 2026 自定义客户端协议 V1.3.1\n'
               'MQTT 3333 控制 / 状态链路 + UDP 3334 HEVC 视频流',
-              style: TextStyle(fontSize: 14, color: rmTextSecondary(context)),
+              style: context.textTheme.bodySmall!.copyWith(
+        color: rmTextSecondary(context),
+      ),
             ),
           ],
         ),
@@ -269,8 +285,7 @@ class _InfoCard extends StatelessWidget {
   Widget _sectionTitle(BuildContext context, String title) {
     return Text(
       title,
-      style: TextStyle(
-        fontSize: 15,
+      style: context.textTheme.titleSmall!.copyWith(
         fontWeight: FontWeight.bold,
         color: rmTextPrimary(context),
       ),

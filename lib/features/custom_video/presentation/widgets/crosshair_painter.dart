@@ -11,13 +11,15 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_theme.dart';
+
 /// BGR color from the original Python decoder, mapped to Flutter ARGB.
 /// Original: (230, 190, 235) -> 0xFFE6BEEA.
-const Color _crosshairColor = Color(0xFFE6BEEA);
+const Color _crosshairColor = rmCrosshairColor;
 
 /// BGR color for the center dot.
 /// Original: (170, 255, 170) -> 0xFFAAFFAA.
-const Color _centerColor = Color(0xFFAAFFAA);
+const Color _centerColor = rmCrosshairCenterColor;
 
 /// Circle radius in logical pixels (original: 24 at 400x400).
 const double _centerCircleRadius = 24.0;

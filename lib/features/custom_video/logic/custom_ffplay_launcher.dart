@@ -1,11 +1,12 @@
-/// Launches an external `ffplay` process to verify the custom H.264 line.
+/// Launches an external `ffplay` process to verify the custom video line.
 ///
 /// Unlike the official line's [FfplayDecoder] (which pipes HEVC frames into
 /// ffplay's stdin), the custom line already exposes its reassembled Annex-B
 /// stream over a loopback TCP server ([AnnexbTcpServer]). So ffplay can connect
 /// to that URL directly — exactly the proven manual command:
 ///
-///   ffplay -f h264 tcp://127.0.0.1:PORT
+///   ffplay -f h264 tcp://127.0.0.1:PORT        (H.264)
+///   ffplay -f hevc tcp://127.0.0.1:PORT        (HEVC / H.265)
 ///
 /// This is a Windows-oriented verification aid: if ffplay's own window shows the
 /// picture while the in-app fvp/media_kit backend stays white, the bug is in the
@@ -14,6 +15,8 @@ library;
 
 import 'dart:async';
 import 'dart:io';
+
+import '../../settings/logic/settings_providers.dart';
 
 /// Spawns and tears down an `ffplay` subprocess pointed at the bridge URL.
 class CustomFfplayLauncher {
@@ -34,13 +37,21 @@ class CustomFfplayLauncher {
   /// Launches `ffplay -f <fmt> -i <streamUrl>`. Idempotent while running.
   ///
   /// [tsWrap] selects the input format: `mpegts` when the bridge serves TS,
-  /// else raw `h264`.
-  Future<void> start(String streamUrl, {required bool tsWrap}) async {
+  /// else raw `h264` or `hevc` depending on [codec].
+  Future<void> start(
+    String streamUrl, {
+    required bool tsWrap,
+    CustomVideoCodec codec = CustomVideoCodec.h264,
+  }) async {
     if (_proc != null) return;
     lastError = null;
     final path = _findFfplay();
     resolvedPath = path;
-    final format = tsWrap ? 'mpegts' : 'h264';
+    final format = tsWrap
+        ? 'mpegts'
+        : codec == CustomVideoCodec.h265
+            ? 'hevc'
+            : 'h264';
     // Minimal low-latency flags, mirroring the proven manual command. ffplay
     // connects to the TCP bridge as just another decoder client; the bridge
     // primes it with the cached keyframe so it can start without an 8 s wait.

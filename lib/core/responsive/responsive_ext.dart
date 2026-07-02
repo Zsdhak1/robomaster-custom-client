@@ -11,7 +11,9 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../theme/text_theme.dart';
 import 'design_constants.dart';
+import 'window_size_class.dart';
 
 extension ResponsiveContext on BuildContext {
   /// Unified scale factor: minimum of horizontal and vertical ratios,
@@ -79,4 +81,27 @@ extension ResponsiveContext on BuildContext {
 
   /// Scaled card border radius (base: 12).
   double get rmCardRadius => sp(12);
+
+  /// MD3 [TextTheme] scaled by the current window size.
+  ///
+  /// Prefer this over raw `TextStyle(fontSize: ...)` calls. Use type-scale
+  /// roles (`displaySmall`, `headlineMedium`, `titleMedium`, `bodyMedium`,
+  /// `labelSmall`, etc.) and apply `.copyWith()` only for local overrides
+  /// such as `fontWeight` or `color`. This keeps typography responsive and
+  /// consistent across the app.
+  ///
+  /// Example:
+  /// ```dart
+  /// Text('Hello', style: context.textTheme.titleMedium)
+  /// ```
+  TextTheme get textTheme => scaledTextThemeByFactor(scale);
+
+  /// MD3 window size class for the current viewport width.
+  ///
+  /// Use this to switch navigation layout, content density or column count:
+  /// - compact (<600) → bottom NavigationBar
+  /// - medium (600–839) → collapsed NavigationRail
+  /// - expanded (≥840) → expanded NavigationRail with labels
+  WindowSizeClass get windowSizeClass =>
+      WindowSizeClass.fromWidth(MediaQuery.sizeOf(this).width);
 }

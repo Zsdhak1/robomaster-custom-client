@@ -11,9 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/protocol_constants.dart';
 import '../../../core/feedback/feedback_messenger.dart';
-import '../../../core/responsive/responsive_ext.dart';
-import '../../../core/widgets/mqtt_login_badge.dart';
-import '../../../core/widgets/stream_connection_fab.dart';
+import '../../../core/widgets/video_stream_page_scaffold.dart';
 import '../logic/stream_providers.dart';
 import 'widgets/video_panel.dart';
 
@@ -42,22 +40,11 @@ class _VideoScreenState extends ConsumerState<VideoScreen> {
   Widget build(BuildContext context) {
     final isListening = ref.watch(videoStreamControllerProvider);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('视频流 · UDP 3334')),
-      body: Stack(
-        children: [
-          const Positioned.fill(child: VideoPanel()),
-          Positioned(
-            top: context.sp(12),
-            right: context.sp(12),
-            child: const MqttLoginBadge(),
-          ),
-        ],
-      ),
-      floatingActionButton: StreamConnectionFab(
-        isRunning: isListening,
-        onToggle: _toggleStream,
-      ),
+    return VideoStreamPageScaffold(
+      title: 'UDP 图传 · 3334',
+      body: const VideoPanel(),
+      isRunning: isListening,
+      onToggle: _toggleStream,
     );
   }
 }

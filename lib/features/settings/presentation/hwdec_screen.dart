@@ -8,6 +8,8 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/responsive/responsive_ext.dart';
+import '../../../core/theme/app_theme.dart';
 import '../logic/settings_providers.dart';
 
 /// Full-screen single-select list of [HwdecMode] options.
@@ -27,8 +29,7 @@ class HwdecScreen extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(4, 0, 4, 12),
             child: Text(
               '选择不受支持的解码器将回退到软件解码',
-              style: TextStyle(
-                fontSize: 13,
+              style: context.textTheme.bodySmall!.copyWith(
                 fontWeight: FontWeight.w600,
                 color: Colors.green.shade600,
               ),
@@ -74,11 +75,15 @@ class _HwdecTile extends StatelessWidget {
         onTap: onTap,
         title: Text(
           mode.label,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+          style: context.textTheme.bodyMedium!.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
         ),
         subtitle: Text(
           mode.description,
-          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          style: context.textTheme.bodySmall!.copyWith(
+            color: rmTextSecondary(context),
+          ),
         ),
         trailing: Icon(
           selected ? Icons.radio_button_checked : Icons.radio_button_off,

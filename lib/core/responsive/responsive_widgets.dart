@@ -41,21 +41,21 @@ class ScaledSizedBox extends StatelessWidget {
 class ScaledPadding extends StatelessWidget {
   /// Creates a [ScaledPadding] with scaled [EdgeInsets.all].
   const ScaledPadding.all({
-    super.key,
-    required double value,
     required this.child,
-  }) : _insets = null,
+    required double value,
+    super.key,
+  }) : insets = null,
        _all = value,
        _h = 0,
        _v = 0;
 
   /// Creates a [ScaledPadding] with scaled symmetric insets.
   const ScaledPadding.symmetric({
+    required this.child,
     super.key,
     double horizontal = 0,
     double vertical = 0,
-    required this.child,
-  }) : _insets = null,
+  }) : insets = null,
        _all = null,
        _h = horizontal,
        _v = vertical;
@@ -65,15 +65,14 @@ class ScaledPadding extends StatelessWidget {
   /// Use this when callers have already computed the insets via
   /// [ResponsiveContext] helpers.
   const ScaledPadding.fromInsets({
-    super.key,
-    required EdgeInsets insets,
     required this.child,
-  }) : _insets = insets,
-       _all = null,
+    required this.insets,
+    super.key,
+  }) : _all = null,
        _h = 0,
        _v = 0;
 
-  final EdgeInsets? _insets;
+  final EdgeInsets? insets;
   final double? _all;
   final double _h;
   final double _v;
@@ -81,7 +80,8 @@ class ScaledPadding extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (_insets != null) return Padding(padding: _insets, child: child);
+    final value = insets;
+    if (value != null) return Padding(padding: value, child: child);
     return Padding(
       padding: _all != null
           ? context.insetAll(_all)

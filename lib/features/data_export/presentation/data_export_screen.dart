@@ -115,8 +115,7 @@ class _RecordingIndicator extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             isRecording ? '录制中' : '未录制',
-            style: TextStyle(
-              fontSize: 13,
+            style: context.textTheme.bodySmall!.copyWith(
               color: isRecording ? Colors.red : Colors.grey,
             ),
           ),
@@ -423,7 +422,9 @@ class _RecordListState extends ConsumerState<_RecordList> {
           children: [
             Text(
               '已选 ${_selectedPaths.length} 项',
-              style: const TextStyle(fontWeight: FontWeight.w600),
+              style: context.textTheme.bodyMedium!.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const Spacer(),
             TextButton(
@@ -570,8 +571,13 @@ class _PreviewPanel extends ConsumerWidget {
     final record = summaryAsync.valueOrNull;
 
     if (record == null) {
-      return const Center(
-        child: Text('选择左侧记录查看关键数据', style: TextStyle(color: Colors.grey)),
+      return Center(
+        child: Text(
+          '选择左侧记录查看关键数据',
+          style: context.textTheme.bodyMedium!.copyWith(
+            color: rmTextSecondary(context),
+          ),
+        ),
       );
     }
 
@@ -625,14 +631,18 @@ class _PreviewPanel extends ConsumerWidget {
           size: 20,
         ),
         const SizedBox(width: 8),
-        const Text(
+        Text(
           '事件时间轴',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          style: context.textTheme.titleMedium!.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
         ),
         const Spacer(),
         Text(
           '$count',
-          style: TextStyle(fontSize: 13, color: rmTextSecondary(context)),
+          style: context.textTheme.bodySmall!.copyWith(
+            color: rmTextSecondary(context),
+          ),
         ),
       ],
     );
@@ -668,8 +678,7 @@ class _MatchSummaryCard extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     dateStr,
-                    style: const TextStyle(
-                      fontSize: 15,
+                    style: context.textTheme.titleSmall!.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -733,8 +742,7 @@ class _CompletenessChip extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             isComplete ? '完整' : '未录到结算',
-            style: TextStyle(
-              fontSize: 12,
+            style: context.textTheme.bodySmall!.copyWith(
               color: color,
               fontWeight: FontWeight.w600,
             ),
@@ -771,8 +779,7 @@ class _IdentityChip extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             identity?.displayName ?? '未知身份 ($robotId)',
-            style: TextStyle(
-              fontSize: 12,
+            style: context.textTheme.bodySmall!.copyWith(
               color: color,
               fontWeight: FontWeight.w600,
             ),
@@ -791,7 +798,12 @@ class _ScoreRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!record.hasScore) {
-      return Text('无终局比分', style: TextStyle(color: rmTextSecondary(context)));
+      return Text(
+        '无终局比分',
+        style: context.textTheme.bodyMedium!.copyWith(
+          color: rmTextSecondary(context),
+        ),
+      );
     }
 
     return Row(
@@ -799,20 +811,21 @@ class _ScoreRow extends StatelessWidget {
       children: [
         Text(
           '${record.blueScore}',
-          style: TextStyle(
-            fontSize: context.fontSize(36),
+          style: context.textTheme.displaySmall!.copyWith(
             fontWeight: FontWeight.bold,
             color: rmBlueTeamColor,
           ),
         ),
         Padding(
           padding: context.insetSym(h: 8),
-          child: Text(':', style: TextStyle(fontSize: context.fontSize(28))),
+          child: Text(
+            ':',
+            style: context.textTheme.headlineMedium,
+          ),
         ),
         Text(
           '${record.redScore}',
-          style: TextStyle(
-            fontSize: context.fontSize(36),
+          style: context.textTheme.displaySmall!.copyWith(
             fontWeight: FontWeight.bold,
             color: rmRedTeamColor,
           ),
@@ -822,7 +835,9 @@ class _ScoreRow extends StatelessWidget {
           padding: context.insetOnly(b: 6),
           child: Text(
             '蓝 : 红',
-            style: TextStyle(fontSize: context.fontSize(13), color: rmTextSecondary(context)),
+            style: context.textTheme.bodySmall!.copyWith(
+              color: rmTextSecondary(context),
+            ),
           ),
         ),
       ],
@@ -903,8 +918,7 @@ class _RecordInfo extends StatelessWidget {
             Expanded(
               child: Text(
                 record.title,
-                style: const TextStyle(
-                  fontSize: 15,
+                style: context.textTheme.titleSmall!.copyWith(
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -925,7 +939,9 @@ class _RecordInfo extends StatelessWidget {
         Text(
           '${record.timeLabel} · ${record.durationLabel} · '
           '事件 ${record.eventCount} · ${record.fileSizeLabel}',
-          style: TextStyle(fontSize: 12, color: rmTextSecondary(context)),
+          style: context.textTheme.bodySmall!.copyWith(
+            color: rmTextSecondary(context),
+          ),
         ),
       ],
     );
@@ -1037,8 +1053,7 @@ class _MergedBadge extends StatelessWidget {
           const SizedBox(width: 3),
           Text(
             '已合并',
-            style: TextStyle(
-              fontSize: 11,
+            style: context.textTheme.labelSmall!.copyWith(
               color: color,
               fontWeight: FontWeight.w600,
             ),
@@ -1068,7 +1083,7 @@ class _StatChip extends StatelessWidget {
         children: [
           Icon(icon, size: 15, color: rmTextSecondary(context)),
           const SizedBox(width: 5),
-          Text(label, style: const TextStyle(fontSize: 13)),
+          Text(label, style: context.textTheme.bodySmall),
         ],
       ),
     );

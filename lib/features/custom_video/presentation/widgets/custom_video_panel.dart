@@ -14,7 +14,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fvp/mdk.dart' as mdk;
 
 import '../../../../core/responsive/responsive_ext.dart';
+import '../../../../core/widgets/video_overlay_controls.dart';
+import '../../../../core/widgets/video_placeholder_card.dart';
 import '../../../../core/widgets/video_side_panel.dart';
+import '../../../../core/widgets/video_two_pane_layout.dart';
 import '../../../../features/settings/logic/settings_providers.dart';
 import '../../logic/custom_video_providers.dart';
 import 'crosshair_painter.dart';
@@ -33,96 +36,83 @@ class CustomVideoPanel extends ConsumerWidget {
     final isRunning = ref.watch(customVideoControllerProvider);
     final developerMode = ref.watch(developerModeProvider);
     final backend = ref.watch(customVideoBackendProvider);
-    final tsWrap = ref.watch(customVideoTsWrapProvider);
+    final tsWrap = ref.watch(customVideoEffectiveTsWrapProvider);
 
     // Watch the live stats so the panel rebuilds when the keyframe gate opens.
-    //
-    // The decoder must connect only AFTER the gate releases: before that the
-    // bridge holds every frame pending (nothing to read), so a low-latency
-    // (+nobuffer) player would connect to an empty socket, fail to parse a
-    // codec, and never retry — which is why nothing connected automatically.
-    // Once the gate opens the bridge primes each new client with the cached
-    // keyframe, so creating the player then starts decoding immediately.
     final stats = ref.watch(customVideoStatsProvider).valueOrNull;
     final gateOpen = stats?.gateOpen ?? false;
     final url = stats?.streamUrl;
     final canPlay = isRunning && gateOpen && url != null;
+    final codec = stats?.codec ?? CustomVideoCodec.h264;
 
-    return Padding(
-      padding: context.insetAll(12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            flex: 2,
-            child: canPlay
-                ? _buildPlayer(backend, url, developerMode, tsWrap)
-                : _PreviewPlaceholder(waitingForKeyframe: isRunning),
-          ),
-          context.sizedBox(w: 12),
-          // The right panel mirrors the UDP line: basic connection info always
-          // shown, the full pipeline debug only in developer mode, and 敌方血量
-          // bars filling the remaining space.
-          Expanded(
-            child: VideoSidePanel(
-              title: '自定义图传状态',
-              developerMode: developerMode,
-              basicInfo: const _CustomBasicInfo(),
-              debugSection: const CustomVideoDebugContent(),
-            ),
-          ),
-        ],
+    return VideoTwoPaneLayout(
+      player: canPlay
+          ? _buildPlayer(backend, url, developerMode, tsWrap, codec)
+          : _PreviewPlaceholder(waitingForKeyframe: isRunning, codec: codec),
+      sidePanel: VideoSidePanel(
+        title: '自定义图传状态',
+        developerMode: developerMode,
+        basicInfo: const _CustomBasicInfo(),
+        debugSection: const CustomVideoDebugContent(),
       ),
     );
   }
 
   /// Selects the decoder widget for the chosen [backend].
   ///
-  /// fvp is the in-app default (raw-H.264 capable); media_kit is an A/B
+  /// fvp is the in-app default (raw codec capable); media_kit is an A/B
   /// alternative (needs [tsWrap] to demux); ffplay spawns an external process
-  /// for byte-stream verification. Keyed by [url] + [tsWrap] so a change
-  /// rebuilds the player with the matching demuxer.
+  /// for byte-stream verification. Keyed by [url] + [tsWrap] + [codec] so a
+  /// change rebuilds the player with the matching demuxer.
   Widget _buildPlayer(
     VideoDecoderBackend backend,
     String url,
     bool developerMode,
     bool tsWrap,
+    CustomVideoCodec codec,
   ) {
     return switch (backend) {
       VideoDecoderBackend.fvp => _FvpPlayer(
-          key: ValueKey('fvp:$url:$tsWrap'),
-          url: url,
-          developerMode: developerMode,
-          tsWrap: tsWrap,
-        ),
+        key: ValueKey('fvp:$url:$tsWrap:$codec'),
+        url: url,
+        developerMode: developerMode,
+        tsWrap: tsWrap,
+        codec: codec,
+      ),
       VideoDecoderBackend.mediaKit => CustomMediaKitPlayer(
-          key: ValueKey('mk:$url:$tsWrap'),
-          url: url,
-          tsWrap: tsWrap,
-        ),
-      VideoDecoderBackend.ffplay =>
-        CustomFfplayPanel(key: ValueKey(url), streamUrl: url, tsWrap: tsWrap),
+        key: ValueKey('mk:$url:$tsWrap:$codec'),
+        url: url,
+        tsWrap: tsWrap,
+        codec: codec,
+      ),
+      VideoDecoderBackend.ffplay => CustomFfplayPanel(
+        key: ValueKey('ff:$url:$tsWrap:$codec'),
+        streamUrl: url,
+        tsWrap: tsWrap,
+        codec: codec,
+      ),
     };
   }
 }
 
 // ============================================================
-// fvp player (raw H.264) — direct mdk Player
+// fvp player (raw H.264 / H.265) — direct mdk Player
 // ============================================================
 
-/// Decodes the raw H.264 line with a DIRECT mdk [mdk.Player], not the
+/// Decodes the raw custom-video line with a DIRECT mdk [mdk.Player], not the
 /// video_player+fvp integration.
 ///
 /// The integration applies fvp's GLOBAL player options to every player, and
 /// this app forces `avformat.format=hevc` there for the official UDP 3334 line
 /// — which would force the H.264 bridge through the HEVC demuxer and render a
 /// white screen. A direct mdk Player skips those globals, so here we set
-/// `avformat.format=h264` per player and decode correctly.
+/// `avformat.format` per player, matching the selected codec and tsWrap.
 class _FvpPlayer extends ConsumerStatefulWidget {
   const _FvpPlayer({
     required this.url,
     required this.developerMode,
     required this.tsWrap,
+    required this.codec,
     super.key,
   });
 
@@ -130,8 +120,11 @@ class _FvpPlayer extends ConsumerStatefulWidget {
   final bool developerMode;
 
   /// When true the bridge serves MPEG-TS, so the demuxer is forced to `mpegts`
-  /// instead of raw `h264`.
+  /// instead of the raw codec format.
   final bool tsWrap;
+
+  /// The video codec (H.264 → `h264`, H.265 → `hevc`).
+  final CustomVideoCodec codec;
 
   @override
   ConsumerState<_FvpPlayer> createState() => _FvpPlayerState();
@@ -145,10 +138,47 @@ class _FvpPlayerState extends ConsumerState<_FvpPlayer> {
   final List<StreamSubscription<Object?>> _diagSubs = [];
   Offset? _crosshairCenter;
 
+  /// Auto-reconnect watchdog.
+  ///
+  /// The player is created the instant the keyframe gate opens, which races the
+  /// just-started stream: mdk may probe before enough data has landed (only the
+  /// single cached keyframe is replayed, and the next MQTT chunk hasn't arrived
+  /// yet) or `prepare()` blocks on the live socket, leaving the player stuck
+  /// with no texture. Previously this stranded the user on the placeholder /
+  /// error state until they tapped 重连 by hand. This watchdog retries the
+  /// connection automatically (bounded) so a first attempt that raced the
+  /// stream start recovers on its own.
+  Timer? _connectWatchdog;
+
+  /// Auto-retries used since the last successful connect (reset on success and
+  /// on a manual reconnect).
+  int _autoRetries = 0;
+
+  /// Monotonic open-attempt id, so a slow/blocked previous `_open()` that
+  /// resumes after a watchdog-triggered reconnect can't clobber the new state.
+  int _openGen = 0;
+
+  /// Max automatic reconnect attempts before giving up and waiting for a manual
+  /// 重连 (keeps a genuinely dead stream from looping forever).
+  static const int _maxAutoRetries = 8;
+
+  /// How long a connect attempt may go without a texture before we retry.
+  static const Duration _connectTimeout = Duration(seconds: 3);
+
   @override
   void initState() {
     super.initState();
     _open();
+  }
+
+  /// Fires when a connect attempt hasn't produced a texture in time. Retries
+  /// the connection (bounded) so a first attempt that raced the stream start
+  /// recovers without user intervention.
+  void _onConnectTimeout() {
+    if (!mounted || _textureId != null) return;
+    if (_autoRetries >= _maxAutoRetries) return;
+    _autoRetries++;
+    _reconnect(auto: true);
   }
 
   /// Subscribes to the player's event/status streams and prints them, so the
@@ -157,26 +187,34 @@ class _FvpPlayerState extends ConsumerState<_FvpPlayer> {
   void _attachDiagnostics(mdk.Player player) {
     final info = ref.read(customVideoDecoderInfoProvider.notifier);
     _diagSubs
-      ..add(player.onEvent.listen((e) {
-        debugPrint('[fvp event] ${e.category} | err=${e.error} | ${e.detail}');
-        // mdk reports reader buffering progress via the "reader.buffering"
-        // category with the percentage in `error`.
-        if (e.category == 'reader.buffering') {
-          info.setBuffering(
-            buffering: e.error < 100,
-            percent: e.error.toDouble(),
+      ..add(
+        player.onEvent.listen((e) {
+          debugPrint(
+            '[fvp event] ${e.category} | err=${e.error} | ${e.detail}',
           );
-        } else {
-          info.log(DecoderLogLevel.info, '${e.category}: ${e.detail}');
-        }
-      }))
-      ..add(player.onMediaStatus.listen((s) {
-        debugPrint('[fvp status] ${s.oldValue} -> ${s.newValue}');
-      }))
-      ..add(player.onStateChanged.listen((s) {
-        debugPrint('[fvp state] ${s.oldValue} -> ${s.newValue}');
-        info.setPlaying(playing: s.newValue == mdk.PlaybackState.playing);
-      }));
+          // mdk reports reader buffering progress via the "reader.buffering"
+          // category with the percentage in `error`.
+          if (e.category == 'reader.buffering') {
+            info.setBuffering(
+              buffering: e.error < 100,
+              percent: e.error.toDouble(),
+            );
+          } else {
+            info.log(DecoderLogLevel.info, '${e.category}: ${e.detail}');
+          }
+        }),
+      )
+      ..add(
+        player.onMediaStatus.listen((s) {
+          debugPrint('[fvp status] ${s.oldValue} -> ${s.newValue}');
+        }),
+      )
+      ..add(
+        player.onStateChanged.listen((s) {
+          debugPrint('[fvp state] ${s.oldValue} -> ${s.newValue}');
+          info.setPlaying(playing: s.newValue == mdk.PlaybackState.playing);
+        }),
+      );
   }
 
   void _cancelDiagnostics() {
@@ -188,7 +226,12 @@ class _FvpPlayerState extends ConsumerState<_FvpPlayer> {
 
   Future<void> _open() async {
     _attempt++;
+    final gen = ++_openGen;
     if (mounted) setState(() => _error = null);
+    // Arm the watchdog: if this attempt produces no texture within the timeout
+    // (raced the stream start / blocked on the live socket), retry automatically.
+    _connectWatchdog?.cancel();
+    _connectWatchdog = Timer(_connectTimeout, _onConnectTimeout);
     final info = ref.read(customVideoDecoderInfoProvider.notifier)
       ..beginSession('fvp', attempt: _attempt);
     final player = mdk.Player();
@@ -198,7 +241,7 @@ class _FvpPlayerState extends ConsumerState<_FvpPlayer> {
       // the SAME kind of live AnnexbTcpServer TCP bridge, but through fvp's
       // video_player integration, which applies the low-latency live-stream
       // config below. A direct mdk.Player (needed here only to force the raw
-      // H.264 demuxer instead of the global hevc force) gets NONE of it by
+      // codec demuxer instead of the global hevc force) gets NONE of it by
       // default — and the missing pieces are what stalled us: buffering on a
       // live stream made the reader fill then drain forever (the white screen +
       // `reader.buffering 100 -> 0` loop in the logs), never rendering a frame.
@@ -211,7 +254,14 @@ class _FvpPlayerState extends ConsumerState<_FvpPlayer> {
       // fvp's own Windows defaults so hardware decode + render behave identically
       // to the official line.
       player
-        ..setProperty('avformat.format', widget.tsWrap ? 'mpegts' : 'h264')
+        ..setProperty(
+          'avformat.format',
+          widget.tsWrap
+              ? 'mpegts'
+              : widget.codec == CustomVideoCodec.h265
+              ? 'hevc'
+              : 'h264',
+        )
         ..setProperty('avformat.framerate', '60')
         ..setProperty('avformat.strict', 'experimental')
         ..setProperty('avformat.safe', '0')
@@ -255,9 +305,17 @@ class _FvpPlayerState extends ConsumerState<_FvpPlayer> {
         info.setError('无法解码视频（已连接但拿不到画面尺寸）');
       }
       player.state = mdk.PlaybackState.playing;
-      if (!mounted) {
+      // A newer _open() (e.g. watchdog reconnect) superseded this attempt while
+      // it was awaiting; discard this one so it can't clobber the new player.
+      if (!mounted || gen != _openGen) {
         player.dispose();
         return;
+      }
+      if (tid >= 0) {
+        // Connected and rendering — stop the watchdog and clear the retry budget.
+        _connectWatchdog?.cancel();
+        _connectWatchdog = null;
+        _autoRetries = 0;
       }
       setState(() {
         _player = player;
@@ -266,12 +324,21 @@ class _FvpPlayerState extends ConsumerState<_FvpPlayer> {
       });
     } on Object catch (e) {
       player.dispose();
+      if (gen != _openGen) return;
       info.setError('初始化失败: $e');
       if (mounted) setState(() => _error = '初始化失败: $e');
     }
   }
 
-  Future<void> _reconnect() async {
+  /// Tears down the current player and opens a fresh one.
+  ///
+  /// [auto] distinguishes a watchdog-driven retry from a user tapping 重连: a
+  /// manual reconnect resets the auto-retry budget so the watchdog gets a full
+  /// set of attempts again.
+  Future<void> _reconnect({bool auto = false}) async {
+    if (!auto) _autoRetries = 0;
+    _connectWatchdog?.cancel();
+    _connectWatchdog = null;
     final old = _player;
     _player = null;
     _textureId = null;
@@ -290,6 +357,7 @@ class _FvpPlayerState extends ConsumerState<_FvpPlayer> {
 
   @override
   void dispose() {
+    _connectWatchdog?.cancel();
     _cancelDiagnostics();
     _player?.dispose();
     super.dispose();
@@ -338,34 +406,10 @@ class _FvpPlayerState extends ConsumerState<_FvpPlayer> {
   }
 
   Widget _buildError(BuildContext context) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: ColoredBox(
-        color: const Color(0xFF101418),
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                const SizedBox(height: 12),
-                Text(
-                  _error!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white),
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: _reconnect,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('重连'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return VideoErrorCard(
+      message: _error!,
+      hint: '已连接但无法拿到画面时，可重连播放器或检查关键帧/编码设置',
+      onRetry: _reconnect,
     );
   }
 }
@@ -375,21 +419,10 @@ class _Initializing extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const ColoredBox(
-      color: Color(0xFF101418),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(color: Colors.white),
-            SizedBox(height: 12),
-            Text(
-              '正在初始化 fvp 解码器…',
-              style: TextStyle(color: Colors.white54),
-            ),
-          ],
-        ),
-      ),
+    return const VideoPlaceholderCard(
+      title: '正在初始化 fvp 解码器…',
+      subtitle: '播放器正在连接本地 TCP 图传桥',
+      loading: true,
     );
   }
 }
@@ -403,29 +436,7 @@ class _ReconnectChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.55),
-        borderRadius: BorderRadius.circular(context.sp(6)),
-      ),
-      child: Padding(
-        padding: context.insetSym(h: 8, v: 4),
-        child: InkWell(
-          onTap: onReconnect,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.refresh, color: Colors.white, size: context.iconSize(14)),
-              context.sizedBox(w: 4),
-              Text(
-                '重连 (第 $attempt 次)',
-                style: TextStyle(color: Colors.white, fontSize: context.fontSize(11)),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    return VideoReconnectChip(attempt: attempt, onReconnect: onReconnect);
   }
 }
 
@@ -434,75 +445,33 @@ class _ReconnectChip extends StatelessWidget {
 // ============================================================
 
 class _PreviewPlaceholder extends StatelessWidget {
-  const _PreviewPlaceholder({this.waitingForKeyframe = false});
+  const _PreviewPlaceholder({
+    this.waitingForKeyframe = false,
+    this.codec = CustomVideoCodec.h264,
+  });
 
   /// True once reception has started but the keyframe gate has not opened yet,
   /// so the player is intentionally not connected to the bridge yet.
   final bool waitingForKeyframe;
 
+  /// The active codec (for diagnostic label).
+  final CustomVideoCodec codec;
+
   @override
   Widget build(BuildContext context) {
     if (waitingForKeyframe) {
-      return const Card(
-        clipBehavior: Clip.antiAlias,
-        child: ColoredBox(
-          color: Color(0xFF101418),
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  width: 48,
-                  height: 48,
-                  child: CircularProgressIndicator(strokeWidth: 3),
-                ),
-                SizedBox(height: 16),
-                Text(
-                  '正在接收，等待关键帧…',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                SizedBox(height: 8),
-                Text(
-                  '收到 SPS/PPS 关键帧后将自动连接解码器',
-                  style: TextStyle(color: Colors.white54, fontSize: 13),
-                ),
-              ],
-            ),
-          ),
-        ),
+      final paramLabel = codec == CustomVideoCodec.h265
+          ? 'VPS/SPS/PPS'
+          : 'SPS/PPS';
+      return VideoPlaceholderCard(
+        title: '正在接收，等待画面…',
+        subtitle: '收到 $paramLabel 关键帧后将自动连接解码器',
+        loading: true,
       );
     }
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: ColoredBox(
-        color: const Color(0xFF101418),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.videocam_off, size: context.iconSize(64), color: Colors.white38),
-              context.sizedBox(h: 16),
-              Text(
-                '未接收自定义图传',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: context.fontSize(18),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              context.sizedBox(h: 8),
-              Text(
-                '点击右上角播放按钮开始接收 CustomByteBlock',
-                style: TextStyle(color: Colors.white54, fontSize: context.fontSize(13)),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return VideoPlaceholderCard(
+      title: '未接收自定义图传 (${codec == CustomVideoCodec.h265 ? "H.265" : "H.264"})',
+      subtitle: '点击播放按钮开始接收 0x0310 自定义图传',
     );
   }
 }
@@ -522,21 +491,36 @@ class _CustomBasicInfo extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _StatusRow(isRunning: isRunning),
+        VideoStatusRow(
+          isRunning: isRunning,
+          runningLabel: '正在接收 (MQTT CustomByteBlock)',
+        ),
         context.sizedBox(h: 8),
         if (!isRunning)
-          const _InfoRow(label: '状态', value: '未开始接收')
+          const VideoInfoRow(label: '状态', value: '未开始接收')
         else ...[
-          _InfoRow(label: 'TCP 桥地址', value: stats?.streamUrl ?? '—'),
-          _InfoRow(label: '收到 chunk', value: '${stats?.chunksReceived ?? 0}'),
-          _InfoRow(label: '收到字节', value: _formatBytes(stats?.bytesReceived ?? 0)),
-          _InfoRow(
+          VideoInfoRow(label: 'TCP 桥地址', value: stats?.streamUrl ?? '—'),
+          VideoInfoRow(
+            label: '编码格式',
+            value: stats?.codec == CustomVideoCodec.h265
+                ? 'H.265 / HEVC'
+                : 'H.264 / AVC',
+          ),
+          VideoInfoRow(
+            label: '收到 chunk',
+            value: '${stats?.chunksReceived ?? 0}',
+          ),
+          VideoInfoRow(
+            label: '收到字节',
+            value: _formatBytes(stats?.bytesReceived ?? 0),
+          ),
+          VideoInfoRow(
             label: '关键帧门控',
             value: (stats?.gateOpen ?? false) ? '已打开' : '等待中',
           ),
-          _InfoRow(label: '解码器连接数', value: '${stats?.decoderClients ?? 0}'),
-          _InfoRow(label: '已转发帧数', value: '${stats?.framesForwarded ?? 0}'),
-          _InfoRow(
+          VideoInfoRow(label: '解码器连接数', value: '${stats?.decoderClients ?? 0}'),
+          VideoInfoRow(label: '已转发帧数', value: '${stats?.framesForwarded ?? 0}'),
+          VideoInfoRow(
             label: '已转发字节',
             value: _formatBytes(stats?.bytesForwarded ?? 0),
           ),
@@ -550,57 +534,5 @@ class _CustomBasicInfo extends ConsumerWidget {
     final kb = bytes / 1024;
     if (kb < 1024) return '${kb.toStringAsFixed(1)} KB';
     return '${(kb / 1024).toStringAsFixed(2)} MB';
-  }
-}
-
-class _StatusRow extends StatelessWidget {
-  const _StatusRow({required this.isRunning});
-
-  final bool isRunning;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isRunning ? Colors.green : Colors.grey;
-    return Row(
-      children: [
-        Container(
-          width: context.rmStatusDotSize,
-          height: context.rmStatusDotSize,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        context.sizedBox(w: 8),
-        Text(
-          isRunning ? '正在接收 (MQTT CustomByteBlock)' : '已停止',
-          style: const TextStyle(fontWeight: FontWeight.w500),
-        ),
-      ],
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: context.insetSym(v: 6),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: TextStyle(color: Colors.grey.shade600)),
-          Expanded(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }

@@ -93,9 +93,8 @@ class _SectionTitle extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             title,
-            style: TextStyle(
+            style: context.textTheme.bodySmall!.copyWith(
               color: color,
-              fontSize: 12,
               fontWeight: FontWeight.bold,
               fontFamily: 'monospace',
             ),
@@ -143,9 +142,12 @@ class _RawPacketDiag extends StatelessWidget {
   Widget build(BuildContext context) {
     final bytes = service.firstPacketBytes;
     if (bytes == null) {
-      return const Text(
+      return Text(
         '尚未捕获到任何包',
-        style: TextStyle(color: Colors.grey, fontFamily: 'monospace'),
+        style: context.textTheme.bodySmall!.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          fontFamily: 'monospace',
+        ),
       );
     }
     final le = service.firstFrameSizeLittleEndian;
@@ -160,21 +162,19 @@ class _RawPacketDiag extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           '头部 hex: ${_hexJoin(bytes)}',
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 11,
+          style: context.textTheme.labelSmall!.copyWith(
+            color: Theme.of(context).colorScheme.onSurface,
             fontFamily: 'monospace',
           ),
         ),
         const SizedBox(height: 6),
-        _frameSizeRow('小端解析 (当前)', le, leOk),
-        _frameSizeRow('大端解析 (网络序)', be, beOk),
+        _frameSizeRow(context, '小端解析 (当前)', le, leOk),
+        _frameSizeRow(context, '大端解析 (网络序)', be, beOk),
         const SizedBox(height: 4),
         Text(
           _verdict(leOk, beOk),
-          style: TextStyle(
+          style: context.textTheme.labelSmall!.copyWith(
             color: leOk ? Colors.green : Colors.redAccent,
-            fontSize: 11,
             fontFamily: 'monospace',
           ),
         ),
@@ -182,14 +182,13 @@ class _RawPacketDiag extends StatelessWidget {
     );
   }
 
-  Widget _frameSizeRow(String label, int? value, bool ok) {
+  Widget _frameSizeRow(BuildContext context, String label, int? value, bool ok) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 1),
       child: Text(
         '$label: ${value ?? "—"}  ${ok ? "✓ 合理" : "✗ 越界"}',
-        style: TextStyle(
+        style: context.textTheme.labelSmall!.copyWith(
           color: ok ? Colors.green : Colors.orange,
-          fontSize: 11,
           fontFamily: 'monospace',
         ),
       ),
@@ -276,9 +275,12 @@ class _LatestFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (frame == null) {
-      return const Text(
+      return Text(
         '暂无帧数据',
-        style: TextStyle(color: Colors.grey, fontFamily: 'monospace'),
+        style: context.textTheme.bodySmall!.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          fontFamily: 'monospace',
+        ),
       );
     }
     return Column(
@@ -299,18 +301,16 @@ class _LatestFrame extends StatelessWidget {
         const SizedBox(height: 6),
         Text(
           '前 32 字节 Hex:',
-          style: TextStyle(
-            color: Colors.grey.shade500,
-            fontSize: 11,
+          style: context.textTheme.labelSmall!.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
             fontFamily: 'monospace',
           ),
         ),
         const SizedBox(height: 2),
         Text(
           _hexPrefix(frame!.annexbData, 32),
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 11,
+          style: context.textTheme.labelSmall!.copyWith(
+            color: Theme.of(context).colorScheme.onSurface,
             fontFamily: 'monospace',
           ),
         ),
@@ -348,18 +348,16 @@ class _StatItem extends StatelessWidget {
         children: [
           Text(
             '$label: ',
-            style: TextStyle(
+            style: context.textTheme.bodySmall!.copyWith(
               color: Colors.grey.shade500,
-              fontSize: 12,
               fontFamily: 'monospace',
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
+              style: context.textTheme.bodySmall!.copyWith(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontFamily: 'monospace',
                 fontWeight: FontWeight.w600,
               ),

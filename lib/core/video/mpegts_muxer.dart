@@ -1,29 +1,35 @@
-/// Minimal MPEG-TS muxer that wraps a raw H.264 Annex-B byte stream into a
-/// single-program transport stream, on the fly, for live playback.
+/// Minimal MPEG-TS muxer that wraps a raw H.264 or H.265 Annex‑B byte stream
+/// into a single-program transport stream, on the fly, for live playback.
 ///
 /// WHY: media_kit's bundled libmpv ships WITHOUT the raw-H.264 lavf demuxer
 /// (it fails with "Unknown lavf format h264"), but ALWAYS has the `mpegts`
-/// demuxer (HLS depends on it). Wrapping the custom 0x0310 line in MPEG-TS
-/// therefore makes it playable by media_kit — which renders correctly on
-/// Windows where fvp does not. The container only fixes DEMUXING; rendering is
-/// unchanged.
+/// demuxer (HLS depends on it).  The same is largely true for raw HEVC — mpv
+/// ships the `hevc` raw demuxer, but wrapping in TS gives a single codec-
+/// agnostic fallback.  Wrapping the custom 0x0310 line in MPEG-TS therefore
+/// makes it playable by media_kit regardless of H.264 or H.265 codec.  The
+/// container only fixes DEMUXING; rendering is unchanged.
 ///
 /// Design notes:
 /// - Splits the byte stream into NAL units (Annex-B start codes preserved, as
-///   H.264-in-TS uses the byte-stream format), groups NALs into access units,
-///   and emits one PES packet per access unit with a 90 kHz PTS.
-/// - Access-unit boundaries are detected WITHOUT full slice-header parsing:
-///   first_mb_in_slice == 0 (a new picture) is true iff the top bit of the
-///   first RBSP byte of a VCL NAL is set, so multi-slice IDRs stay one AU.
+///   both H.264-in-TS and H.265-in-TS use the byte-stream format), groups NALs
+///   into access units, and emits one PES packet per access unit with a 90 kHz
+///   PTS.
+/// - Access-unit boundaries are detected without full slice-header parsing:
+///   For H.264, first_mb_in_slice == 0 is detected via the top bit of the first
+///   RBSP byte.  For HEVC, a new AU starts when a VCL NAL follows the previous
+///   VCL NAL (or a leading non-VCL that belongs to the next AU), using the
+///   nuh_layer_id continuity heuristic.
 /// - PAT/PMT are emitted before every keyframe AU so a decoder can join the
 ///   stream at any IDR (mirrors standard broadcast TS).
-/// - Baseline profile (the encoder's low-bitrate mode) has no B-frames, so DTS
-///   is omitted (PTS only).
+/// - Baseline profile / main tier (the encoder's low-bitrate mode) has no
+///   B-frames, so DTS is omitted (PTS only).
 library;
 
 import 'dart:typed_data';
 
-/// PID carrying the H.264 elementary stream.
+import '../../features/settings/logic/settings_providers.dart';
+
+/// PID carrying the video elementary stream.
 const int _videoPid = 0x100;
 
 /// PID carrying the Program Map Table.
@@ -32,18 +38,62 @@ const int _pmtPid = 0x1000;
 /// H.264 stream_type in the PMT.
 const int _streamTypeH264 = 0x1B;
 
-/// Wraps a continuous Annex-B H.264 stream into MPEG-TS packets.
-class MpegTsMuxer {
-  /// Creates a muxer producing PTS at [fps] (90 kHz clock).
-  MpegTsMuxer({int fps = 60}) : _ptsIncrement = 90000 ~/ (fps <= 0 ? 60 : fps);
+/// H.265 (HEVC) stream_type in the PMT.
+const int _streamTypeHevc = 0x24;
 
-  final int _ptsIncrement;
+/// Wraps a continuous Annex-B H.264 or H.265 stream into MPEG-TS packets.
+class MpegTsMuxer {
+  /// Creates a muxer whose PTS/PCR derive from arrival wall-clock.
+  ///
+  /// PTS is sampled from a monotonic [Stopwatch] at each access unit, so the
+  /// media timeline advances at the rate frames actually arrive — not at an
+  /// assumed constant rate. A previous fixed `90000/fps` increment made PTS a
+  /// function of AU count, so on a slower/variable live source the media clock
+  /// raced ahead of real arrival and the player rebuffered periodically.
+  ///
+  /// [fps] is retained only as a fallback: it sets the minimum PTS spacing (so
+  /// two AUs completing in the same tick still get strictly increasing PTS).
+  /// [codec] selects the elementary stream type signalled in the PMT and the
+  /// NAL‑unit‑type parsing rules.
+  /// [elapsedMicros] is injectable for tests; defaults to a real Stopwatch so
+  /// no wall-clock (`DateTime.now`) is used — the clock must be monotonic.
+  MpegTsMuxer({
+    int fps = 60,
+    this.codec = CustomVideoCodec.h264,
+    int Function()? elapsedMicros,
+  })  : _fpsFallback = (fps <= 0 ? 60 : fps),
+        _elapsedMicros = elapsedMicros ?? _defaultClock();
+
+  /// The video codec being muxed.
+  final CustomVideoCodec codec;
+
+  /// Assumed fps, used only to derive [_minSpacing] and bound absurd jumps.
+  final int _fpsFallback;
+
+  /// Monotonic elapsed-microseconds source (injectable for tests).
+  final int Function() _elapsedMicros;
+
+  /// Minimum PTS spacing in 90 kHz ticks, so same-tick AUs still increase.
+  late final int _minSpacing = (90000 ~/ (_fpsFallback * 2)).clamp(1, 90000);
+
+  /// Cap on a single inter-AU PTS delta (stalled-then-resumed source): 5 s.
+  static const int _maxDelta = 5 * 90000;
+
+  /// Stopwatch reading of the FIRST emitted AU; PTS 0 anchors there.
+  int? _t0Micros;
+
+  /// Builds a monotonic microsecond clock backed by a started [Stopwatch].
+  static int Function() _defaultClock() {
+    final sw = Stopwatch()..start();
+    return () => sw.elapsedMicroseconds;
+  }
 
   // Continuity counters (4-bit, per PID).
   int _ccPat = 0;
   int _ccPmt = 0;
   int _ccVideo = 0;
 
+  /// The last PTS emitted (90 kHz), for monotonicity and minimum spacing.
   int _pts = 0;
 
   /// Bytes received but not yet split into complete NAL units.
@@ -110,12 +160,38 @@ class MpegTsMuxer {
   void _processNal(Uint8List nal, BytesBuilder out) {
     final scLen = (nal[2] == 1) ? 3 : 4;
     if (nal.length <= scLen) return; // start code only — skip
+
+    if (codec == CustomVideoCodec.h265) {
+      _processNalHevc(nal, scLen, out);
+    } else {
+      _processNalH264(nal, scLen, out);
+    }
+  }
+
+  // ---- H.264 NAL processing ----
+
+  /// H.264 nal_unit_type for an IDR picture.
+  static const int _h264NalIdr = 5;
+
+  /// H.264 nal_unit_type for a Sequence Parameter Set.
+  static const int _h264NalSps = 7;
+
+  /// H.264 nal_unit_type for a Picture Parameter Set.
+  static const int _h264NalPps = 8;
+
+  /// H.264 nal_unit_type for an Access Unit Delimiter.
+  static const int _h264NalAud = 9;
+
+  /// H.264 nal_unit_type for SEI.
+  static const int _h264NalSei = 6;
+
+  void _processNalH264(Uint8List nal, int scLen, BytesBuilder out) {
     final type = nal[scLen] & 0x1F;
     final isVcl = type >= 1 && type <= 5;
     final firstSlice =
         isVcl && nal.length > scLen + 1 && (nal[scLen + 1] & 0x80) != 0;
     final leadingNonVcl =
-        !isVcl && (type == 9 || type == 7 || type == 8 || type == 6);
+        !isVcl && (type == _h264NalAud || type == _h264NalSps || type == _h264NalPps || type == _h264NalSei);
     // A new access unit begins only once the current AU already carries a
     // picture (a VCL NAL): either a first-slice VCL of the NEXT picture, or a
     // leading non-VCL (AUD/SPS/PPS/SEI) of the next AU. This keeps an AU's own
@@ -126,7 +202,62 @@ class MpegTsMuxer {
 
     _au.add(nal);
     if (isVcl) _auHasVcl = true;
-    if (type == 5 || type == 7) _auHasKeyframe = true;
+    if (type == _h264NalIdr || type == _h264NalSps) _auHasKeyframe = true;
+  }
+
+  // ---- HEVC NAL processing ----
+
+  /// HEVC nal_unit_type for IDR_W_RADL.
+  static const int _hevcNalIdrWRadl = 19;
+
+  /// HEVC nal_unit_type for IDR_N_LP.
+  static const int _hevcNalIdrNLp = 20;
+
+  /// HEVC nal_unit_type for CRA_NUT (clean random access).
+  static const int _hevcNalCra = 21;
+
+  /// HEVC nal_unit_type for VPS.
+  static const int _hevcNalVps = 32;
+
+  /// HEVC nal_unit_type for SPS.
+  static const int _hevcNalSps = 33;
+
+  /// HEVC nal_unit_type for PPS.
+  static const int _hevcNalPps = 34;
+
+  /// HEVC nal_unit_type for AUD.
+  static const int _hevcNalAud = 35;
+
+  /// Minimum VCL NAL type in HEVC (TRAIL_N … RSV_VCL31 / IDR / CRA).
+  static const int _hevcVclMin = 0;
+
+  /// Maximum VCL NAL type in HEVC.
+  static const int _hevcVclMax = 21;
+
+  void _processNalHevc(Uint8List nal, int scLen, BytesBuilder out) {
+    final type = (nal[scLen] >> 1) & 0x3F;
+    final isVcl = type >= _hevcVclMin && type <= _hevcVclMax;
+    // In HEVC, a new access unit starts when the next VCL NAL arrives after a
+    // previous VCL NAL (the previous picture is complete). Leading non-VCL
+    // (VPS/SPS/PPS/AUD) of the next picture also start a new AU.
+    final leadingNonVcl = !isVcl &&
+        (type == _hevcNalAud ||
+            type == _hevcNalVps ||
+            type == _hevcNalSps ||
+            type == _hevcNalPps);
+    final startsNewAu =
+        _au.isNotEmpty && _auHasVcl && (isVcl || leadingNonVcl);
+    if (startsNewAu) _emitAccessUnit(out);
+
+    _au.add(nal);
+    if (isVcl) _auHasVcl = true;
+    if (type == _hevcNalIdrWRadl ||
+        type == _hevcNalIdrNLp ||
+        type == _hevcNalCra ||
+        type == _hevcNalVps ||
+        type == _hevcNalSps) {
+      _auHasKeyframe = true;
+    }
   }
 
   // --- Access unit -> PES -> TS ---
@@ -137,8 +268,25 @@ class MpegTsMuxer {
       payload.add(nal);
     }
     final isKey = _auHasKeyframe;
-    final pts = _pts;
-    _pts += _ptsIncrement;
+
+    // Wall-clock PTS: sample the monotonic clock ONCE, here, at the instant the
+    // access unit is complete (one AU = one presentation instant). Convert
+    // µs → 90 kHz doing multiply-before-divide in 64-bit to avoid drift
+    // (micros * 90000 / 1000000 == micros * 9 ~/ 100). The FIRST AU anchors the
+    // timeline at PTS 0 (exempt from spacing/clamp). Later AUs guard
+    // monotonicity + minimum spacing (same-tick AUs must still increase) and
+    // clamp an absurd forward jump from a stalled-then-resumed source; the
+    // value is kept in the 33-bit PTS space.
+    final now = _elapsedMicros();
+    final isFirst = _t0Micros == null;
+    _t0Micros ??= now;
+    var pts = ((now - _t0Micros!) * 9) ~/ 100;
+    if (!isFirst) {
+      if (pts < _pts + _minSpacing) pts = _pts + _minSpacing;
+      if (pts > _pts + _maxDelta) pts = _pts + _maxDelta;
+    }
+    pts &= 0x1FFFFFFFF;
+    _pts = pts;
 
     // Make the stream joinable at every keyframe.
     if (isKey) {
@@ -266,6 +414,8 @@ class MpegTsMuxer {
   }
 
   Uint8List _buildPmt() {
+    final streamType =
+        codec == CustomVideoCodec.h265 ? _streamTypeHevc : _streamTypeH264;
     final section = <int>[
       0x02, // table_id = TS_program_map_section
       0xB0, 0x12, // section_syntax_indicator + section_length (18)
@@ -274,7 +424,7 @@ class MpegTsMuxer {
       0x00, 0x00, // section_number, last_section_number
       0xE0 | ((_videoPid >> 8) & 0x1F), _videoPid & 0xFF, // PCR_PID
       0xF0, 0x00, // program_info_length = 0
-      _streamTypeH264,
+      streamType,
       0xE0 | ((_videoPid >> 8) & 0x1F), _videoPid & 0xFF, // elementary_PID
       0xF0, 0x00, // ES_info_length = 0
     ];

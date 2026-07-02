@@ -7,6 +7,8 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
+
 /// Severity of a feedback message, controlling its accent color and icon.
 enum FeedbackLevel {
   /// Neutral information.
@@ -45,7 +47,7 @@ extension FeedbackMessenger on BuildContext {
     final scheme = Theme.of(this).colorScheme;
     final (background, icon) = switch (level) {
       FeedbackLevel.info => (scheme.inverseSurface, Icons.info_outline),
-      FeedbackLevel.success => (const Color(0xFF2E7D32), Icons.check_circle_outline),
+      FeedbackLevel.success => (rmSuccessColor, Icons.check_circle_outline),
       FeedbackLevel.error => (scheme.error, Icons.error_outline),
     };
     final foreground = switch (level) {

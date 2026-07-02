@@ -8,6 +8,46 @@ library;
 
 import 'package:flutter/material.dart';
 
+import 'text_theme.dart';
+
+/// MD3 emphasized curve: cubic-bezier(0.2, 0, 0, 1).
+///
+/// This is the Material 3 "emphasized" easing curve used for page transitions
+/// and large-screen navigation. It accelerates quickly then decelerates smoothly.
+const Curve m3EmphasizedCurve = Cubic(0.2, 0, 0, 1);
+
+/// MD3 standard curve for medium-duration transitions (300ms).
+const Curve m3StandardCurve = Cubic(0.4, 0, 0.2, 1);
+
+/// M3 page transition builder using [m3EmphasizedCurve] with 500ms duration.
+class M3PageTransitionsBuilder extends PageTransitionsBuilder {
+  /// Creates an [M3PageTransitionsBuilder].
+  const M3PageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    return SlideTransition(
+      position: Tween<Offset>(
+        begin: const Offset(0.15, 0),
+        end: Offset.zero,
+      ).animate(CurvedAnimation(parent: animation, curve: m3EmphasizedCurve)),
+      child: FadeTransition(
+        opacity: Tween<double>(
+          begin: 0.0,
+          end: 1.0,
+        ).animate(CurvedAnimation(parent: animation, curve: m3EmphasizedCurve)),
+        child: child,
+      ),
+    );
+  }
+}
+
 /// Primary brand color — matches the blue top bar in the design.
 const Color rmPrimaryBlue = Color(0xFF2196F3);
 
@@ -35,6 +75,18 @@ const Color rmCounterBarColor = Color(0xFFFF9800); // 反制进度条 — 橙色
 const Color rmBlueTeamColor = Color(0xFF2563EB);
 const Color rmRedTeamColor = Color(0xFFDC2626);
 
+/// Health bar gradient colors — protocol semantics, fixed across themes.
+const Color rmHealthLowColor = Color(0xFFEF4444); // red
+const Color rmHealthMidColor = Color(0xFFF59E0B); // orange-amber
+const Color rmHealthHighColor = Color(0xFF22C55E); // green
+
+/// Feedback/snackbar colors — protocol semantics, fixed across themes.
+const Color rmSuccessColor = Color(0xFF2E7D32);
+
+/// Crosshair overlay colors for the custom video line.
+const Color rmCrosshairColor = Color(0xFFE6BEEA); // lavender
+const Color rmCrosshairCenterColor = Color(0xFFAAFFAA); // light-green
+
 /// Top status bar height.
 const double rmTopBarHeight = 48;
 
@@ -53,14 +105,13 @@ const double rmRobotIconSize = 48;
 // ============================================================
 
 /// Background color for cards and elevated surfaces.
-Color rmSurface(BuildContext context) =>
-    Theme.of(context).colorScheme.surface;
+Color rmSurface(BuildContext context) => Theme.of(context).colorScheme.surface;
 
 /// Border/divider color for cards, adapting to brightness.
 Color rmBorder(BuildContext context) =>
     Theme.of(context).brightness == Brightness.dark
-        ? rmCardBorderDark
-        : rmCardBorder;
+    ? rmCardBorderDark
+    : rmCardBorder;
 
 /// Primary text color resolved from the color scheme.
 Color rmTextPrimary(BuildContext context) =>
@@ -79,7 +130,8 @@ Color rmTrackFill(BuildContext context) =>
 // ============================================================
 
 /// Creates the light theme for the application.
-ThemeData buildAppTheme() => _buildThemeWithAccent(rmPrimaryBlue, Brightness.light);
+ThemeData buildAppTheme() =>
+    _buildThemeWithAccent(rmPrimaryBlue, Brightness.light);
 
 /// Creates a theme variant tinted by [accent], used for red/blue team
 /// switching on the login screen. Buttons, focused fields and the color
@@ -107,6 +159,10 @@ ThemeData _buildThemeWithAccent(Color accent, Brightness brightness) {
     useMaterial3: true,
     brightness: brightness,
     colorScheme: colorScheme,
+    // Use the responsive MD3 type scale. Widgets resolve text through
+    // Theme.of(context).textTheme; the ResponsiveContext extension also exposes
+    // context.textTheme scaled by the window size factor.
+    textTheme: scaledTextThemeByFactor(1.0),
     appBarTheme: AppBarTheme(
       backgroundColor: accent,
       foregroundColor: Colors.white,
@@ -140,6 +196,13 @@ ThemeData _buildThemeWithAccent(Color accent, Brightness brightness) {
           ? colorScheme.surfaceContainerHighest.withValues(alpha: 0.4)
           : Colors.grey.shade50,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    ),
+    // M3 page transitions: emphasized curve + 500ms slide+fade.
+    pageTransitionsTheme: PageTransitionsTheme(
+      builders: <TargetPlatform, PageTransitionsBuilder>{
+        for (final platform in TargetPlatform.values)
+          platform: const M3PageTransitionsBuilder(),
+      },
     ),
   );
 }

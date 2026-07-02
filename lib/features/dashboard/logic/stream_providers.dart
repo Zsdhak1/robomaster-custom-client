@@ -6,9 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/protobuf/protobuf_parser.dart';
 import '../../../core/video/video_frame.dart';
+import '../../../generated/robomaster_custom_client.pb.dart';
 import '../../../services/ffplay_decoder.dart';
 import '../../../services/mqtt_service.dart';
 import '../../../services/video_stream_service.dart';
+import '../../settings/logic/settings_providers.dart';
+import 'dashboard_notification_controller.dart';
+import 'dashboard_notification_factory.dart';
+import 'dashboard_notification_models.dart';
 import 'game_state.dart';
 import 'game_state_notifier.dart';
 
@@ -148,3 +153,26 @@ final gameStateProvider =
 
   return notifier;
 });
+
+/// Ephemeral dashboard notification queue used by the live overlay preview.
+final dashboardNotificationProvider = StateNotifierProvider<
+    DashboardNotificationController, DashboardNotificationState>((ref) {
+  final controller = DashboardNotificationController();
+
+  ref.listen(mqttMessageProvider, (_, next) {
+    next.whenData((envelope) {
+      final message = envelope.protobufMessage;
+      if (message is Event) {
+        controller.show(notificationFromEvent(message));
+      }
+    });
+  });
+
+  return controller;
+});
+
+/// Current persisted notification style selection.
+final dashboardNotificationStyleSyncProvider =
+    Provider<DashboardNotificationStyle>(
+  (ref) => ref.watch(dashboardNotificationStyleProvider),
+);

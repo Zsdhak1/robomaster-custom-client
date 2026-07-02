@@ -70,17 +70,16 @@ class StreamConnectionFab extends ConsumerWidget {
       children: [
         for (final action in secondaryActions) ...[
           FloatingActionButton.small(
-            heroTag: 'stream_fab_${action.label}',
             tooltip: action.label,
             onPressed: action.enabled ? action.onPressed : null,
-            backgroundColor:
-                action.enabled ? null : scheme.surfaceContainerHighest,
+            backgroundColor: action.enabled
+                ? null
+                : scheme.surfaceContainerHighest,
             child: Icon(action.icon),
           ),
           const SizedBox(height: 12),
         ],
         FloatingActionButton.extended(
-          heroTag: 'stream_fab_main',
           onPressed: onToggle,
           backgroundColor: isRunning ? scheme.errorContainer : null,
           foregroundColor: isRunning ? scheme.onErrorContainer : null,

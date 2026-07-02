@@ -140,14 +140,16 @@ class _EventColumn extends StatelessWidget {
                   context.sizedBox(w: 8),
                   Text(
                     '事件时间轴',
-                    style:
-                        TextStyle(fontSize: context.fontSize(16), fontWeight: FontWeight.bold),
+                    style: context.textTheme.titleMedium!.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const Spacer(),
                   Text(
                     '${gameState.eventList.length}',
-                    style:
-                        TextStyle(fontSize: context.fontSize(13), color: rmTextSecondary(context)),
+                    style: context.textTheme.bodySmall!.copyWith(
+                      color: rmTextSecondary(context),
+                    ),
                   ),
                 ],
               ),
@@ -194,9 +196,8 @@ class _PlaybackBar extends StatelessWidget {
           context.sizedBox(w: 8),
           Text(
             _fmt(replay.position),
-            style: TextStyle(
+            style: context.textTheme.bodyMedium!.copyWith(
               fontFamily: 'monospace',
-              fontSize: context.fontSize(14),
             ),
           ),
           Expanded(
@@ -207,9 +208,8 @@ class _PlaybackBar extends StatelessWidget {
           ),
           Text(
             _fmt(replay.total),
-            style: TextStyle(
+            style: context.textTheme.bodyMedium!.copyWith(
               fontFamily: 'monospace',
-              fontSize: context.fontSize(14),
             ),
           ),
           context.sizedBox(w: 16),
@@ -276,16 +276,19 @@ class _ReplayHealthChart extends StatelessWidget {
             children: [
               Text(
                 '己方总血量趋势 · ${ownIsBlue ? '蓝方' : '红方'}',
-                style:
-                    TextStyle(fontSize: context.fontSize(14), fontWeight: FontWeight.bold),
+                style: context.textTheme.bodyMedium!.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               context.sizedBox(h: 8),
               Expanded(
                 child: history.isEmpty
-                    ? const Center(
+                    ? Center(
                         child: Text(
                           '暂无血量数据',
-                          style: TextStyle(color: Colors.grey),
+                          style: context.textTheme.bodyMedium!.copyWith(
+                            color: Colors.grey,
+                          ),
                         ),
                       )
                     : _buildChart(context, history, lineColor),

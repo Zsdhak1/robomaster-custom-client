@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/feedback/feedback_messenger.dart';
+import '../../../core/responsive/responsive_ext.dart';
 import '../../../core/sync/remote_sync_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../connection/domain/robot_identity.dart';
@@ -246,8 +247,7 @@ class _RepoHeader extends StatelessWidget {
                 children: [
                   Text(
                     canPull ? config.repository : '未配置远程仓库',
-                    style: const TextStyle(
-                      fontSize: 14,
+                    style: context.textTheme.bodyMedium!.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -256,8 +256,7 @@ class _RepoHeader extends StatelessWidget {
                     canPull
                         ? '分支 ${config.branch} · 目录 ${config.recordsDir}'
                         : '请在「数据记录配置」中配置 GitHub 同步',
-                    style: TextStyle(
-                      fontSize: 12,
+                    style: context.textTheme.bodySmall!.copyWith(
                       color: rmTextSecondary(context),
                     ),
                   ),
@@ -369,7 +368,9 @@ class _RemoteRecordTile extends ConsumerWidget {
         subtitle: Text(
           '${_dateLabel(info)} · ${_sideLabel(info)} · ${_robotLabel(info)} · '
           '${_formatSize(record.sizeBytes)}\n${record.fileName}',
-          style: TextStyle(fontSize: 12, color: rmTextSecondary(context)),
+          style: context.textTheme.bodySmall!.copyWith(
+            color: rmTextSecondary(context),
+          ),
         ),
         isThreeLine: true,
         trailing: isDownloading

@@ -361,8 +361,9 @@ class _RobotSelectorPanel extends StatelessWidget {
                 context.sizedBox(h: 16),
                 Text(
                   '点击左侧「客户端ID」选择登录身份',
-                  style:
-                      TextStyle(fontSize: context.fontSize(16), color: scheme.onSurfaceVariant),
+                  style: context.textTheme.bodyMedium!.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -425,9 +426,8 @@ class _TeamColumn extends StatelessWidget {
           children: [
             Text(
               title,
-              style: TextStyle(
+              style: context.textTheme.headlineSmall!.copyWith(
                 color: Colors.white,
-                fontSize: context.fontSize(18),
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -484,8 +484,7 @@ class _RobotCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   robot.displayName,
-                  style: TextStyle(
-                    fontSize: context.fontSize(18),
+                  style: context.textTheme.titleMedium!.copyWith(
                     fontWeight: FontWeight.bold,
                     color: robot.sideColor,
                   ),

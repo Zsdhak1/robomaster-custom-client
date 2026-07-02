@@ -7,6 +7,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/responsive/responsive_ext.dart';
 import '../../logic/custom_video_providers.dart';
 
 /// Compact debug overlay positioned over the custom video panel.
@@ -26,7 +27,7 @@ class CustomVideoOverlay extends ConsumerWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         child: DefaultTextStyle(
-          style: const TextStyle(color: Colors.white, fontSize: 10),
+          style: context.textTheme.labelSmall!.copyWith(color: Colors.white),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
