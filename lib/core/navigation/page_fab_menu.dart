@@ -1,16 +1,14 @@
-/// Reusable page-level floating action menu (Material 3 [MenuAnchor]).
+/// 页面级可复用浮动操作菜单，基于 Material 3 [MenuAnchor]。
 ///
-/// Each top-level screen passes its own list of [FabAction]s; tapping the FAB
-/// opens a menu of those actions. This replaces the per-page AppBar action
-/// rows so the app bar stays clean and every screen exposes its operations
-/// through a single, consistent entry point.
+/// 每个顶层页面传入自己的 [FabAction] 列表；点击 FAB 后打开对应操作菜单。
+/// 这取代了各页面 AppBar 的操作行，让应用栏保持干净，并为页面操作提供统一入口。
 library;
 
 import 'package:flutter/material.dart';
 
-/// A single action entry shown in a [PageFabMenu].
+/// 显示在 [PageFabMenu] 中的单个操作项。
 class FabAction {
-  /// Creates a [FabAction].
+  /// 创建 [FabAction]。
   const FabAction({
     required this.icon,
     required this.label,
@@ -18,33 +16,32 @@ class FabAction {
     this.enabled = true,
   });
 
-  /// Leading icon for the menu item.
+  /// 菜单项前导图标。
   final IconData icon;
 
-  /// Text label for the menu item.
+  /// 菜单项文本标签。
   final String label;
 
-  /// Called when the item is tapped. Ignored when [enabled] is false.
+  /// 菜单项被点击时调用；[enabled] 为 false 时会被忽略。
   final VoidCallback onSelected;
 
-  /// Whether the item is selectable; disabled items render greyed out.
+  /// 该项是否可选择；禁用项会以灰化状态显示。
   final bool enabled;
 }
 
-/// A floating action button that opens a menu of [actions].
+/// 点击后打开 [actions] 菜单的浮动操作按钮。
 ///
-/// When [actions] is empty the menu renders nothing, so callers can pass a
-/// dynamically-built list without guarding the FAB themselves.
+/// 当 [actions] 为空时不会渲染菜单，因此调用方可以直接传入动态构建的列表。
 ///
-/// The FAB icon animates with a spring-like rotation when the menu opens/closes.
+/// 菜单打开/关闭时，FAB 图标会播放类似弹簧的旋转动画。
 class PageFabMenu extends StatefulWidget {
-  /// Creates a [PageFabMenu].
+  /// 创建 [PageFabMenu]。
   const PageFabMenu({required this.actions, this.tooltip = '操作', super.key});
 
-  /// The actions to list in the menu, top to bottom.
+  /// 菜单中自上而下排列的操作列表。
   final List<FabAction> actions;
 
-  /// Tooltip shown on the FAB itself.
+  /// FAB 自身显示的工具提示。
   final String tooltip;
 
   @override
@@ -59,8 +56,7 @@ class _PageFabMenuState extends State<PageFabMenu>
   @override
   void initState() {
     super.initState();
-    // Spring-like rotation: stiffness=400, damping=24 gives a natural
-    // overshoot that settles in ~300ms, matching MD3 spring physics.
+    // 类弹簧旋转：stiffness=400、damping=24 形成自然过冲，并在约 300ms 收敛。
     _rotationCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 350),
@@ -102,12 +98,13 @@ class _PageFabMenuState extends State<PageFabMenu>
           ),
       ],
       builder: (context, controller, _) => FloatingActionButton(
+        heroTag: null,
         tooltip: widget.tooltip,
         onPressed: () => _toggleMenu(controller),
         child: AnimatedBuilder(
           animation: _rotationAnim,
           builder: (context, child) => Transform.rotate(
-            angle: _rotationAnim.value * 1.5708, // 90° on full rotation
+            angle: _rotationAnim.value * 1.5708, // 完整动画为 90°。
             child: child,
           ),
           child: Icon(controller.isOpen ? Icons.close : Icons.more_horiz),

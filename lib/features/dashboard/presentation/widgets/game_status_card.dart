@@ -1,4 +1,4 @@
-/// Game status card showing current match phase and score.
+/// 比赛状态卡片，显示当前比赛阶段和得分。
 library;
 
 import 'package:flutter/material.dart';
@@ -10,16 +10,15 @@ import '../../../../generated/robomaster_custom_client.pb.dart';
 import '../../logic/game_state.dart';
 import '../../logic/stream_providers.dart';
 
-/// Bottom-left card displaying match status.
+/// 左下角显示比赛状态的卡片。
 ///
-/// When [gameState] is provided (replay), it renders that snapshot; otherwise
-/// it watches the live [gameStateProvider]. The two paths never share mutable
-/// state, so a replay view cannot affect the live dashboard.
+/// 提供 [gameState] 时用于回放并渲染该快照；否则监听实时 [gameStateProvider]。
+/// 两条路径不共享可变状态，因此回放视图不会影响实时仪表盘。
 class GameStatusCard extends ConsumerWidget {
-  /// Creates a [GameStatusCard].
+  /// 创建 [GameStatusCard]。
   const GameStatusCard({this.gameState, super.key});
 
-  /// Optional fixed state for replay; null means use live state.
+  /// 回放使用的可选固定状态；null 表示使用实时状态。
   final GameState? gameState;
 
   @override
@@ -28,25 +27,29 @@ class GameStatusCard extends ConsumerWidget {
     final status = effectiveState.gameStatus;
 
     return Padding(
-      padding: context.insetAll(12),
+      padding: EdgeInsets.zero,
       child: Card(
-        child: Padding(
-          padding: context.insetAll(12),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildHeader(context, status),
-                context.sizedBox(h: 2),
-                Text(
-                  '比赛阶段',
-                  style: context.textTheme.bodySmall!.copyWith(
-                    color: rmTextSecondary(context),
+        margin: EdgeInsets.zero,
+        child: SizedBox.expand(
+          child: Padding(
+            padding: context.insetAll(12),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(context, status),
+                  context.sizedBox(h: 2),
+                  Text(
+                    '比赛阶段',
+                    style: context.textTheme.bodySmall!.copyWith(
+                      color: rmTextSecondary(context),
+                    ),
                   ),
-                ),
-                _buildDetails(context, status),
-              ],
+                  _buildDetails(context, status),
+                  _buildLogistics(context, effectiveState),
+                  _buildMechanisms(context, effectiveState),
+                ],
+              ),
             ),
           ),
         ),
@@ -94,9 +97,79 @@ class GameStatusCard extends ConsumerWidget {
         ..add(Text(countdownText, style: context.textTheme.bodySmall));
     }
 
+    if (status.hasStageElapsedSec()) {
+      children
+        ..add(context.sizedBox(h: 4))
+        ..add(
+          Text(
+            '已进行 ${status.stageElapsedSec} 秒',
+            style: context.textTheme.bodySmall,
+          ),
+        );
+    }
+    if (status.isPaused) {
+      children
+        ..add(context.sizedBox(h: 4))
+        ..add(
+          Text(
+            '比赛暂停',
+            style: context.textTheme.labelLarge!.copyWith(
+              color: Theme.of(context).colorScheme.error,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: children,
+    );
+  }
+
+  Widget _buildLogistics(BuildContext context, GameState state) {
+    final logistics = state.globalLogisticsStatus;
+    if (logistics == null) return const SizedBox.shrink();
+    return Padding(
+      padding: EdgeInsets.only(top: context.sp(8)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '经济 ${logistics.remainingEconomy}',
+            style: context.textTheme.bodySmall,
+          ),
+          Text(
+            '科技 Lv.${logistics.techLevel} · 加密 Lv.${logistics.encryptionLevel}',
+            style: context.textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMechanisms(BuildContext context, GameState state) {
+    final mechanism = state.globalSpecialMechanism;
+    if (mechanism == null || mechanism.mechanismId.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final labels = <String>[];
+    for (var i = 0; i < mechanism.mechanismId.length; i++) {
+      final seconds = i < mechanism.mechanismTimeSec.length
+          ? mechanism.mechanismTimeSec[i]
+          : null;
+      labels.add(
+        seconds == null
+            ? '#${mechanism.mechanismId[i]}'
+            : '#${mechanism.mechanismId[i]} ${seconds}s',
+      );
+    }
+    return Padding(
+      padding: EdgeInsets.only(top: context.sp(8)),
+      child: Text(
+        '特殊机制 ${labels.join(' · ')}',
+        style: context.textTheme.bodySmall,
+      ),
     );
   }
 

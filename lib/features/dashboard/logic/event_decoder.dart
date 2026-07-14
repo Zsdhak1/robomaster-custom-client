@@ -1,56 +1,54 @@
-/// Decodes [Event] protobuf messages into human-readable descriptions.
+/// 将 [event] Protobuf 消息解码为可读描述。
 ///
-/// Event semantics follow protocol V1.3.1 §2.2.7. Each event_id (1-15)
-/// carries a `param` string whose meaning varies by id.
+/// 事件语义遵循协议 V1.3.1 §2.2.7。每个 event_id（1-15）
+/// 都携带一个 `param` 字符串，其含义随 ID 变化。
 library;
 
 import 'package:flutter/material.dart';
 
-import '../../../generated/robomaster_custom_client.pb.dart';
-
-/// Visual category of a decoded event, used for icon/color.
+/// 已解码事件的视觉分类，用于选择图标和颜色。
 enum EventCategory {
-  /// Combat/kill related (red).
+  /// 战斗/击杀相关（红方）。
   combat,
 
-  /// Structure (base/outpost) related (orange).
+  /// 建筑相关（基地/前哨站，橙色）。
   structure,
 
-  /// Energy rune related (purple).
+  /// 能量机关相关（紫色）。
   rune,
 
-  /// Air support related (blue).
+  /// 空中支援相关（蓝方）。
   airSupport,
 
-  /// Dart related (teal).
+  /// 飞镖相关（青色）。
   dart,
 
-  /// Assembly/engineering related (brown).
+  /// 装配/工程相关（棕色）。
   assembly,
 
-  /// Generic notification (grey).
+  /// 通用通知（灰色）。
   generic,
 }
 
-/// A decoded, display-ready representation of an [Event].
+/// 已解码且可直接展示的 [event] 表示。
 class DecodedEvent {
-  /// Creates a [DecodedEvent].
+  /// 创建 [DecodedEvent]。
   const DecodedEvent({
     required this.title,
     required this.detail,
     required this.category,
   });
 
-  /// Short event title (e.g. "击杀").
+  /// 短事件标题，例如“击杀”。
   final String title;
 
-  /// Detailed description with resolved parameters.
+  /// 包含已解析参数的详细描述。
   final String detail;
 
-  /// Visual category.
+  /// 视觉分类。
   final EventCategory category;
 
-  /// Icon for this category.
+  /// 该分类使用的图标。
   IconData get icon => switch (category) {
         EventCategory.combat => Icons.gps_fixed,
         EventCategory.structure => Icons.shield,
@@ -61,7 +59,7 @@ class DecodedEvent {
         EventCategory.generic => Icons.info_outline,
       };
 
-  /// Color for this category.
+  /// 该分类使用的颜色。
   Color get color => switch (category) {
         EventCategory.combat => Colors.red,
         EventCategory.structure => Colors.orange,
@@ -73,7 +71,7 @@ class DecodedEvent {
       };
 }
 
-/// Maps a robot id (per protocol §附录: 1-9 红, 11-19 蓝) to a name.
+/// 将机器人 ID 映射为名称（协议附录：1-9 红方，11-19 蓝方）。
 String _robotName(String idStr) {
   final id = int.tryParse(idStr.trim());
   if (id == null) return idStr;
@@ -98,16 +96,16 @@ String _robotName(String idStr) {
   };
 }
 
-/// Splits a comma-separated param string, trimming whitespace.
+/// 拆分逗号分隔的 param 字符串，并清理空白。
 List<String> _parts(String param) =>
     param.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
 
-/// Decodes an [Event] into a [DecodedEvent] per protocol V1.3.1 §2.2.7.
+/// 按协议 V1.3.1 §2.2.7 将 [event] 解码为 [DecodedEvent]。
 DecodedEvent decodeEvent(int eventId, String param) {
   final p = _parts(param);
 
   switch (eventId) {
-    case 1: // 击杀：参数1被击杀者，参数2击杀者
+    case 1: // 击杀:参数1被击杀者，参数2击杀者
       final victim = p.isNotEmpty ? _robotName(p[0]) : '?';
       final killer = p.length > 1 ? _robotName(p[1]) : '?';
       return DecodedEvent(
@@ -115,7 +113,7 @@ DecodedEvent decodeEvent(int eventId, String param) {
         detail: '$killer 击毁了 $victim',
         category: EventCategory.combat,
       );
-    case 2: // 前哨站被摧毁：参数为目标id (11红/111蓝)
+    case 2: // 前哨站被摧毁:参数为目标id (11红/111蓝)
       final target = p.isNotEmpty ? _robotName(p[0]) : '?';
       return DecodedEvent(
         title: '前哨站被摧毁',
@@ -130,7 +128,7 @@ DecodedEvent decodeEvent(int eventId, String param) {
         detail: '激活 $arms 个灯臂，平均环数 $rings',
         category: EventCategory.rune,
       );
-    case 4: // 能量机关进入已激活：1小 2大
+    case 4: // 能量机关进入已激活:1小 2大
       final type = p.isNotEmpty
           ? (p[0] == '1' ? '小能量机关' : '大能量机关')
           : '能量机关';
@@ -157,13 +155,13 @@ DecodedEvent decodeEvent(int eventId, String param) {
         detail: '对方呼叫了空中支援',
         category: EventCategory.airSupport,
       );
-    case 8: // 对方空中支援被反制：剩余可反制次数
+    case 8: // 对方空中支援被反制:剩余可反制次数
       return DecodedEvent(
         title: '空中支援被反制',
         detail: '对方空中支援被反制，剩余可反制次数 ${p.isNotEmpty ? p[0] : '?'}',
         category: EventCategory.airSupport,
       );
-    case 9: // 飞镖命中：命中方(1红2蓝)，命中目标(1-5)
+    case 9: // 飞镖命中:命中方(1红2蓝)，命中目标(1-5)
       final side = p.isNotEmpty ? (p[0] == '1' ? '红方' : '蓝方') : '?';
       final hit = p.length > 1 ? _dartTarget(p[1]) : '?';
       return DecodedEvent(
@@ -216,7 +214,7 @@ DecodedEvent decodeEvent(int eventId, String param) {
   }
 }
 
-/// Resolves the dart-hit target code (event 9 param 2).
+/// 解析飞镖命中目标代码（事件 9 的 param 2）。
 String _dartTarget(String code) => switch (code) {
       '1' => '前哨站',
       '2' => '基地固定目标',
@@ -226,7 +224,7 @@ String _dartTarget(String code) => switch (code) {
       _ => '目标 $code',
     };
 
-/// Resolves the assembly result code (event 15 param).
+/// 解析装配结果代码（事件 15 的 param）。
 String _assemblyResult(String code) => switch (code) {
       '0' => '装配成功',
       '1' => '能量单元被拔出',
@@ -239,4 +237,3 @@ String _assemblyResult(String code) => switch (code) {
       '8' => '缓冲期到期，装配流程强制结束',
       _ => '结果码 $code',
     };
-

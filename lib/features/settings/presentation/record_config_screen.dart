@@ -1,9 +1,7 @@
-/// Data-record topic configuration sub-screen.
+/// 数据记录 topic 配置子页面。
 ///
-/// Lists every recordable (server→client) topic grouped by reception scope
-/// (team-shared vs robot-private), letting the operator choose which topics to
-/// subscribe to and record. Includes a remote-sync action that pulls a shared
-/// config (no-op until the GitHub backend lands).
+/// 按接收范围列出每个可记录的服务器到客户端 topic（全队共享或机器人私有），
+/// 让操作手选择需要订阅和保存的 topic。页面还提供远程同步操作，用于拉取共享配置。
 library;
 
 import 'package:flutter/material.dart';
@@ -17,9 +15,9 @@ import '../../../core/theme/app_theme.dart';
 import '../logic/github_sync_provider.dart';
 import '../logic/record_config_provider.dart';
 
-/// Screen for choosing which protocol topics to record.
+/// 用于选择需要记录哪些协议 topic 的页面。
 class RecordConfigScreen extends ConsumerWidget {
-  /// Creates a [RecordConfigScreen].
+  /// 创建 [RecordConfigScreen]。
   const RecordConfigScreen({super.key});
 
   @override
@@ -95,8 +93,7 @@ class _SummaryBanner extends StatelessWidget {
   }
 }
 
-/// One scope group (team-shared or robot-private) with a header and a switch
-/// per topic.
+/// 一个接收范围分组（全队共享或机器人私有），包含标题和每个 topic 的开关。
 class _ScopeSection extends StatelessWidget {
   const _ScopeSection({
     required this.scope,
@@ -157,10 +154,10 @@ class _ScopeSection extends StatelessWidget {
   }
 }
 
-/// Remote-sync actions for the shared record config, backed by GitHub.
+/// GitHub 支持的共享记录配置远程同步操作。
 ///
-/// Shows the current connection target, lets the operator open the GitHub
-/// configuration dialog, and pull/push the shared `record_config.json`.
+/// 显示当前连接目标，并允许操作手打开 GitHub 配置对话框，拉取或上传共享的
+/// `record_config.json`。
 class _RemoteSyncCard extends ConsumerWidget {
   const _RemoteSyncCard();
 
@@ -258,7 +255,7 @@ class _RemoteSyncCard extends ConsumerWidget {
   }
 }
 
-/// A small pill showing whether remote sync is configured.
+/// 显示远程同步是否已配置的小型状态胶囊。
 class _SyncStatusPill extends StatelessWidget {
   const _SyncStatusPill({required this.canPull, required this.canPush});
 
@@ -296,7 +293,7 @@ class _SyncStatusPill extends StatelessWidget {
   }
 }
 
-/// Dialog for entering the GitHub repository, branch, token, and in-repo paths.
+/// 用于输入 GitHub 仓库、分支、令牌和仓库内路径的对话框。
 class _GitHubConfigDialog extends StatefulWidget {
   const _GitHubConfigDialog({required this.initial});
 

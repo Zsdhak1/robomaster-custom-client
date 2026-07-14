@@ -1,9 +1,8 @@
-/// In-app status panel for the external-ffplay verification backend.
+/// 外部 ffplay 验证后端使用的应用内状态面板。
 ///
-/// ffplay renders in its OWN OS window (Windows verification aid), so this panel
-/// carries no video — it just drives the [CustomFfplayLauncher] lifecycle and
-/// reports state. Connecting ffplay straight to the loopback TCP bridge proves
-/// whether the byte stream is decodable independently of the in-app players.
+/// ffplay 会在自己的系统窗口中渲染（主要用于 Windows 验证），所以该面板不承载视频；
+/// 它只驱动 [CustomFfplayLauncher] 生命周期并报告状态。让 ffplay 直接连接回环 TCP 桥接，
+/// 可以独立于应用内播放器验证字节流是否可解码。
 library;
 
 import 'package:flutter/material.dart';
@@ -12,9 +11,9 @@ import '../../../../core/responsive/responsive_ext.dart';
 import '../../../../features/settings/logic/settings_providers.dart';
 import '../../logic/custom_ffplay_launcher.dart';
 
-/// Launches ffplay against [streamUrl] and shows its status.
+/// 根据 [streamUrl] 启动 ffplay，并显示运行状态。
 class CustomFfplayPanel extends StatefulWidget {
-  /// Creates a panel that points ffplay at [streamUrl].
+  /// 创建指向 [streamUrl] 的 ffplay 面板。
   const CustomFfplayPanel({
     required this.streamUrl,
     required this.tsWrap,
@@ -22,13 +21,13 @@ class CustomFfplayPanel extends StatefulWidget {
     super.key,
   });
 
-  /// The `tcp://127.0.0.1:<port>` bridge URL ffplay should open.
+  /// ffplay 应打开的 `tcp://127.0.0.1:<端口>` 桥接 URL。
   final String streamUrl;
 
-  /// When true the bridge serves MPEG-TS, so ffplay is told `-f mpegts`.
+  /// 为 true 时桥接输出 MPEG-TS，因此 ffplay 使用 `-f mpegts`。
   final bool tsWrap;
 
-  /// The video codec: H.264 → `-f h264`, H.265 → `-f hevc`.
+  /// 视频编解码器：H.264 对应 `-f h264`，H.265 对应 `-f hevc`。
   final CustomVideoCodec codec;
 
   @override

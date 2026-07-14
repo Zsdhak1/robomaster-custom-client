@@ -1,17 +1,15 @@
-/// Pure functions that turn one raw `CustomByteBlock.data` packet into the
-/// H.264 Annex-B bytes that belong in the decoded stream.
+/// 将原始 `CustomByteBlock.data` 包转换为解码流中真正需要的 H.264 AnnexB 字节。
 ///
-/// Captured 0x0310 streams show each packet's payload is wrapped in an in-band
-/// protobuf-style length prefix: `0x0A <varint length> <payload> [0x00 pad]`.
-/// The job here is to recover exactly `<payload>` (no prefix, no padding) so
-/// concatenating successive packets yields a clean Annex-B byte stream.
+/// 抓包显示，0x0310 流的每个包都在载荷前带有内嵌 protobuf 风格长度前缀：
+/// `0x0A <varint 长度> <载荷> [0x00 padding]`。这里要恢复精确的 `<载荷>`，
+/// 去掉前缀和填充，连续拼接后得到干净的 AnnexB 字节流。
 library;
 
 import 'dart:typed_data';
 
-/// Result of slicing one packet: the bytes to emit plus how the prefix parsed.
+/// 单个包切片结果：输出字节以及前缀解析信息。
 class SliceResult {
-  /// Creates a [SliceResult].
+  /// 创建 [SliceResult]。
   const SliceResult({
     required this.bytes,
     required this.prefixBytes,
@@ -19,27 +17,25 @@ class SliceResult {
     required this.prefixDetected,
   });
 
-  /// The H.264 bytes to forward downstream (may be empty).
+  /// 要继续向下游转发的 H.264 字节，可能为空。
   final Uint8List bytes;
 
-  /// Number of leading prefix bytes consumed (0 if none).
+  /// 已消费的前导前缀字节数；没有前缀时为 0。
   final int prefixBytes;
 
-  /// Length declared by the varint prefix, or -1 if no prefix was detected.
+  /// varint 前缀声明的载荷长度；未检测到前缀时为 -1。
   final int declaredLength;
 
-  /// Whether a `0x0A <varint>` prefix was recognised at the packet start.
+  /// 包开头是否识别到 `0x0A <varint>` 前缀。
   final bool prefixDetected;
 }
 
-/// Strips an in-band `0x0A <varint length>` prefix and returns the declared
-/// payload bytes (dropping any trailing padding past the declared length).
+/// 去掉内嵌的 `0x0A <varint 长度>` 前缀，并返回声明长度内的载荷字节。
 ///
-/// If the packet does not start with `0x0A`, or the varint runs past the
-/// buffer, the whole packet is returned with [SliceResult.prefixDetected]
-/// false — a safe fallback that never drops data when the format is unexpected.
+/// 如果包不是以 `0x0A` 开头，或 varint 超出缓冲区，则安全降级为返回整个包，
+/// 并将 [SliceResult.prefixDetected] 置为 false，避免在格式异常时丢数据。
 SliceResult stripVarintPrefix(Uint8List data) {
-  // Need at least the 0x0A tag + one varint byte.
+  // 至少需要 0x0A tag 和一个 varint 字节。
   if (data.length < 2 || data[0] != 0x0A) {
     return SliceResult(
       bytes: data,
@@ -48,7 +44,7 @@ SliceResult stripVarintPrefix(Uint8List data) {
       prefixDetected: false,
     );
   }
-  // Decode the base-128 varint starting at index 1.
+  // 从索引 1 开始解码 base-128 varint。
   var value = 0;
   var shift = 0;
   var i = 1;
@@ -59,7 +55,7 @@ SliceResult stripVarintPrefix(Uint8List data) {
     if (b & 0x80 == 0) break;
     shift += 7;
     if (shift > 28) {
-      // Implausible length varint — bail to verbatim.
+      // 长度 varint 不可信，直接原样透传。
       return SliceResult(
         bytes: data,
         prefixBytes: 0,
@@ -70,7 +66,7 @@ SliceResult stripVarintPrefix(Uint8List data) {
   }
   final payloadStart = i;
   final available = data.length - payloadStart;
-  // Clamp the declared length to what actually arrived.
+  // 将声明长度限制在实际收到的字节范围内。
   final take = value <= available ? value : available;
   return SliceResult(
     bytes: Uint8List.sublistView(data, payloadStart, payloadStart + take),
@@ -80,7 +76,7 @@ SliceResult stripVarintPrefix(Uint8List data) {
   );
 }
 
-/// Skips [headerBytes] then takes up to [payloadBytes] bytes (manual mode).
+/// 跳过 [headerBytes] 后最多取 [payloadBytes] 字节，用于手动固定切片模式。
 SliceResult sliceFixed(Uint8List data, int headerBytes, int payloadBytes) {
   final start = headerBytes < data.length ? headerBytes : data.length;
   final end = (start + payloadBytes) < data.length

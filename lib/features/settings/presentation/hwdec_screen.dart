@@ -1,8 +1,7 @@
-/// Hardware-decoder (libmpv `hwdec`) picker — a second-level settings page.
+/// 硬件解码器（libmpv `hwdec`）选择页，是设置中的二级页面。
 ///
-/// Mirrors the reference "硬件解码器" screen: a single-select list where an
-/// unsupported choice falls back to software decoding. Applies to the
-/// media_kit backend.
+/// 与参考“硬件解码器”页面保持一致：单选列表中即使选择了不受支持的模式，也会回退到
+/// 软件解码。该设置作用于 media_kit 后端。
 library;
 
 import 'package:flutter/material.dart';
@@ -12,9 +11,9 @@ import '../../../core/responsive/responsive_ext.dart';
 import '../../../core/theme/app_theme.dart';
 import '../logic/settings_providers.dart';
 
-/// Full-screen single-select list of [HwdecMode] options.
+/// [HwdecMode] 选项的全屏单选列表。
 class HwdecScreen extends ConsumerWidget {
-  /// Creates a [HwdecScreen].
+  /// 创建 [HwdecScreen]。
   const HwdecScreen({super.key});
 
   @override
@@ -47,7 +46,7 @@ class HwdecScreen extends ConsumerWidget {
   }
 }
 
-/// A selectable hwdec option row.
+/// 可选择的 hwdec 选项行。
 class _HwdecTile extends StatelessWidget {
   const _HwdecTile({
     required this.mode,

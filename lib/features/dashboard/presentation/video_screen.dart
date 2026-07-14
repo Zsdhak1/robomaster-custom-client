@@ -1,9 +1,8 @@
-/// UDP 3334 video-stream monitoring screen.
+/// UDP 3334 视频流监控页面。
 ///
-/// Controls the [VideoStreamService] (start/stop the UDP listener) and shows
-/// live stream health: latest reassembled frame metadata, reassembly stats and
-/// a real decoder (media_kit / fvp). The right-side panel mirrors the custom
-/// video page: basic info, a developer-only debug section and 敌方血量 bars.
+/// 控制 [VideoStreamService]（启动/停止 UDP 监听器），并显示实时流状态：
+/// 最新重组帧元数据、重组统计和真实解码器（media_kit / fvp）。右侧面板与自定义视频页
+/// 对齐，包含基础信息、仅开发者可见的调试区段和敌方血量栏。
 library;
 
 import 'package:flutter/material.dart';
@@ -15,9 +14,9 @@ import '../../../core/widgets/video_stream_page_scaffold.dart';
 import '../logic/stream_providers.dart';
 import 'widgets/video_panel.dart';
 
-/// Full-screen page hosting the UDP video-stream monitor.
+/// 承载 UDP 视频流监控的全屏页面。
 class VideoScreen extends ConsumerStatefulWidget {
-  /// Creates a [VideoScreen].
+  /// 创建 [VideoScreen]。
   const VideoScreen({super.key});
 
   @override
@@ -25,7 +24,7 @@ class VideoScreen extends ConsumerStatefulWidget {
 }
 
 class _VideoScreenState extends ConsumerState<VideoScreen> {
-  /// Toggles the UDP listener, surfacing bind failures (e.g. port in use).
+  /// 切换 UDP 监听器，并向用户暴露端口占用等绑定失败。
   Future<void> _toggleStream() async {
     try {
       await ref.read(videoStreamControllerProvider.notifier).toggle();

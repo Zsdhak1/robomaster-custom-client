@@ -1,4 +1,4 @@
-/// Unit tests for [PacketSequenceTracker].
+/// [PacketSequenceTracker] 的单元测试。
 library;
 
 import 'dart:typed_data';
@@ -33,10 +33,10 @@ void main() {
       final t = PacketSequenceTracker()
         ..observe(seqPacket(0))
         ..observe(seqPacket(1))
-        ..observe(seqPacket(5)); // lost 2,3,4
+        ..observe(seqPacket(5)); // 丢失 2,3,4
       expect(t.packetsLost, 3);
       expect(t.lastSeq, 5);
-      // span = 6, lost 3 → 0.5
+      // 范围 = 6，丢失 3 → 0.5
       expect(t.lossRate, closeTo(0.5, 1e-9));
     });
 
@@ -44,8 +44,8 @@ void main() {
       final t = PacketSequenceTracker()
         ..observe(seqPacket(0))
         ..observe(seqPacket(1))
-        ..observe(seqPacket(1)) // duplicate
-        ..observe(seqPacket(0)) // reorder
+        ..observe(seqPacket(1)) // 重复
+        ..observe(seqPacket(0)) // 乱序
         ..observe(seqPacket(2));
       expect(t.packetsLost, 0);
       expect(t.regressions, 2);
@@ -56,7 +56,7 @@ void main() {
       final t = PacketSequenceTracker()
         ..observe(seqPacket(10000))
         ..observe(seqPacket(10001))
-        ..observe(seqPacket(0)) // restart
+        ..observe(seqPacket(0)) // 重启
         ..observe(seqPacket(1));
       expect(t.packetsLost, 0);
       expect(t.lastSeq, 1);

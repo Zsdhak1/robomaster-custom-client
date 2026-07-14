@@ -1,7 +1,6 @@
-/// Unit tests for [parseMatchSummary] — the isolate-friendly export parser.
+/// [parseMatchSummary] 的单元测试；该解析器适合在 isolate 中运行。
 ///
-/// Focus: score extraction, completeness (settlement) detection, duration and
-/// per-type counting from the on-disk JSON schema.
+/// 关注得分提取、完整性（结算阶段）检测、持续时间，以及基于落盘 JSON Schema 的按类型计数。
 library;
 
 import 'dart:convert';

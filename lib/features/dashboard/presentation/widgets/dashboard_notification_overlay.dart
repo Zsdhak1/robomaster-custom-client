@@ -1,4 +1,4 @@
-/// Experimental overlay styles for high-salience dashboard notifications.
+/// 高显著性仪表盘通知使用的实验性覆盖层样式。
 library;
 
 import 'dart:ui' show lerpDouble;
@@ -9,9 +9,9 @@ import '../../../../core/responsive/responsive_ext.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../logic/dashboard_notification_models.dart';
 
-/// Renders the currently active dashboard notification in the chosen style.
+/// 使用当前选中的样式渲染仪表盘通知。
 class DashboardNotificationOverlay extends StatefulWidget {
-  /// Creates a [DashboardNotificationOverlay].
+  /// 创建 [DashboardNotificationOverlay]。
   const DashboardNotificationOverlay({
     required this.items,
     required this.style,
@@ -19,13 +19,13 @@ class DashboardNotificationOverlay extends StatefulWidget {
     super.key,
   });
 
-  /// Notifications currently visible, newest first.
+  /// 当前可见的通知，最新在前。
   final List<DashboardNotificationItem> items;
 
-  /// Selected visual style.
+  /// 当前选中的视觉样式。
   final DashboardNotificationStyle style;
 
-  /// Called when the user closes the notification.
+  /// 用户关闭通知时调用。
   final ValueChanged<String> onDismiss;
 
   @override

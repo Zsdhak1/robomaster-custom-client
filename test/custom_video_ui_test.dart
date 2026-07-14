@@ -1,4 +1,4 @@
-/// Widget/unit tests for the custom video UI layer.
+/// 自定义图传 UI 层的组件和单元测试。
 library;
 
 import 'package:flutter/material.dart';
@@ -9,7 +9,7 @@ import 'package:robomaster_custom_client_1/features/custom_video/presentation/cu
 import 'package:robomaster_custom_client_1/features/custom_video/presentation/widgets/crosshair_painter.dart';
 import 'package:robomaster_custom_client_1/features/custom_video/presentation/widgets/custom_video_debug_panel.dart';
 
-/// A non-running stats snapshot the debug panel can render against.
+/// 调试面板可渲染的未运行状态统计快照。
 CustomVideoStats _stoppedStats() => const CustomVideoStats(
       running: false,
       chunksReceived: 0,
@@ -25,7 +25,7 @@ CustomVideoStats _stoppedStats() => const CustomVideoStats(
       millisSinceLastChunk: null,
     );
 
-/// A running stats snapshot with throughput, exercising every debug row.
+/// 携带吞吐量的运行中统计快照，用于覆盖每个调试行。
 CustomVideoStats _runningStats() => const CustomVideoStats(
       running: true,
       chunksReceived: 500,
@@ -101,8 +101,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            // Override the periodic stats stream with a finite one so the
-            // widget test doesn't leak a never-ending Stream.periodic timer.
+            // 用有限流覆盖周期性统计流，避免组件测试泄漏永不结束的周期定时器。
             customVideoStatsProvider.overrideWith(
               (ref) => const Stream<CustomVideoStats>.empty(),
             ),
@@ -138,15 +137,14 @@ void main() {
       );
       await tester.pump();
 
-      // The embeddable content always renders its sections; the running/idle
-      // gating now lives in the shared VideoSidePanel wrapper.
+      // 可嵌入内容始终渲染各区段；运行中和 idle 的门控现在位于共享 VideoSidePanel 封装中。
       expect(find.text('流水线状态'), findsOneWidget);
       expect(find.text('MQTT 接收 (CustomByteBlock)'), findsOneWidget);
     });
 
     testWidgets('renders all diagnostic sections when running', (tester) async {
-      // Tall viewport so the lazy ListView builds every section (the decoder
-      // log sits below the fold at the default test surface height).
+      // 使用较高视口，确保懒加载 ListView 构建每个区段；
+      // 解码器日志在默认测试高度下位于首屏下方。
       tester.view.physicalSize = const Size(1200, 3000);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -168,14 +166,14 @@ void main() {
       );
       await tester.pump();
 
-      // Each pipeline stage section header is present.
+      // 每个流水线阶段的区段头部都应存在。
       expect(find.text('流水线状态'), findsOneWidget);
       expect(find.text('MQTT 接收 (CustomByteBlock)'), findsOneWidget);
       expect(find.text('TCP 桥转发'), findsOneWidget);
       expect(find.textContaining('解码器'), findsWidgets);
       expect(find.text('解码器日志'), findsOneWidget);
 
-      // Throughput and bridge values surface.
+      // 吞吐量和桥接值应可见。
       expect(find.text('tcp://127.0.0.1:54321'), findsOneWidget);
       expect(find.text('MPEG-TS'), findsOneWidget);
     });

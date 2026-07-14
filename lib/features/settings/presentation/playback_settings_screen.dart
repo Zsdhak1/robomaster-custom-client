@@ -1,4 +1,4 @@
-﻿/// 回放 — 数据导出目录、记录配置
+/// 回放 — 数据导出目录、记录配置
 library;
 
 import 'package:file_selector/file_selector.dart';
@@ -12,12 +12,12 @@ import '../logic/record_config_provider.dart';
 import '../logic/settings_providers.dart';
 import 'record_config_screen.dart';
 
-/// Sub-screen for playback / data-recording settings.
+/// 回放与数据记录设置子页面。
 class PlaybackSettingsScreen extends ConsumerWidget {
-  /// Creates a [PlaybackSettingsScreen].
+  /// 创建 [PlaybackSettingsScreen]。
   const PlaybackSettingsScreen({super.key, this.embedded = false});
 
-  /// When true, renders only the body without its own Scaffold/AppBar.
+  /// 为 true 时只渲染主体，不包含自己的 [Scaffold] 或 [AppBar]。
   final bool embedded;
 
   @override

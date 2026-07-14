@@ -1,17 +1,17 @@
-/// Operation panel providing robot-type-specific controls.
+/// 按机器人类型展示专属控件的操作面板。
 ///
-/// - Engineer (工程): Assembly difficulty selection, confirm assembly toggle
-/// - Hero (英雄): Buy 42mm ammo, remote health, remote ammo
-/// - Infantry (步兵): Buy 17mm ammo, remote health, remote ammo
+/// - 工程：装配难度选择、确认装配切换
+/// - 英雄：购买 42mm 弹药、远程购买血量、远程购买弹药
+/// - 步兵：购买 17mm 弹药、远程购买血量、远程购买弹药
 ///
-/// All commands are published via MQTT with visual feedback on outcome.
+/// 所有命令都通过 MQTT 发布，并根据发送结果给出视觉反馈。
 ///
-/// ## M3 Compliance
-/// - Uses `titleSmall`/`bodyMedium`/`labelLarge` type roles
-/// - `FilledButton` / `OutlinedButton` per M3 component spec
-/// - `surfaceContainerHighest` tonal backgrounds for section headers
-/// - Protocol-semantic colors preserved (health, team) per architectural rule
-/// - Minimum 48sp touch targets, adequate spacing for readability
+/// ## M3 合规性
+/// - 使用 `titleSmall`/`bodyMedium`/`labelLarge` 字体角色
+/// - `FilledButton` / `OutlinedButton` 遵循 M3 组件规范
+/// - 区段标题使用 `surfaceContainerHighest` 色调背景
+/// - 保留血量、队伍等协议语义颜色
+/// - 触控目标至少 48sp，并保留可读间距
 library;
 
 import 'dart:async';
@@ -20,6 +20,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/protocol_constants.dart';
+import '../../../../core/feedback/feedback_messenger.dart';
 import '../../../../core/responsive/responsive_ext.dart';
 import '../../../../core/state/session_providers.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -27,7 +28,7 @@ import '../../../../generated/robomaster_custom_client.pb.dart';
 import '../../../connection/domain/robot_identity.dart';
 import '../../logic/stream_providers.dart';
 
-/// Resolves the current robot type from the selected robot ID.
+/// 根据已选择机器人 ID 解析当前机器人类型。
 _RobotType _resolveRobotType(int id) {
   final base = id >= 100 ? id - 100 : id;
   switch (base) {
@@ -45,12 +46,14 @@ _RobotType _resolveRobotType(int id) {
   }
 }
 
-/// Robot type classification for UI dispatch.
+/// UI 分派使用的机器人类型分类。
 enum _RobotType { engineer, hero, infantry, sentry, drone }
 
-/// Operation panel with role-specific action buttons.
+const List<int> _ammoQuantityOptions = [10, 20, 30, 50];
+
+/// 带角色专属操作按钮的操作面板。
 class OperationPanel extends ConsumerStatefulWidget {
-  /// Creates an [OperationPanel].
+  /// 创建 [OperationPanel]。
   const OperationPanel({super.key});
 
   @override
@@ -69,6 +72,7 @@ class _OperationPanelState extends ConsumerState<OperationPanel> {
   Timer? _difficultyTimer;
 
   bool _coreArrived = false;
+  int _ammoQuantity = _ammoQuantityOptions.first;
 
   @override
   void dispose() {
@@ -85,15 +89,9 @@ class _OperationPanelState extends ConsumerState<OperationPanel> {
       _lastFeedbackSuccess = success;
     });
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message, style: const TextStyle(fontSize: 14)),
-          backgroundColor: success ? rmSuccessColor : rmHealthLowColor,
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.all(12),
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      success
+          ? context.showSuccessSnack(message)
+          : context.showErrorSnack(message);
     }
     _feedbackTimer = Timer(const Duration(seconds: 3), () {
       if (mounted) setState(() => _lastFeedback = null);
@@ -207,7 +205,7 @@ class _OperationPanelState extends ConsumerState<OperationPanel> {
   }
 
   // ====================================================================
-  // Engineer panel
+  // 工程面板
   // ====================================================================
 
   Widget _buildEngineerPanel(BuildContext context) {
@@ -305,22 +303,29 @@ class _OperationPanelState extends ConsumerState<OperationPanel> {
   }
 
   // ====================================================================
-  // Hero / Infantry panels
+  // 英雄 / 步兵面板
   // ====================================================================
 
   Widget _buildHeroPanel(BuildContext context) {
     return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _sectionLabel(context, '英雄 · 42mm'),
+      clipBehavior: Clip.none,
+      child: Padding(
+        padding: context.insetOnly(l: 2, r: 2, b: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+          _ammoPurchaseHeader(context, '英雄 · 42mm'),
           SizedBox(height: context.sp(6)),
           _buttonRow2(
             context,
             _ActionBtn(
-              label: '买弹',
+              label: '买弹 × $_ammoQuantity',
               icon: Icons.wifi_tethering,
-              onPressed: () => _sendCommonCommand(1, 10, '兑换42mm发弹量'),
+              onPressed: () => _sendCommonCommand(
+                1,
+                _ammoQuantity,
+                '兑换42mm发弹量 × $_ammoQuantity',
+              ),
             ),
             _ActionBtn(
               label: '远程买血',
@@ -344,24 +349,32 @@ class _OperationPanelState extends ConsumerState<OperationPanel> {
               onPressed: () => _sendCommonCommand(3, 0, '确认复活'),
             ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildInfantryPanel(BuildContext context) {
     return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _sectionLabel(context, '步兵 · 17mm'),
+      clipBehavior: Clip.none,
+      child: Padding(
+        padding: context.insetOnly(l: 2, r: 2, b: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+          _ammoPurchaseHeader(context, '步兵 · 17mm'),
           SizedBox(height: context.sp(6)),
           _buttonRow2(
             context,
             _ActionBtn(
-              label: '买弹',
+              label: '买弹 × $_ammoQuantity',
               icon: Icons.wifi_tethering,
-              onPressed: () => _sendCommonCommand(1, 10, '兑换17mm发弹量'),
+              onPressed: () => _sendCommonCommand(
+                1,
+                _ammoQuantity,
+                '兑换17mm发弹量 × $_ammoQuantity',
+              ),
             ),
             _ActionBtn(
               label: '远程买血',
@@ -385,7 +398,8 @@ class _OperationPanelState extends ConsumerState<OperationPanel> {
               onPressed: () => _sendCommonCommand(3, 0, '确认复活'),
             ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -422,10 +436,48 @@ class _OperationPanelState extends ConsumerState<OperationPanel> {
       ],
     );
   }
+
+  Widget _ammoPurchaseHeader(BuildContext context, String label) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        _sectionLabel(context, label),
+        const Spacer(),
+        Text('买弹数量', style: context.textTheme.labelMedium),
+        context.sizedBox(w: 6),
+        Container(
+          height: context.sp(32),
+          padding: context.insetSym(h: 8),
+          decoration: BoxDecoration(
+            color: scheme.secondaryContainer,
+            borderRadius: BorderRadius.circular(context.sp(10)),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<int>(
+              value: _ammoQuantity,
+              isDense: true,
+              dropdownColor: scheme.surfaceContainerHigh,
+              style: context.textTheme.labelLarge!.copyWith(
+                color: scheme.onSecondaryContainer,
+                fontWeight: FontWeight.w700,
+              ),
+              items: [
+                for (final amount in _ammoQuantityOptions)
+                  DropdownMenuItem<int>(value: amount, child: Text('$amount')),
+              ],
+              onChanged: (value) {
+                if (value != null) setState(() => _ammoQuantity = value);
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 // ====================================================================
-// Helper: section label
+// 辅助函数：区段标签
 // ====================================================================
 
 Widget _sectionLabel(BuildContext context, String text) {
@@ -450,7 +502,7 @@ Widget _sectionLabel(BuildContext context, String text) {
 }
 
 // ====================================================================
-// _PanelHeader
+// _PanelHeader 面板标题
 // ====================================================================
 
 class _PanelHeader extends StatelessWidget {
@@ -524,14 +576,13 @@ class _PanelHeader extends StatelessWidget {
 }
 
 // ====================================================================
-// _DifficultyButton — M3 tonal/outlined level button with active state
+// _DifficultyButton - 带当前状态的 M3 tonal/outlined 等级按钮
 // ====================================================================
 
-/// Numbered difficulty level button.
+/// 带编号的装配难度等级按钮。
 ///
-/// Uses [FilledButton.tonal] for the active (selected) state and
-/// [OutlinedButton] for the inactive state, matching M3 emphasis tiers.
-/// All dimensions scale via [context.sp] for proportional fullscreen layout.
+/// 当前选中状态使用 [FilledButton.tonal]，未选中状态使用 [OutlinedButton]，
+/// 以匹配 M3 强调层级。所有尺寸通过 `context.sp` 等比缩放。
 class _DifficultyButton extends StatelessWidget {
   const _DifficultyButton({
     required this.level,
@@ -595,13 +646,13 @@ class _DifficultyButton extends StatelessWidget {
 }
 
 // ====================================================================
-// _ToggleButton — M3 filled-tonal / outlined toggle with active state
+// _ToggleButton - 带当前状态的 M3 filled-tonal / outlined 切换按钮
 // ====================================================================
 
-/// On/off toggle button with active state visualization.
+/// 带当前状态视觉反馈的开关按钮。
 ///
-/// Active uses [FilledButton.tonalIcon] with semantic green background;
-/// inactive uses [OutlinedButton.icon]. All dimensions scale via [context.sp].
+/// 激活状态使用 [FilledButton.tonalIcon] 和语义绿色背景；非激活状态使用
+/// [OutlinedButton.icon]。所有尺寸通过 `context.sp` 等比缩放。
 class _ToggleButton extends StatelessWidget {
   const _ToggleButton({
     required this.label,
@@ -660,13 +711,13 @@ class _ToggleButton extends StatelessWidget {
 }
 
 // ====================================================================
-// _ActionBtn — M3 outlined action button with semantic color
+// _ActionBtn - 带语义颜色的 M3 outlined 操作按钮
 // ====================================================================
 
-/// Standard row action button using [OutlinedButton.icon].
+/// 使用 [FilledButton.tonalIcon] 的标准行内操作按钮。
 ///
-/// [semanticColor] tints the foreground and border; defaults to
-/// [colorScheme.primary] when null. All dimensions scale via [context.sp].
+/// [semanticColor] 会同时着色前景和边框；为 null 时默认使用 [ColorScheme.primary]。
+/// 所有尺寸通过 `context.sp` 等比缩放。
 class _ActionBtn extends StatelessWidget {
   const _ActionBtn({
     required this.label,
@@ -683,25 +734,39 @@ class _ActionBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final fgColor = semanticColor ?? scheme.primary;
+    final backgroundColor = semanticColor ?? scheme.primary;
+    final foregroundColor = _contrastForeground(backgroundColor);
     final borderRadius = context.sp(20);
     final iconSize = context.iconSize(18);
 
     return SizedBox(
       height: context.sp(48),
-      child: OutlinedButton.icon(
+      child: FilledButton.icon(
         onPressed: onPressed,
         icon: Icon(icon, size: iconSize),
-        label: Text(label),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: fgColor,
+        label: Text(
+          label,
+          style: context.textTheme.labelLarge!.copyWith(
+            color: foregroundColor,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        style: FilledButton.styleFrom(
+          foregroundColor: foregroundColor,
+          backgroundColor: backgroundColor,
+          elevation: 2,
+          shadowColor: Colors.black.withValues(alpha: 0.35),
           padding: EdgeInsets.symmetric(horizontal: context.sp(20)),
-          side: BorderSide(color: fgColor.withValues(alpha: 0.38)),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(borderRadius),
           ),
         ),
       ),
     );
+  }
+
+  Color _contrastForeground(Color background) {
+    final brightness = ThemeData.estimateBrightnessForColor(background);
+    return brightness == Brightness.dark ? Colors.white : Colors.black;
   }
 }

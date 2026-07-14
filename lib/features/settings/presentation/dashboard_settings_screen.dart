@@ -8,8 +8,9 @@ import '../../../core/responsive/responsive_ext.dart';
 import '../../../core/state/session_providers.dart';
 import '../../../core/theme/app_theme.dart';
 import '../logic/settings_providers.dart';
+import 'widgets/kill_estimate_settings_section.dart';
 
-/// Sub-screen for dashboard display preferences.
+/// 仪表盘显示偏好子页面。
 class DashboardSettingsScreen extends ConsumerWidget {
   const DashboardSettingsScreen({super.key, this.embedded = false});
   final bool embedded;
@@ -25,7 +26,11 @@ class DashboardSettingsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildBody(BuildContext context, WidgetRef ref, DashboardDisplayMode mode) {
+  Widget _buildBody(
+    BuildContext context,
+    WidgetRef ref,
+    DashboardDisplayMode mode,
+  ) {
     final showHealthTrend = ref.watch(showHealthTrendProvider);
 
     return Column(
@@ -72,6 +77,8 @@ class DashboardSettingsScreen extends ConsumerWidget {
                 onChanged: (v) =>
                     ref.read(showHealthTrendProvider.notifier).set(enabled: v),
               ),
+              const SizedBox(height: 12),
+              const KillEstimateSettingsSection(),
             ],
           ),
         ),
@@ -80,7 +87,7 @@ class DashboardSettingsScreen extends ConsumerWidget {
   }
 }
 
-/// A selectable display-mode option card.
+/// 单个可选择的显示模式卡片。
 class _ModeTile extends StatelessWidget {
   const _ModeTile({
     required this.mode,

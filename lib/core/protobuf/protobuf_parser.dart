@@ -1,8 +1,7 @@
-/// MQTT Protobuf message parser and dispatcher.
+/// MQTT Protobuf 消息解析器和分发器。
 ///
-/// Maps MQTT topic names to their corresponding Protobuf message types,
-/// deserializes incoming payloads, and falls back to raw bytes logging
-/// for unrecognized topics.
+/// 根据 MQTT 主题名选择对应的 Protobuf 消息类型，反序列化传入载荷；
+/// 未识别的主题会降级为原始字节日志，避免中断数据流。
 library;
 
 import 'dart:typed_data';
@@ -12,15 +11,15 @@ import 'package:protobuf/protobuf.dart';
 import '../../generated/robomaster_custom_client.pb.dart';
 import '../constants/protocol_constants.dart';
 
-/// Fallback message type for unrecognized topics.
+/// 未识别主题使用的降级消息类型。
 const String _unknownMessageType = 'unknown';
 
-/// Maximum bytes to display in hex summary.
+/// 十六进制摘要最多展示的字节数。
 const int _maxHexBytes = 32;
 
-/// Envelope wrapping a parsed (or unparsed) MQTT Protobuf message.
+/// 已解析或未解析 MQTT Protobuf 消息的统一信封。
 class ProtobufEnvelope {
-  /// Creates a [ProtobufEnvelope].
+  /// 创建 [ProtobufEnvelope]。
   ProtobufEnvelope({
     required this.topic,
     required this.messageType,
@@ -29,22 +28,22 @@ class ProtobufEnvelope {
     this.protobufMessage,
   });
 
-  /// MQTT topic name.
+  /// MQTT 主题名称。
   final String topic;
 
-  /// Protobuf message type identifier.
+  /// Protobuf 消息类型标识符。
   final String messageType;
 
-  /// Raw Protobuf bytes (for debugging and fallback).
+  /// 原始 Protobuf 字节，用于调试和降级记录。
   final Uint8List rawBytes;
 
-  /// Reception timestamp.
+  /// 接收时间戳。
   final DateTime timestamp;
 
-  /// Parsed Protobuf message instance (null if type unrecognized).
+  /// 已解析的 Protobuf 消息实例；类型未识别时为 null。
   final GeneratedMessage? protobufMessage;
 
-  /// Whether this envelope contains a recognized message type.
+  /// 此信封是否包含已识别的消息类型。
   bool get isRecognized => protobufMessage != null;
 
   @override
@@ -53,15 +52,15 @@ class ProtobufEnvelope {
       'recognized: $isRecognized, bytes: ${rawBytes.length})';
 }
 
-/// Parses MQTT payloads based on topic name.
+/// 按主题名解析 MQTT 载荷。
 class ProtobufParser {
-  /// Creates a [ProtobufParser] with optional [logger].
+  /// 创建 [ProtobufParser]，可选传入 [logger] 记录降级信息。
   ProtobufParser({this.logger});
 
-  /// Optional logger for unrecognized messages and parse errors.
+  /// 用于记录未识别消息和解析错误的可选日志回调。
   final void Function(String)? logger;
 
-  /// Topic name to Protobuf message factory mapping.
+  /// 主题名到 Protobuf 消息工厂的映射。
   static final Map<String, GeneratedMessage Function()> messageFactories = {
     topicKeyboardMouseControl: KeyboardMouseControl.new,
     topicCustomControl: CustomControl.new,
@@ -102,10 +101,10 @@ class ProtobufParser {
     topicAirSupportStatusSync: AirSupportStatusSync.new,
   };
 
-  /// Parses [payload] received on [topic] into a [ProtobufEnvelope].
+  /// 将在 [topic] 上收到的 [payload] 解析为 [ProtobufEnvelope]。
   ///
-  /// If [topic] is unrecognized, returns an envelope with
-  /// [ProtobufEnvelope.protobufMessage] set to null and logs the raw bytes.
+  /// 如果 [topic] 未识别，则返回 [ProtobufEnvelope.protobufMessage] 为 null
+  /// 的信封，并记录原始字节摘要。
   ProtobufEnvelope parse(String topic, Uint8List payload) {
     final factory = messageFactories[topic];
 
@@ -144,7 +143,7 @@ class ProtobufParser {
     }
   }
 
-  /// Returns a hex string summary of [data] (first [_maxHexBytes] bytes).
+  /// 返回 [data] 前 [_maxHexBytes] 字节的十六进制摘要。
   static String _hexSummary(Uint8List data) {
     final slice =
         data.length > _maxHexBytes ? data.sublist(0, _maxHexBytes) : data;

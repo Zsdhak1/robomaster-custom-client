@@ -1,16 +1,16 @@
-/// Robot identity for client login selection.
+/// 客户端登录选择使用的机器人身份。
 ///
-/// IDs follow RoboMaster protocol: red side = 1/2/3/4/6/7,
-/// blue side = red + 100 (e.g. 101 = blue hero).
+/// ID 遵循 RoboMaster 协议：红方 = 1/2/3/4/6/7，蓝方 = 红方 + 100
+/// （例如 101 = 蓝方英雄）。
 library;
 
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_theme.dart';
 
-/// A selectable robot identity with display name, side color, and protocol ID.
+/// 一个可选择的机器人身份，包含显示名称、阵营颜色和协议 ID。
 class RobotIdentity {
-  /// Creates a [RobotIdentity].
+  /// 创建 [RobotIdentity]。
   const RobotIdentity({
     required this.displayName,
     required this.id,
@@ -18,20 +18,20 @@ class RobotIdentity {
     required this.iconAsset,
   });
 
-  /// Display name shown in the grid selector (e.g. '红方英雄').
+  /// 网格选择器中显示的名称，例如“红方英雄”。
   final String displayName;
 
-  /// Protocol robot ID (red side: 1,2,3,4,6,7; blue side: +100).
+  /// 协议机器人 ID（红方：1,2,3,4,6,7；蓝方：+100）。
   final int id;
 
-  /// Team color for visual distinction.
+  /// 用于视觉区分的队伍颜色。
   final Color sideColor;
 
-  /// Asset path for the robot avatar image.
+  /// 机器人头像图片资源路径。
   final String iconAsset;
 }
 
-/// Red side robot definitions.
+/// 红方机器人定义。
 const _redRobots = [
   RobotIdentity(
     displayName: '红方英雄',
@@ -71,7 +71,7 @@ const _redRobots = [
   ),
 ];
 
-/// Blue side robot definitions (id = red id + 100 per protocol).
+/// 蓝方机器人定义；按协议 ID = 红方 ID + 100。
 const _blueRobots = [
   RobotIdentity(
     displayName: '蓝方英雄',
@@ -111,19 +111,19 @@ const _blueRobots = [
   ),
 ];
 
-/// All selectable robot identities: red side first, then blue side.
+/// 所有可选择机器人身份：红方在前，蓝方在后。
 const List<RobotIdentity> allRobotIdentities = [
   ..._redRobots,
   ..._blueRobots,
 ];
 
-/// Red side robot identities (protocol ids 1-7).
+/// 红方机器人身份（协议 ID 1-7）。
 const List<RobotIdentity> redRobotIdentities = _redRobots;
 
-/// Blue side robot identities (protocol ids 101-107).
+/// 蓝方机器人身份（协议 ID 101-107）。
 const List<RobotIdentity> blueRobotIdentities = _blueRobots;
 
-/// Resolves a robot ID to its display name.
+/// 将机器人 ID 解析为显示名称。
 String robotDisplayName(int id) {
   for (final robot in allRobotIdentities) {
     if (robot.id == id) return robot.displayName;
@@ -131,7 +131,7 @@ String robotDisplayName(int id) {
   return '未知 ($id)';
 }
 
-/// Resolves a robot ID to its [RobotIdentity], or null if unknown.
+/// 将机器人 ID 解析为 [RobotIdentity]；未知时返回 null。
 RobotIdentity? robotIdentityById(int id) {
   for (final robot in allRobotIdentities) {
     if (robot.id == id) return robot;
@@ -139,21 +139,20 @@ RobotIdentity? robotIdentityById(int id) {
   return null;
 }
 
-/// The infantry number (3 or 4) overlaid on the shared infantry icon, or null
-/// for robots that don't share an icon.
+/// 需要叠加在共享步兵图标上的编号（3 或 4）；其他机器人返回 null。
 ///
-/// Red 3/4 (ids 3/4) and blue 3/4 (ids 103/104) reuse the same
-/// `*SentryInfantry.png` asset, so the digit is the only visual distinction.
+/// 红方 3/4（ID 3/4）和蓝方 3/4（ID 103/104）复用同一
+/// `*SentryInfantry.png` 资源，因此数字是唯一视觉区分。
 int? infantryBadgeNumber(int id) {
   final base = id >= 100 ? id - 100 : id;
   return (base == 3 || base == 4) ? base : null;
 }
 
-/// Whether [id] belongs to the blue side (protocol ids >= 100).
+/// [id] 是否属于蓝方（协议 ID >= 100）。
 bool isBlueSide(int id) => id >= 100;
 
-/// Resolves the team accent color used for login theme switching.
+/// 解析登录主题切换使用的队伍强调色。
 ///
-/// Blue side (id >= 100) → [rmBlueTeamColor], red side → [rmRedTeamColor].
+/// 蓝方（ID >= 100）→ [rmBlueTeamColor]，红方 → [rmRedTeamColor]。
 Color teamAccentColor(int id) =>
     isBlueSide(id) ? rmBlueTeamColor : rmRedTeamColor;

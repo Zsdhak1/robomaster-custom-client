@@ -19,7 +19,26 @@
       "Bash(grep -v \"^$\")",
       "Bash(protoc --version)",
       "Bash(xargs grep -l \"CustomByteBlock\\\\|custom_byte\\\\|customVideo\\\\|CustomVideo\\\\|is_frame_start\\\\|isFrameStart\")",
-      "Bash(xxd -l 64 _dump.h264)"
+      "Bash(xxd -l 64 _dump.h264)",
+      "Bash(dart analyze *)",
+      "Bash(dart fix *)",
+      "Bash(dart format *)",
+      "Bash(git stash *)",
+      "Read(//home/user/.claude/**)",
+      "Read(//mnt/c/Users/hhh20/.claude/**)",
+      "Read(//c/Users/hhh20/.claude/skills/**)",
+      "Read(//etc/**)",
+      "Bash(mount)",
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(Get-Content *)",
+      "Bash(python -c \"import json; d=json.load\\(open\\('.claude/settings.json',encoding='utf-8'\\)\\); print\\('JSON OK'\\); print\\('Stop hook prompt 已更新，含零改动豁免:', '零改动任务' in d['hooks']['Stop'][0]['hooks'][0]['prompt']\\); print\\('保留的 hooks:', list\\(d['hooks'].keys\\(\\)\\)\\)\")",
+      "Bash(flutter --version)",
+      "PowerShell($fp = \\(Get-Command flutter\\).Source; $root = Split-Path \\(Split-Path $fp\\); $nr = Join-Path $root \"packages\\\\flutter\\\\lib\\\\src\\\\material\\\\navigation_rail.dart\"; Write-Output \"FlutterRoot: $root\"; Write-Output \"NavRail exists: $\\(Test-Path $nr\\)\"; Write-Output $nr)",
+      "PowerShell(dart format *)",
+      "PowerShell(flutter analyze *)",
+      "PowerShell(flutter test *)",
+      "WebFetch(domain:github.com)",
+      "mcp__codebase-memory-mcp__index_repository"
     ]
   }
 }

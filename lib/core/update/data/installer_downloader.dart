@@ -1,4 +1,4 @@
-/// Platform-aware installer download / launch helpers.
+/// 平台感知的安装包下载和启动辅助函数。
 library;
 
 import 'dart:async';
@@ -9,32 +9,34 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../domain/github_release.dart';
 
-/// Result of attempting to download or launch an installer.
+const Duration _installerDownloadTimeout = Duration(seconds: 30);
+
+/// 下载或启动安装包的操作结果。
 class InstallerResult {
-  /// Creates an [InstallerResult].
+  /// 创建 [InstallerResult]。
   const InstallerResult({required this.ok, this.message = '', this.localPath});
 
-  /// Whether the operation succeeded.
+  /// 操作是否成功。
   final bool ok;
 
-  /// Human-readable detail.
+  /// 可读详情。
   final String message;
 
-  /// Local file path when the installer was downloaded on Android.
+  /// Android 下载安装包后的本地文件路径。
   final String? localPath;
 
-  /// Successful result.
+  /// 成功结果。
   factory InstallerResult.success([String message = '', String? path]) {
     return InstallerResult(ok: true, message: message, localPath: path);
   }
 
-  /// Failed result.
+  /// 失败结果。
   factory InstallerResult.failure(String message) {
     return InstallerResult(ok: false, message: message);
   }
 }
 
-/// Picks the best installer asset for the current platform.
+/// 为当前平台选择最合适的安装包资源。
 GitHubAsset? pickBestAsset(List<GitHubAsset> assets) {
   if (assets.isEmpty) return null;
 
@@ -75,14 +77,12 @@ GitHubAsset? pickBestAsset(List<GitHubAsset> assets) {
   return assets.first;
 }
 
-/// Downloads or launches the selected asset in a platform-appropriate way.
+/// 以平台合适的方式下载或启动已选资源。
 ///
-/// - Android: downloads the APK to the app cache, then launches the file URI
-///   to trigger the system package installer.
-/// - Linux / Windows / macOS: opens the browser download URL with the user's
-///   default handler.
+/// - Android：将 APK 下载到应用缓存，然后打开文件 URI 触发系统包安装器。
+/// - Linux / Windows / macOS：使用用户默认处理程序打开浏览器下载 URL。
 ///
-/// Never throws; failures are returned as [InstallerResult.failure].
+/// 不向外抛出异常；失败会以 [InstallerResult.failure] 返回。
 Future<InstallerResult> downloadOrLaunchInstaller(GitHubAsset asset) async {
   if (Platform.isAndroid) {
     return _downloadAndroidApk(asset);
@@ -103,7 +103,7 @@ Future<InstallerResult> _downloadAndroidApk(GitHubAsset asset) async {
     final dir = await getTemporaryDirectory();
     final safeName = asset.name.replaceAll(RegExp(r'[^\w\-\.]'), '_');
     final file = File('${dir.path}/$safeName');
-    await response.pipe(file.openWrite());
+    await response.pipe(file.openWrite()).timeout(_installerDownloadTimeout);
 
     final fileUri = Uri.file(file.path);
     if (await canLaunchUrl(fileUri)) {
@@ -123,20 +123,24 @@ Future<InstallerResult> _downloadAndroidApk(GitHubAsset asset) async {
 }
 
 Future<InstallerResult> _launchBrowser(String url) async {
-  final uri = Uri.parse(url);
-  if (!await canLaunchUrl(uri)) {
-    return InstallerResult.failure('无法打开浏览器');
+  try {
+    final uri = Uri.parse(url);
+    if (!await canLaunchUrl(uri)) {
+      return InstallerResult.failure('无法打开浏览器');
+    }
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+    return InstallerResult.success('已打开浏览器下载');
+  } on Exception catch (e) {
+    return InstallerResult.failure('打开下载链接失败：$e');
   }
-  await launchUrl(uri, mode: LaunchMode.externalApplication);
-  return InstallerResult.success('已打开浏览器下载');
 }
 
-/// Opens the release page in the default browser.
+/// 在默认浏览器中打开发布页。
 Future<InstallerResult> openReleasePage(String htmlUrl) async {
   return _launchBrowser(htmlUrl);
 }
 
-/// Formats [bytes] into a human-readable size string.
+/// 将 [bytes] 格式化为可读大小字符串。
 String formatBytes(int bytes) {
   if (bytes < 1024) return '$bytes B';
   final kb = bytes / 1024;

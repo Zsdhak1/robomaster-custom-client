@@ -1,4 +1,4 @@
-/// Riverpod providers for the data export screen.
+/// 数据导出页面使用的 Riverpod Provider。
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,19 +10,19 @@ import '../data/match_record_scanner.dart';
 import '../domain/match_record.dart';
 import 'data_import_provider.dart';
 
-/// Scans the configured export directory and returns saved [MatchRecord]s.
+/// 扫描已配置的导出目录，并返回保存的 [MatchRecord] 列表。
 ///
-/// Refresh this provider after export/import/delete to update the list.
+/// 导出、导入或删除后刷新此 Provider，即可更新列表。
 final matchRecordsProvider = FutureProvider<List<MatchRecord>>((ref) async {
   final directory = ref.watch(exportDirectoryProvider);
   final scanner = MatchRecordScanner(exportDirectory: directory);
   return scanner.scan();
 });
 
-/// Path of the currently selected record for the right-side preview.
+/// 右侧预览面板当前选中记录的路径。
 final selectedRecordProvider = StateProvider<String?>((ref) => null);
 
-/// Events extracted from the currently selected record.
+/// 从当前选中记录中提取的事件。
 final selectedRecordEventsProvider = FutureProvider<List<TimedEvent>>((ref) async {
   final path = ref.watch(selectedRecordProvider);
   if (path == null) return [];
@@ -42,7 +42,7 @@ final selectedRecordEventsProvider = FutureProvider<List<TimedEvent>>((ref) asyn
   return events;
 });
 
-/// Summary of the currently selected record.
+/// 当前选中记录的摘要。
 final selectedRecordSummaryProvider = Provider<AsyncValue<MatchRecord?>>((ref) {
   final path = ref.watch(selectedRecordProvider);
   final recordsAsync = ref.watch(matchRecordsProvider);

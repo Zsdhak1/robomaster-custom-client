@@ -1,4 +1,4 @@
-/// Riverpod providers for MQTT and UDP data streams.
+/// MQTT 和 UDP 数据流使用的 Riverpod Provider。
 library;
 
 import 'package:flutter/foundation.dart';
@@ -6,43 +6,40 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/protobuf/protobuf_parser.dart';
 import '../../../core/video/video_frame.dart';
-import '../../../generated/robomaster_custom_client.pb.dart';
 import '../../../services/ffplay_decoder.dart';
 import '../../../services/mqtt_service.dart';
 import '../../../services/video_stream_service.dart';
 import '../../settings/logic/settings_providers.dart';
-import 'dashboard_notification_controller.dart';
-import 'dashboard_notification_factory.dart';
 import 'dashboard_notification_models.dart';
 import 'game_state.dart';
 import 'game_state_notifier.dart';
 
 // ============================================================
-// Service instances (kept alive as long as the app runs)
+// 服务实例（随应用生命周期保持存活）
 // ============================================================
 
-/// Provides the singleton [MqttService] instance.
+/// 提供单例 [MqttService] 实例。
 final mqttServiceProvider = Provider<MqttService>((ref) {
   final service = MqttService(clientId: 'robomaster_monitor');
   ref.onDispose(service.dispose);
   return service;
 });
 
-/// Provides the singleton [VideoStreamService] instance.
+/// 提供单例 [VideoStreamService] 实例。
 final videoStreamServiceProvider = Provider<VideoStreamService>((ref) {
   final service = VideoStreamService();
   ref.onDispose(service.dispose);
   return service;
 });
 
-/// Provides the singleton [FfplayDecoder] (Windows verification backend).
+/// 提供单例 [FfplayDecoder]，用于 Windows 验证后端。
 final ffplayDecoderProvider = Provider<FfplayDecoder>((ref) {
   final decoder = FfplayDecoder();
   ref.onDispose(decoder.dispose);
   return decoder;
 });
 
-/// Provides the [ProtobufParser] instance.
+/// 提供 [ProtobufParser] 实例。
 final protobufParserProvider = Provider<ProtobufParser>((ref) {
   return ProtobufParser(
     logger: (message) => debugPrint('[ProtobufParser] $message'),
@@ -50,36 +47,34 @@ final protobufParserProvider = Provider<ProtobufParser>((ref) {
 });
 
 // ============================================================
-// Stream providers
+// 流 Provider
 // ============================================================
 
-/// Stream of parsed Protobuf envelopes from MQTT.
+/// 来自 MQTT 的已解析 Protobuf 信封流。
 ///
-/// Listens to [MqttService.messageStream] and parses each payload.
+/// 监听 [MqttService.messageStream] 并解析每个载荷。
 final mqttMessageProvider = StreamProvider<ProtobufEnvelope>((ref) {
   final mqtt = ref.watch(mqttServiceProvider);
   final parser = ref.watch(protobufParserProvider);
 
-  return mqtt.messageStream.map(
-    (msg) => parser.parse(msg.topic, msg.payload),
-  );
+  return mqtt.messageStream.map((msg) => parser.parse(msg.topic, msg.payload));
 });
 
-/// Stream of reassembled HEVC video frames from UDP 3334.
+/// 来自 UDP 3334 的已重组 HEVC 视频帧流。
 final videoFrameProvider = StreamProvider<VideoFrame>((ref) {
   final video = ref.watch(videoStreamServiceProvider);
   return video.frameStream;
 });
 
-/// Connection state stream from MQTT service.
+/// 来自 MQTT 服务的连接状态流。
 final mqttConnectionStateProvider = StreamProvider<MqttConnectionState>((ref) {
   final mqtt = ref.watch(mqttServiceProvider);
   return mqtt.stateStream;
 });
 
-/// Current MQTT connection state.
+/// 当前 MQTT 连接状态。
 ///
-/// Uses [AsyncValue] so that consumers rebuild on state changes.
+/// 使用 [AsyncValue]，让消费者在状态变化时重建。
 final mqttConnectionStateSyncProvider = Provider<MqttConnectionState>((ref) {
   final asyncValue = ref.watch(mqttConnectionStateProvider);
   return asyncValue.when(
@@ -89,54 +84,55 @@ final mqttConnectionStateSyncProvider = Provider<MqttConnectionState>((ref) {
   );
 });
 
-/// Whether UDP video stream is currently listening.
+/// UDP 视频流当前是否正在监听。
 final udpListeningProvider = Provider<bool>((ref) {
   final video = ref.watch(videoStreamServiceProvider);
   return video.isListening;
 });
 
-/// Reactive controller for starting/stopping the UDP video stream.
+/// 用于启动和停止 UDP 视频流的响应式控制器。
 ///
-/// [VideoStreamService.isListening] is not reactive on its own, so this
-/// notifier mirrors the listening state and drives UI rebuilds on toggle.
+/// [VideoStreamService.isListening] 本身不是响应式状态，因此该通知器负责同步监听状态，
+/// 并在切换时驱动 UI 重建。
 class VideoStreamController extends StateNotifier<bool> {
-  /// Creates a [VideoStreamController] bound to [_service].
+  /// 创建绑定到 [_service] 的 [VideoStreamController]。
   VideoStreamController(this._service) : super(_service.isListening);
 
   final VideoStreamService _service;
 
-  /// Starts the UDP listener and reflects the new state.
+  /// 启动 UDP 监听器并同步最新状态。
   Future<void> start() async {
     await _service.start();
     state = _service.isListening;
   }
 
-  /// Stops the UDP listener and reflects the new state.
+  /// 停止 UDP 监听器并同步最新状态。
   void stop() {
     _service.stop();
     state = _service.isListening;
   }
 
-  /// Toggles the listener on/off.
+  /// 切换监听器开关状态。
   Future<void> toggle() => state ? Future.sync(stop) : start();
 }
 
-/// Exposes the reactive video-stream listening state and controls.
+/// 暴露响应式视频流监听状态和控制器。
 final videoStreamControllerProvider =
     StateNotifierProvider<VideoStreamController, bool>((ref) {
-  final service = ref.watch(videoStreamServiceProvider);
-  return VideoStreamController(service);
-});
+      final service = ref.watch(videoStreamServiceProvider);
+      return VideoStreamController(service);
+    });
 
 // ============================================================
-// Aggregated game state
+// 聚合比赛状态。
 // ============================================================
 
-/// Aggregated game state from all MQTT status messages.
+/// 从所有 MQTT 状态消息聚合比赛状态。
 ///
-/// Updated incrementally as new Protobuf envelopes arrive.
-final gameStateProvider =
-    StateNotifierProvider<GameStateNotifier, GameState>((ref) {
+/// 新的 Protobuf 信封到达时增量更新。
+final gameStateProvider = StateNotifierProvider<GameStateNotifier, GameState>((
+  ref,
+) {
   final notifier = GameStateNotifier();
 
   ref
@@ -154,25 +150,8 @@ final gameStateProvider =
   return notifier;
 });
 
-/// Ephemeral dashboard notification queue used by the live overlay preview.
-final dashboardNotificationProvider = StateNotifierProvider<
-    DashboardNotificationController, DashboardNotificationState>((ref) {
-  final controller = DashboardNotificationController();
-
-  ref.listen(mqttMessageProvider, (_, next) {
-    next.whenData((envelope) {
-      final message = envelope.protobufMessage;
-      if (message is Event) {
-        controller.show(notificationFromEvent(message));
-      }
-    });
-  });
-
-  return controller;
-});
-
-/// Current persisted notification style selection.
+/// 当前已持久化的通知样式选择。
 final dashboardNotificationStyleSyncProvider =
     Provider<DashboardNotificationStyle>(
-  (ref) => ref.watch(dashboardNotificationStyleProvider),
-);
+      (ref) => ref.watch(dashboardNotificationStyleProvider),
+    );

@@ -1,13 +1,12 @@
-/// Binary data reading utilities for protocol parsing.
+/// 协议解析用二进制数据读取工具。
 ///
-/// All methods read in little-endian order.
-/// HEVC NALU prefix detection helpers included.
+/// 默认读取小端序数值，同时提供 HEVC AnnexB 起始码和参数集检测辅助函数。
 library;
 
 import 'dart:typed_data';
 
 // ============================================================
-// AnnexB start code constants
+// AnnexB 起始码常量
 // ============================================================
 
 const int _annexbByteZero = 0x00;
@@ -30,10 +29,10 @@ const List<int> _annexbShortPrefix = [
 ];
 
 // ============================================================
-// Little-endian integer readers
+// 小端序整数读取
 // ============================================================
 
-/// Validates that [offset] is non-negative and [requiredBytes] fit in [data].
+/// 校验 [offset] 非负，且 [requiredBytes] 字节不会越过 [data] 边界。
 void _checkBounds(Uint8List data, int offset, int requiredBytes, String name) {
   if (offset < 0) {
     throw RangeError('$name: offset $offset is negative');
@@ -46,19 +45,19 @@ void _checkBounds(Uint8List data, int offset, int requiredBytes, String name) {
   }
 }
 
-/// Reads a little-endian uint8 from [data] at [offset].
+/// 从 [data] 的 [offset] 位置读取一个 uint8。
 int readUint8(Uint8List data, int offset) {
   _checkBounds(data, offset, 1, 'readUint8');
   return data[offset];
 }
 
-/// Reads a little-endian uint16 from [data] at [offset].
+/// 从 [data] 的 [offset] 位置读取一个小端序 uint16。
 int readUint16(Uint8List data, int offset) {
   _checkBounds(data, offset, 2, 'readUint16');
   return data[offset] | (data[offset + 1] << 8);
 }
 
-/// Reads a little-endian uint32 from [data] at [offset].
+/// 从 [data] 的 [offset] 位置读取一个小端序 uint32。
 int readUint32(Uint8List data, int offset) {
   _checkBounds(data, offset, 4, 'readUint32');
   return data[offset] |
@@ -67,9 +66,9 @@ int readUint32(Uint8List data, int offset) {
       (data[offset + 3] << 24);
 }
 
-/// Reads a little-endian float32 from [data] at [offset].
+/// 从 [data] 的 [offset] 位置读取一个小端序 float32。
 ///
-/// Uses ByteData for IEEE 754 conversion.
+/// 使用 [ByteData] 完成 IEEE 754 转换。
 double readFloat32(Uint8List data, int offset) {
   _checkBounds(data, offset, 4, 'readFloat32');
   final byteData = ByteData.sublistView(data, offset, offset + 4);
@@ -77,16 +76,16 @@ double readFloat32(Uint8List data, int offset) {
 }
 
 // ============================================================
-// Big-endian integer readers (network byte order)
+// 大端序整数读取（网络字节序）
 // ============================================================
 
-/// Reads a big-endian uint16 from [data] at [offset].
+/// 从 [data] 的 [offset] 位置读取一个大端序 uint16。
 int readUint16BE(Uint8List data, int offset) {
   _checkBounds(data, offset, 2, 'readUint16BE');
   return (data[offset] << 8) | data[offset + 1];
 }
 
-/// Reads a big-endian uint32 from [data] at [offset].
+/// 从 [data] 的 [offset] 位置读取一个大端序 uint32。
 int readUint32BE(Uint8List data, int offset) {
   _checkBounds(data, offset, 4, 'readUint32BE');
   return (data[offset] << 24) |
@@ -96,10 +95,10 @@ int readUint32BE(Uint8List data, int offset) {
 }
 
 // ============================================================
-// AnnexB start code detection
+// AnnexB 起始码检测
 // ============================================================
 
-/// Checks if [data] at [offset] starts with AnnexB start code (4 bytes).
+/// 检查 [data] 从 [offset] 开始是否为 4 字节 AnnexB 起始码。
 bool hasAnnexbStartCode(Uint8List data, int offset) {
   if (offset + _annexbLongPrefixLength > data.length) return false;
   for (var i = 0; i < _annexbLongPrefixLength; i++) {
@@ -108,7 +107,7 @@ bool hasAnnexbStartCode(Uint8List data, int offset) {
   return true;
 }
 
-/// Checks if [data] at [offset] starts with short AnnexB start code (3 bytes).
+/// 检查 [data] 从 [offset] 开始是否为 3 字节短 AnnexB 起始码。
 bool hasAnnexbStartCodeShort(Uint8List data, int offset) {
   if (offset + _annexbShortPrefixLength > data.length) return false;
   for (var i = 0; i < _annexbShortPrefixLength; i++) {
@@ -117,20 +116,19 @@ bool hasAnnexbStartCodeShort(Uint8List data, int offset) {
   return true;
 }
 
-/// Checks if [data] at [offset] starts with any AnnexB start code variant.
+/// 检查 [data] 从 [offset] 开始是否为任意 AnnexB 起始码变体。
 bool hasAnyAnnexbStartCode(Uint8List data, int offset) {
   return hasAnnexbStartCode(data, offset) ||
       hasAnnexbStartCodeShort(data, offset);
 }
 
 // ============================================================
-// Bit extraction
+// 位字段提取
 // ============================================================
 
-/// Extracts bit field from [value] between [startBit] (inclusive)
-/// and [endBit] (exclusive).
+/// 从 [value] 中提取 [startBit]（含）到 [endBit]（不含）之间的位字段。
 ///
-/// Example: extractBits(0b101100, 1, 4) => 0b110 = 6
+/// 示例：`extractBits(0b101100, 1, 4) == 0b110`。
 int extractBits(int value, int startBit, int endBit) {
   if (startBit < 0) {
     throw ArgumentError('startBit must be non-negative, got $startBit');
@@ -151,13 +149,13 @@ int extractBits(int value, int startBit, int endBit) {
 }
 
 // ============================================================
-// AnnexB prefix helpers
+// AnnexB 前缀辅助函数
 // ============================================================
 
-/// Creates a Uint8List containing the 4-byte AnnexB start code.
+/// 创建包含 4 字节 AnnexB 起始码的 [Uint8List]。
 Uint8List createAnnexbStartCode() => Uint8List.fromList(_annexbLongPrefix);
 
-/// Prepends AnnexB start code to [naluData] if not already present.
+/// 如果 [naluData] 尚未包含 AnnexB 起始码，则在前面补上。
 Uint8List ensureAnnexbPrefix(Uint8List naluData) {
   if (hasAnyAnnexbStartCode(naluData, 0)) return naluData;
   final result = Uint8List(naluData.length + _annexbLongPrefixLength)
@@ -167,20 +165,19 @@ Uint8List ensureAnnexbPrefix(Uint8List naluData) {
 }
 
 // ============================================================
-// HEVC parameter-set detection
+// HEVC 参数集检测
 // ============================================================
 
-/// HEVC nal_unit_type values for parameter sets.
+/// HEVC 参数集对应的 `nal_unit_type` 值。
 const int _hevcNalVps = 32;
 const int _hevcNalSps = 33;
 const int _hevcNalPps = 34;
 
-/// Returns true if [data] contains a VPS, SPS or PPS NAL unit.
+/// 当 [data] 包含 VPS、SPS 或 PPS NAL 单元时返回 true。
 ///
-/// Walks AnnexB start codes (3- or 4-byte) and reads the 6-bit
-/// nal_unit_type from the byte after each start code. A frame carrying any
-/// of these parameter sets is the keyframe the decoder must see before it
-/// can render anything.
+/// 遍历 3 字节或 4 字节 AnnexB 起始码，并读取每个起始码之后的 6 位
+/// `nal_unit_type`。携带这些参数集之一的帧就是解码器开始渲染前必须看到的
+/// 关键帧。
 bool hevcHasParameterSet(Uint8List data) {
   final n = data.length;
   var i = 0;

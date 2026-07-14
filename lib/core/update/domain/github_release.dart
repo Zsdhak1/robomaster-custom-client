@@ -1,12 +1,12 @@
-/// Data models for a GitHub Release and its assets.
+/// GitHub Release 及其资源的数据模型。
 library;
 
 import 'package:flutter/foundation.dart';
 
-/// A single release asset attached to a GitHub release.
+/// 附加在 GitHub Release 上的单个资源。
 @immutable
 class GitHubAsset {
-  /// Creates a [GitHubAsset].
+  /// 创建 [GitHubAsset]。
   const GitHubAsset({
     required this.name,
     required this.sizeBytes,
@@ -14,19 +14,19 @@ class GitHubAsset {
     required this.contentType,
   });
 
-  /// File name of the asset, e.g. `robomaster-custom-client-1.2.3.apk`.
+  /// 资源文件名，例如 `robomaster-custom-client-1.2.3.apk`。
   final String name;
 
-  /// Size in bytes.
+  /// 文件大小，单位为字节。
   final int sizeBytes;
 
-  /// Direct download URL returned by GitHub.
+  /// GitHub 返回的直接下载 URL。
   final String browserDownloadUrl;
 
-  /// MIME type reported by GitHub.
+  /// GitHub 报告的 MIME 类型。
   final String contentType;
 
-  /// Parses a GitHub asset from the JSON shape returned by the Releases API.
+  /// 从 Release API 返回的 JSON 结构解析 GitHub 资源。
   factory GitHubAsset.fromJson(Map<String, dynamic> json) {
     return GitHubAsset(
       name: json['name'] as String? ?? '',
@@ -37,11 +37,10 @@ class GitHubAsset {
   }
 }
 
-/// A GitHub release entry, usually the latest one returned by
-/// `/repos/{owner}/{repo}/releases/latest`.
+/// 一个 GitHub Release 条目，通常来自 `/repos/{owner}/{repo}/releases/latest`。
 @immutable
 class GitHubRelease {
-  /// Creates a [GitHubRelease].
+  /// 创建 [GitHubRelease]。
   const GitHubRelease({
     required this.tagName,
     required this.name,
@@ -51,25 +50,25 @@ class GitHubRelease {
     required this.htmlUrl,
   });
 
-  /// Tag name, e.g. `v1.2.3`.
+  /// Tag 名称，例如 `v1.2.3`。
   final String tagName;
 
-  /// Human-readable release title.
+  /// 可读发布标题。
   final String name;
 
-  /// Release notes in Markdown.
+  /// Markdown 格式的发布说明。
   final String body;
 
-  /// Publication timestamp.
+  /// 发布时间戳。
   final DateTime publishedAt;
 
-  /// Attachments for this release.
+  /// 该发布附带的资源。
   final List<GitHubAsset> assets;
 
-  /// URL of the release page in a browser.
+  /// 浏览器中打开发布页的 URL。
   final String htmlUrl;
 
-  /// Parses a GitHub release from the JSON shape returned by the Releases API.
+  /// 从 Release API 返回的 JSON 结构解析 GitHub Release。
   factory GitHubRelease.fromJson(Map<String, dynamic> json) {
     DateTime? parsed;
     final raw = json['published_at'] as String?;
@@ -96,10 +95,10 @@ class GitHubRelease {
   }
 }
 
-/// Result of an update check, always safe to display.
+/// 更新检查结果，可安全展示给 UI。
 @immutable
 class UpdateCheckResult {
-  /// Creates an [UpdateCheckResult].
+  /// 创建 [UpdateCheckResult]。
   const UpdateCheckResult({
     this.hasUpdate = false,
     this.release,
@@ -109,25 +108,25 @@ class UpdateCheckResult {
     this.isRateLimited = false,
   });
 
-  /// Whether a newer version is available.
+  /// 是否有新版本可用。
   final bool hasUpdate;
 
-  /// The latest release when the check succeeded.
+  /// 检查成功时得到的最新发布信息。
   final GitHubRelease? release;
 
-  /// The app's current version string.
+  /// 应用当前版本字符串。
   final String currentVersion;
 
-  /// The latest version string parsed from the release tag.
+  /// 从 release tag 解析出的最新版本字符串。
   final String latestVersion;
 
-  /// Localized error message when the check failed; null on success.
+  /// 检查失败时的本地化错误消息；成功时为 null。
   final String? errorMessage;
 
-  /// True when GitHub returned 403 (likely rate-limited).
+  /// GitHub 返回 403 时为 true，通常表示触发限流。
   final bool isRateLimited;
 
-  /// Convenience: a result representing "already up to date".
+  /// 创建表示“已是最新版本”的结果。
   factory UpdateCheckResult.upToDate({
     required String currentVersion,
     required String latestVersion,
@@ -138,7 +137,7 @@ class UpdateCheckResult {
     );
   }
 
-  /// Convenience: a result representing a check failure.
+  /// 创建表示检查失败的结果。
   factory UpdateCheckResult.error({
     required String message,
     required String currentVersion,

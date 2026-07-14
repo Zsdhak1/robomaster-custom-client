@@ -22,7 +22,7 @@ void CreateAndAttachConsole() {
 }
 
 std::vector<std::string> GetCommandLineArguments() {
-  // Convert the UTF-16 command line arguments to UTF-8 for the Engine to use.
+  // 将 UTF-16 命令行参数转换为 Engine 使用的 UTF-8。
   int argc;
   wchar_t** argv = ::CommandLineToArgvW(::GetCommandLineW(), &argc);
   if (argv == nullptr) {
@@ -31,7 +31,7 @@ std::vector<std::string> GetCommandLineArguments() {
 
   std::vector<std::string> command_line_arguments;
 
-  // Skip the first argument as it's the binary name.
+  // 跳过第一个参数，因为它是二进制文件名称。
   for (int i = 1; i < argc; i++) {
     command_line_arguments.push_back(Utf8FromUtf16(argv[i]));
   }
@@ -45,12 +45,11 @@ std::string Utf8FromUtf16(const wchar_t* utf16_string) {
   if (utf16_string == nullptr) {
     return std::string();
   }
-  // First, find the length of the string with a safe upper bound (CWE-126).
-  // UNICODE_STRING_MAX_CHARS (32767) is the maximum length of a UNICODE_STRING.
+  // 先用安全上限查找字符串长度（CWE-126）。
+  // UNICODE_STRING_MAX_CHARS (32767) 是 UNICODE_STRING 的最大长度。
   int input_length = static_cast<int>(wcsnlen(utf16_string, UNICODE_STRING_MAX_CHARS));
-  // Now use that bounded length to determine the required buffer size.
-  // When an explicit length is passed, WideCharToMultiByte does not include
-  // the null terminator in its returned size.
+  // 使用有界长度计算所需缓冲区大小。
+  // 传入显式长度时，WideCharToMultiByte 返回大小不包含 null terminator。
   int target_length = ::WideCharToMultiByte(
       CP_UTF8, WC_ERR_INVALID_CHARS, utf16_string,
       input_length, nullptr, 0, nullptr, nullptr);

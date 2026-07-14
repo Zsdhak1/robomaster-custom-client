@@ -1,9 +1,9 @@
-/// Models for saved match records shown in the data management screen.
+/// 数据管理页面展示已保存比赛记录时使用的模型。
 library;
 
-/// A saved JSON match record parsed from the export directory.
+/// 从导出目录中解析出的已保存 JSON 比赛记录。
 class MatchRecord {
-  /// Creates a [MatchRecord].
+  /// 创建 [MatchRecord]。
   MatchRecord({
     required this.filePath,
     required this.fileName,
@@ -20,53 +20,52 @@ class MatchRecord {
     this.typeCounts = const {},
   });
 
-  /// Absolute path to the JSON file.
+  /// JSON 文件的绝对路径。
   final String filePath;
 
-  /// Base name of the JSON file.
+  /// JSON 文件基础名称。
   final String fileName;
 
-  /// Match start time derived from metadata or first message.
+  /// 从元数据或第一条消息推导出的比赛开始时间。
   final DateTime matchTime;
 
-  /// Robot identity that recorded this file.
+  /// 记录该文件的机器人身份。
   final int robotId;
 
-  /// Total number of messages in the file.
+  /// 文件中的消息总数。
   final int messageCount;
 
-  /// Final red team score, null if unavailable.
+  /// 红方最终得分；不可用时为 null。
   final int? redScore;
 
-  /// Final blue team score, null if unavailable.
+  /// 蓝方最终得分；不可用时为 null。
   final int? blueScore;
 
-  /// Recorded match duration, null if unavailable.
+  /// 已记录比赛持续时间；不可用时为 null。
   final Duration? duration;
 
-  /// Whether the recording reached the settlement stage (a complete match).
+  /// 记录是否到达结算阶段，即是否为完整比赛。
   final bool isComplete;
 
-  /// Whether this record was produced by merging multiple per-client files
-  /// (carries `metadata.merged == true`).
+  /// 该记录是否由多个客户端文件合并产生（`metadata.merged == true`）。
   final bool isMerged;
 
-  /// File size in bytes.
+  /// 文件大小，单位为字节。
   final int fileSizeBytes;
 
-  /// Number of [Event] messages in the file.
+  /// 文件中 [event] 消息的数量。
   final int eventCount;
 
-  /// Count of messages per message type (e.g. `{'GameStatus': 1200, ...}`).
+  /// 各消息类型的消息数量，例如 `{'GameStatus': 1200, ...}`。
   final Map<String, int> typeCounts;
 
-  /// Whether the record carries a final score.
+  /// 记录是否携带最终得分。
   bool get hasScore => redScore != null && blueScore != null;
 
-  /// True when this client logged in as a blue-side robot (ids >= 100).
+  /// 客户端以蓝方机器人登录时为 true（ID >= 100）。
   bool get isBlue => robotId >= 100;
 
-  /// One-line label for the left panel list tile.
+  /// 左侧面板列表项使用的单行标签。
   String get title {
     final date = '${matchTime.year}-${_twoDigits(matchTime.month)}-'
         '${_twoDigits(matchTime.day)}';
@@ -75,11 +74,11 @@ class MatchRecord {
     return score.isEmpty ? '$date $side' : '$date $side $score';
   }
 
-  /// `HH:mm` clock label of the match time.
+  /// 比赛时间的 `HH:mm` 时钟标签。
   String get timeLabel =>
       '${_twoDigits(matchTime.hour)}:${_twoDigits(matchTime.minute)}';
 
-  /// Human-readable duration like `7:30`, or `—` when unknown.
+  /// 可读持续时间，例如 `7:30`；未知时为 `—`。
   String get durationLabel {
     final d = duration;
     if (d == null) return '—';
@@ -88,7 +87,7 @@ class MatchRecord {
     return '$m:${_twoDigits(s)}';
   }
 
-  /// Human-readable file size like `1.2 MB` / `840 KB`.
+  /// 可读文件大小，例如 `1.2 MB` / `840 KB`。
   String get fileSizeLabel {
     if (fileSizeBytes <= 0) return '—';
     if (fileSizeBytes < 1024) return '$fileSizeBytes B';

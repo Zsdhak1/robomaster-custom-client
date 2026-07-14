@@ -1,8 +1,7 @@
-﻿/// Unit tests for [CustomVideoDecoderInfoNotifier].
+/// [CustomVideoDecoderInfoNotifier] 的单元测试。
 ///
-/// The debug panel relies on this notifier to accumulate decoder diagnostics
-/// (resolution, codec, errors) and a bounded rolling log; these tests pin that
-/// behaviour so the panel always reflects accurate state.
+/// 调试面板依赖该通知器累计解码器诊断信息（分辨率、编解码器、错误）和有界滚动日志；
+/// 这些测试固定其行为，确保面板始终反映准确状态。
 library;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -25,7 +24,7 @@ void main() {
       expect(n.state.backend, 'fvp');
       expect(n.state.attempt, 2);
       expect(n.state.lastError, isNull);
-      // One log for the error, one for the session open.
+      // 一条日志用于错误，一条日志用于会话打开。
       expect(n.state.logs.length, 2);
       expect(n.state.logs.last.message, contains('fvp'));
     });
@@ -43,7 +42,7 @@ void main() {
       expect(n.state.height, 720);
       expect(n.state.logs.length, 1);
 
-      // Same resolution again does not add a duplicate log.
+      // 相同分辨率再次上报时不添加重复日志。
       n.setResolution(1280, 720);
       expect(n.state.logs.length, 1);
     });
@@ -75,14 +74,14 @@ void main() {
 
     test('setPlaying only logs on a real transition', () {
       final n = CustomVideoDecoderInfoNotifier()
-        ..setPlaying(playing: false); // no-op (already false)
+        ..setPlaying(playing: false); // 空操作（已经是 false）。
       expect(n.state.logs, isEmpty);
 
       n.setPlaying(playing: true);
       expect(n.state.playing, isTrue);
       expect(n.state.logs.length, 1);
 
-      n.setPlaying(playing: true); // duplicate, no new log
+      n.setPlaying(playing: true); // 重复状态，不生成新日志。
       expect(n.state.logs.length, 1);
     });
 
@@ -91,7 +90,7 @@ void main() {
       for (var i = 0; i < 200; i++) {
         n.log(DecoderLogLevel.info, 'line $i');
       }
-      // Bounded; keeps only the tail.
+      // 日志有上限，只保留尾部最近记录。
       expect(n.state.logs.length, lessThanOrEqualTo(60));
       expect(n.state.logs.last.message, 'line 199');
     });

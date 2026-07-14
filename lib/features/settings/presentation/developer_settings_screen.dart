@@ -1,4 +1,4 @@
-﻿/// 开发者选项 — 调试面板与状态浮层开关
+/// 开发者选项 — 调试面板与状态浮层开关
 library;
 
 import 'package:flutter/material.dart';
@@ -6,12 +6,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../logic/settings_providers.dart';
 
-/// Sub-screen for developer options.
+/// 开发者选项子页面。
 class DeveloperSettingsScreen extends ConsumerWidget {
-  /// Creates a [DeveloperSettingsScreen].
+  /// 创建 [DeveloperSettingsScreen]。
   const DeveloperSettingsScreen({super.key, this.embedded = false});
 
-  /// When true, renders only the body without its own Scaffold/AppBar.
+  /// 为 true 时只渲染主体，不包含自己的 [Scaffold] 或 [AppBar]。
   final bool embedded;
 
   @override

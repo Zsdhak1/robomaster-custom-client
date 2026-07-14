@@ -1,7 +1,6 @@
-/// Ready‑to‑use widgets that scale with the window size.
+/// 随窗口大小缩放的开箱即用组件。
 ///
-/// These are thin wrappers that read [ResponsiveContext.scale] internally
-/// so callers do not need to repeat the scaling formula.
+/// 这些轻量封装会在内部读取 [ResponsiveContext.scale]，调用方无需重复书写缩放公式。
 library;
 
 import 'package:flutter/material.dart';
@@ -9,19 +8,18 @@ import 'package:flutter/material.dart';
 import 'responsive_ext.dart';
 
 // ---------------------------------------------------------------------------
-// ScaledSizedBox
+// ScaledSizedBox 缩放尺寸盒
 // ---------------------------------------------------------------------------
 
-/// A [SizedBox] whose [width] and [height] are multiplied by the current
-/// [ResponsiveContext.scale].
+/// [width] 与 [height] 会乘以当前 [ResponsiveContext.scale] 的 [SizedBox]。
 class ScaledSizedBox extends StatelessWidget {
-  /// Creates a [ScaledSizedBox].
+  /// 创建 [ScaledSizedBox]。
   const ScaledSizedBox({super.key, this.width, this.height});
 
-  /// Base width (will be scaled automatically).
+  /// 基准宽度，会自动缩放。
   final double? width;
 
-  /// Base height (will be scaled automatically).
+  /// 基准高度，会自动缩放。
   final double? height;
 
   @override
@@ -34,12 +32,12 @@ class ScaledSizedBox extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// ScaledPadding
+// ScaledPadding 缩放内边距
 // ---------------------------------------------------------------------------
 
-/// A [Padding] widget whose padding values are scaled.
+/// 会对内边距数值进行响应式缩放的 [Padding] 组件。
 class ScaledPadding extends StatelessWidget {
-  /// Creates a [ScaledPadding] with scaled [EdgeInsets.all].
+  /// 创建使用等距内边距的 [ScaledPadding]。
   const ScaledPadding.all({
     required this.child,
     required double value,
@@ -49,7 +47,7 @@ class ScaledPadding extends StatelessWidget {
        _h = 0,
        _v = 0;
 
-  /// Creates a [ScaledPadding] with scaled symmetric insets.
+  /// 创建使用水平/垂直对称内边距的 [ScaledPadding]。
   const ScaledPadding.symmetric({
     required this.child,
     super.key,
@@ -60,10 +58,9 @@ class ScaledPadding extends StatelessWidget {
        _h = horizontal,
        _v = vertical;
 
-  /// Creates a [ScaledPadding] with a pre‑computed scaled [EdgeInsets].
+  /// 创建使用预先计算好的 [EdgeInsets] 的 [ScaledPadding]。
   ///
-  /// Use this when callers have already computed the insets via
-  /// [ResponsiveContext] helpers.
+  /// 当调用方已经通过 [ResponsiveContext] 辅助函数算好边距时使用。
   const ScaledPadding.fromInsets({
     required this.child,
     required this.insets,

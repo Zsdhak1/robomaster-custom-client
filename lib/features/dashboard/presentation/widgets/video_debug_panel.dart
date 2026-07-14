@@ -1,8 +1,7 @@
-/// Debug telemetry panel for the video stream pipeline.
+/// 视频流流水线的调试遥测面板。
 ///
-/// Displays real-time UDP reception stats, frame reassembly health,
-/// TCP bridge status and the latest frame header — all updated every
-/// second so you can see exactly where the pipeline is alive or stuck.
+/// 展示实时 UDP 接收统计、帧重组状态、TCP 桥接状态以及最新帧头部信息。
+/// 面板会每秒刷新，便于判断流水线在哪个阶段仍然存活或已经卡住。
 library;
 
 import 'dart:async';
@@ -16,13 +15,12 @@ import '../../../../core/video/video_frame.dart';
 import '../../../../services/video_stream_service.dart';
 import '../../logic/stream_providers.dart';
 
-/// Embeddable debug content (no floating chrome) for the side panel.
+/// 可嵌入侧边面板的调试内容，不包含独立浮层外框。
 ///
-/// Renders per-stage video-pipeline stats as a plain column that can be
-/// dropped into the shared `VideoSidePanel`. Refreshes every 500 ms so the
-/// counters feel live.
+/// 以普通列布局渲染各阶段的视频流水线统计，可直接放入共享的 `VideoSidePanel`。
+/// 内容每 500ms 刷新一次，让计数器保持接近实时。
 class VideoDebugContent extends StatefulWidget {
-  /// Creates a [VideoDebugContent].
+  /// 创建 [VideoDebugContent]。
   const VideoDebugContent({super.key});
 
   @override
@@ -125,12 +123,11 @@ class _UdpStats extends StatelessWidget {
   }
 }
 
-/// Raw first-packet diagnosis: header hex + frame_size parsed both ways.
+/// 原始首包诊断：显示头部 hex，并分别以两种字节序解析 frame_size。
 ///
-/// The reassembler reads frame_size little-endian and rejects any frame
-/// over 4 MB. If the source uses network (big-endian) order, the LE value
-/// blows past 4 MB and every packet is dropped — this panel makes that
-/// immediately visible by showing both interpretations side by side.
+/// 重组器按小端序读取 frame_size，并拒绝超过 4 MB 的帧。如果源端实际使用网络序
+/// （大端序），小端解析值会直接越界，导致每个包都被丢弃。这里并排展示两种解析结果，
+/// 让字节序问题可以立即被看见。
 class _RawPacketDiag extends StatelessWidget {
   const _RawPacketDiag({required this.service});
 

@@ -1,12 +1,11 @@
-/// Generates sample JSON match records for testing the multi-file merger.
+/// 生成用于测试多文件合并器的 JSON 比赛记录样例。
 ///
-/// Run with:
-///   dart tool/generate_merge_samples.dart [output_directory]
+/// 运行方式：
+///   dart run tool/generate_merge_samples.dart [output_directory]
 ///
-/// Produces three red-side records (hero, infantry, sentry) for the same
-/// mock match. Team-shared topics (GameStatus, Event) are duplicated across
-/// files to exercise de-duplication; robot-private topics carry distinct
-/// robot ids to exercise per-robot reassembly.
+/// 为同一场模拟比赛生成三份红方记录（英雄、步兵、哨兵）。全队共享 topic
+///（GameStatus、Event）会跨文件重复，用于验证去重；机器人私有 topic 携带不同
+/// 机器人 ID，用于验证按机器人重组。
 library;
 
 import 'dart:convert';

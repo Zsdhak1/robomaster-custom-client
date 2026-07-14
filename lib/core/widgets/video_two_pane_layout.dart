@@ -1,16 +1,16 @@
-/// Shared two-pane layout for video feed pages.
+/// 视频流页面共用的双栏布局。
 ///
-/// Wide windows use the canonical left video / right status panel split. Compact
-/// windows stack the status panel below the video so the feed is not squeezed.
+/// 宽窗口使用左侧视频、右侧状态面板的标准拆分；紧凑窗口则把状态面板堆叠在视频下方，
+/// 避免视频区域被过度压缩。
 library;
 
 import 'package:flutter/material.dart';
 
 import '../responsive/responsive_ext.dart';
 
-/// Responsive layout for a video player and its side panel.
+/// 视频播放器和侧边面板使用的响应式布局。
 class VideoTwoPaneLayout extends StatelessWidget {
-  /// Creates a shared video two-pane layout.
+  /// 创建共享视频双栏布局。
   const VideoTwoPaneLayout({
     required this.player,
     required this.sidePanel,
@@ -18,13 +18,13 @@ class VideoTwoPaneLayout extends StatelessWidget {
     super.key,
   });
 
-  /// Main video/player area.
+  /// 主视频/播放器区域。
   final Widget player;
 
-  /// Status/debug/health side panel.
+  /// 状态、调试和血量侧边面板。
   final Widget sidePanel;
 
-  /// Width below which the panes are stacked vertically.
+  /// 低于该宽度时，两块面板垂直堆叠。
   final double compactBreakpoint;
 
   @override

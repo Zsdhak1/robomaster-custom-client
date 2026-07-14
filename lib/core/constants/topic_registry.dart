@@ -1,49 +1,45 @@
-/// Central registry of every MQTT topic in the RoboMaster custom-client
-/// protocol (V1.3.1), with the metadata needed to decide what to record and
-/// how to merge multi-client recordings.
+/// RoboMaster 自定义客户端协议（V1.3.1）的 MQTT 主题集中注册表。
 ///
-/// The "发送方/接收方" column in the protocol overview table is identical for
-/// every server→client topic and therefore cannot tell private from broadcast
-/// data. The real criterion is each topic's data semantics, captured here as
-/// [TopicScope]. See the project memory `topic-receive-scope` for the audit.
+/// 这里记录每个主题的方向、接收范围、频率和合并策略。协议总览表里的
+/// “发送方/接收方”列对所有服务器到客户端主题都相同，不能据此判断数据是
+/// 机器人私有还是全队广播；真正依据是每个主题的数据语义，并由 [TopicScope]
+/// 明确表达。历史审计见项目记忆 `topic-receive-scope`。
 library;
 
 import '../constants/protocol_constants.dart';
 
-/// Direction of a topic's data flow relative to the custom client.
+/// 主题数据流相对于自定义客户端的方向。
 enum TopicDirection {
-  /// Server → custom client (telemetry the client receives and can record).
+  /// 服务器 → 自定义客户端（客户端接收且可记录的遥测数据）。
   serverToClient,
 
-  /// Custom client → server / robot (commands the client sends).
+  /// 自定义客户端 → 服务器 / 机器人（客户端发送的控制指令）。
   clientToServer,
 }
 
-/// Reception scope — who receives a given server→client topic, which decides
-/// how multi-client recordings merge.
+/// 服务器到客户端主题的接收范围，用于决定多客户端记录如何合并。
 enum TopicScope {
-  /// Every same-side client receives identical content. On merge: take the
-  /// union and de-duplicate by (topic, timestamp); keep one copy.
+  /// 同阵营客户端收到相同内容。合并时按（主题，时间戳）去重后保留一份。
   teamShared,
 
-  /// Only the client bound to that robot id receives its own robot's data.
-  /// On merge: key by robot id to reconstruct the full-field per-robot detail.
+  /// 仅绑定到对应机器人 ID 的客户端能收到该机器人自己的数据。
+  /// 合并时按机器人 ID 分组，重建全场的逐机器人明细。
   robotPrivate,
 
-  /// A command the client sends; not part of the telemetry recording set.
+  /// 客户端发送的指令，不属于遥测记录集合。
   command,
 }
 
-/// Human-readable label for a [TopicScope].
+/// [TopicScope] 的可读标签与说明。
 extension TopicScopeLabel on TopicScope {
-  /// Short Chinese label used as a section header in the config screen.
+  /// 设置页分组标题使用的短中文标签。
   String get label => switch (this) {
         TopicScope.teamShared => '全队共享',
         TopicScope.robotPrivate => '机器人私有',
         TopicScope.command => '客户端指令',
       };
 
-  /// One-line description of how this scope behaves on merge.
+  /// 描述该接收范围在合并时的处理方式。
   String get description => switch (this) {
         TopicScope.teamShared => '同阵营任意客户端收到的内容一致，合并时取一份。',
         TopicScope.robotPrivate => '仅对应 id 客户端能收到自己那台机器人的数据，合并后拼出全场。',
@@ -51,9 +47,9 @@ extension TopicScopeLabel on TopicScope {
       };
 }
 
-/// Immutable metadata describing one protocol topic.
+/// 协议主题的不可变元数据。
 class TopicInfo {
-  /// Creates a [TopicInfo].
+  /// 创建 [TopicInfo]。
   const TopicInfo({
     required this.topic,
     required this.displayName,
@@ -63,38 +59,37 @@ class TopicInfo {
     required this.frequency,
   });
 
-  /// MQTT topic name (matches the protobuf message / topic constant).
+  /// MQTT 主题名，与 Protobuf 消息名和主题常量匹配。
   final String topic;
 
-  /// Chinese display name shown in the UI (same as [topic] for now).
+  /// UI 中显示的中文名称；当前暂与 [topic] 保持一致。
   final String displayName;
 
-  /// Short purpose description from the protocol document.
+  /// 来自协议文档的简短用途说明。
   final String purpose;
 
-  /// Data-flow direction relative to the client.
+  /// 相对于客户端的数据流方向。
   final TopicDirection direction;
 
-  /// Reception scope governing merge behavior.
+  /// 决定合并行为的接收范围。
   final TopicScope scope;
 
-  /// Nominal send frequency / trigger description.
+  /// 标称发送频率或触发方式说明。
   final String frequency;
 
-  /// Whether this topic is telemetry the client can record (server→client).
+  /// 该主题是否为客户端可记录的服务器到客户端遥测数据。
   bool get isRecordable => direction == TopicDirection.serverToClient;
 }
 
-/// The full protocol topic registry, keyed by topic name.
+/// 完整协议主题注册表，按主题名索引。
 ///
-/// Source of truth for: which topics to subscribe/record, how the config
-/// screen groups them, and how the merger treats each topic.
+/// 这是订阅/记录主题、配置页分组以及记录合并策略的唯一来源。
 class TopicRegistry {
   TopicRegistry._();
 
-  /// All topics in declaration order.
+  /// 按声明顺序排列的全部主题。
   static const List<TopicInfo> all = [
-    // ---- Commands (client → server/robot) ----
+    // ---- 命令 (客户端 → 服务器/机器人) ----
     TopicInfo(
       topic: topicKeyboardMouseControl,
       displayName: topicKeyboardMouseControl,
@@ -111,7 +106,7 @@ class TopicRegistry {
       scope: TopicScope.command,
       frequency: '75Hz',
     ),
-    // ---- Team-shared telemetry (server → client) ----
+    // ---- 全队共享遥测（服务器 → 客户端）----
     TopicInfo(
       topic: topicGameStatus,
       displayName: topicGameStatus,
@@ -208,7 +203,7 @@ class TopicRegistry {
       scope: TopicScope.teamShared,
       frequency: '1Hz',
     ),
-    // ---- Robot-private telemetry (server → client, per robot id) ----
+    // ---- 机器人私有遥测（服务器 → 客户端，按机器人 ID 区分）----
     TopicInfo(
       topic: topicRobotInjuryStat,
       displayName: topicRobotInjuryStat,
@@ -305,7 +300,7 @@ class TopicRegistry {
       scope: TopicScope.robotPrivate,
       frequency: '50Hz',
     ),
-    // ---- Map click info (server → client, team-shared notification) ----
+    // ---- 地图点击信息（服务器 → 客户端，全队共享通知）----
     TopicInfo(
       topic: topicMapClickInfo,
       displayName: topicMapClickInfo,
@@ -314,7 +309,7 @@ class TopicRegistry {
       scope: TopicScope.teamShared,
       frequency: '触发式发送',
     ),
-    // ---- Remaining commands (client → server) ----
+    // ---- 其余指令（客户端 → 服务器）----
     TopicInfo(
       topic: topicMapClickCmd,
       displayName: topicMapClickCmd,
@@ -389,22 +384,22 @@ class TopicRegistry {
     ),
   ];
 
-  /// Lookup table by topic name.
+  /// 按主题名查找 [TopicInfo]。
   static final Map<String, TopicInfo> byName = {
     for (final info in all) info.topic: info,
   };
 
-  /// All server→client topics that can be recorded.
+  /// 所有可记录的服务器到客户端主题。
   static final List<TopicInfo> recordable =
       all.where((t) => t.isRecordable).toList();
 
-  /// Recordable topics grouped by [TopicScope] (teamShared, robotPrivate).
+  /// 按 [TopicScope] 分组的可记录主题。
   static final Map<TopicScope, List<TopicInfo>> recordableByScope = {
     for (final scope in [TopicScope.teamShared, TopicScope.robotPrivate])
       scope: recordable.where((t) => t.scope == scope).toList(),
   };
 
-  /// The set of recordable topic names — the default record/subscribe set.
+  /// 可记录主题名集合，也是默认记录/订阅集合。
   static final Set<String> recordableTopicNames =
       recordable.map((t) => t.topic).toSet();
 }

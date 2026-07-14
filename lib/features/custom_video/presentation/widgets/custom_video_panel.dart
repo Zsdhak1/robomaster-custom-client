@@ -1,10 +1,9 @@
-/// Video panel for the custom H.264 line (0x0310 / CustomByteBlock).
+/// 自定义 H.264/H.265 链路（0x0310 / CustomByteBlock）的视频面板。
 ///
-/// The custom line carries RAW H.264 Annex-B. media_kit's bundled libmpv ships
-/// WITHOUT the raw-H.264 demuxer (only the HEVC raw demuxer, for the official
-/// UDP 3334 line), so it fails with "Unknown lavf format h264". fvp's ffmpeg
-/// DOES include the raw-H.264 demuxer, so this panel always decodes with fvp,
-/// independent of the user's global backend choice.
+/// 自定义链路可以承载原始 H.264 AnnexB。media_kit 捆绑的 libmpv 往往没有内置
+/// 原始 H.264 解复用器（官方 UDP 3334 链路只需要原始 HEVC 解复用器），因此会报
+/// “未知 lavf 格式 h264”。fvp 的 ffmpeg 包含原始 H.264 解复用器，因此该面板可以
+/// 使用 fvp 作为默认解码路径，并独立于用户的全局后端选择。
 library;
 
 import 'dart:async';
@@ -26,9 +25,9 @@ import 'custom_mediakit_player.dart';
 import 'custom_video_debug_panel.dart';
 import 'custom_video_overlay.dart';
 
-/// Panel body of the custom video screen: real decoder + crosshair + stats.
+/// 自定义图传页面的主体面板：真实解码器、准星和统计信息。
 class CustomVideoPanel extends ConsumerWidget {
-  /// Creates a [CustomVideoPanel].
+  /// 创建 [CustomVideoPanel]。
   const CustomVideoPanel({super.key});
 
   @override
@@ -38,7 +37,7 @@ class CustomVideoPanel extends ConsumerWidget {
     final backend = ref.watch(customVideoBackendProvider);
     final tsWrap = ref.watch(customVideoEffectiveTsWrapProvider);
 
-    // Watch the live stats so the panel rebuilds when the keyframe gate opens.
+    // 监听实时统计，使关键帧闸门打开时面板能重建并连接播放器。
     final stats = ref.watch(customVideoStatsProvider).valueOrNull;
     final gateOpen = stats?.gateOpen ?? false;
     final url = stats?.streamUrl;
@@ -58,12 +57,11 @@ class CustomVideoPanel extends ConsumerWidget {
     );
   }
 
-  /// Selects the decoder widget for the chosen [backend].
+  /// 根据已选择的 [backend] 选择解码器组件。
   ///
-  /// fvp is the in-app default (raw codec capable); media_kit is an A/B
-  /// alternative (needs [tsWrap] to demux); ffplay spawns an external process
-  /// for byte-stream verification. Keyed by [url] + [tsWrap] + [codec] so a
-  /// change rebuilds the player with the matching demuxer.
+  /// fvp 是应用内默认后端，能处理原始编码流；media_kit 是 A/B 备选，通常需要
+  /// [tsWrap] 才能正确解复用；ffplay 会启动外部进程用于字节流验证。播放器 key
+  /// 由 [url]、[tsWrap] 和 [codec] 共同决定，任一变化都会重建播放器并使用匹配解复用器。
   Widget _buildPlayer(
     VideoDecoderBackend backend,
     String url,
@@ -96,17 +94,15 @@ class CustomVideoPanel extends ConsumerWidget {
 }
 
 // ============================================================
-// fvp player (raw H.264 / H.265) — direct mdk Player
+// fvp 播放器（原始 H.264 / H.265）——直接使用 mdk 播放器
 // ============================================================
 
-/// Decodes the raw custom-video line with a DIRECT mdk [mdk.Player], not the
-/// video_player+fvp integration.
+/// 使用直接的 [mdk.Player] 解码原始自定义图传链路，而不走 video_player+fvp 集成。
 ///
-/// The integration applies fvp's GLOBAL player options to every player, and
-/// this app forces `avformat.format=hevc` there for the official UDP 3334 line
-/// — which would force the H.264 bridge through the HEVC demuxer and render a
-/// white screen. A direct mdk Player skips those globals, so here we set
-/// `avformat.format` per player, matching the selected codec and tsWrap.
+/// video_player+fvp 集成会把 fvp 全局播放器选项应用到每个播放器；本应用为了官方
+/// UDP 3334 链路曾强制 `avformat.format=hevc`，这会让 H.264 桥接被错误地送入
+/// HEVC 解复用器，最终白屏。直接 mdk 播放器可以避开这些全局选项，因此这里按当前
+/// 编码格式和 tsWrap 为每个播放器单独设置 `avformat.format`。
 class _FvpPlayer extends ConsumerStatefulWidget {
   const _FvpPlayer({
     required this.url,
@@ -119,11 +115,11 @@ class _FvpPlayer extends ConsumerStatefulWidget {
   final String url;
   final bool developerMode;
 
-  /// When true the bridge serves MPEG-TS, so the demuxer is forced to `mpegts`
-  /// instead of the raw codec format.
+  /// 为 true 时表示桥接输出 MPEG-TS，此时解复用器强制为 `mpegts`，
+  /// 而不是原始编码格式。
   final bool tsWrap;
 
-  /// The video codec (H.264 → `h264`, H.265 → `hevc`).
+  /// 视频编码格式（H.264 → `h264`，H.265 → `hevc`）。
   final CustomVideoCodec codec;
 
   @override
@@ -138,31 +134,24 @@ class _FvpPlayerState extends ConsumerState<_FvpPlayer> {
   final List<StreamSubscription<Object?>> _diagSubs = [];
   Offset? _crosshairCenter;
 
-  /// Auto-reconnect watchdog.
+  /// 自动重连看门狗。
   ///
-  /// The player is created the instant the keyframe gate opens, which races the
-  /// just-started stream: mdk may probe before enough data has landed (only the
-  /// single cached keyframe is replayed, and the next MQTT chunk hasn't arrived
-  /// yet) or `prepare()` blocks on the live socket, leaving the player stuck
-  /// with no texture. Previously this stranded the user on the placeholder /
-  /// error state until they tapped 重连 by hand. This watchdog retries the
-  /// connection automatically (bounded) so a first attempt that raced the
-  /// stream start recovers on its own.
+  /// 播放器会在关键帧闸门打开瞬间创建，此时可能与刚启动的流竞争：mdk 可能在足够数据
+  /// 到达前开始探测（只有缓存的单个关键帧被回放，下一块 MQTT 数据尚未到达），也可能在
+  /// 实时套接字的 `prepare()` 中阻塞，导致没有 texture。以前用户会停在占位/错误状态，
+  /// 直到手动点重连。该看门狗会有界地自动重试，让首次尝试撞上流启动时也能自恢复。
   Timer? _connectWatchdog;
 
-  /// Auto-retries used since the last successful connect (reset on success and
-  /// on a manual reconnect).
+  /// 自上次成功连接以来的自动重试次数；成功或手动重连时重置。
   int _autoRetries = 0;
 
-  /// Monotonic open-attempt id, so a slow/blocked previous `_open()` that
-  /// resumes after a watchdog-triggered reconnect can't clobber the new state.
+  /// 单调递增的打开尝试 ID，避免较慢的旧 `_open()` 在看门狗重连后恢复并覆盖新状态。
   int _openGen = 0;
 
-  /// Max automatic reconnect attempts before giving up and waiting for a manual
-  /// 重连 (keeps a genuinely dead stream from looping forever).
+  /// 最大自动重连次数；超过后等待手动重连，避免真正失效的流无限循环。
   static const int _maxAutoRetries = 8;
 
-  /// How long a connect attempt may go without a texture before we retry.
+  /// 单次连接尝试在没有 texture 的情况下可等待多久，超时后重试。
   static const Duration _connectTimeout = Duration(seconds: 3);
 
   @override
@@ -171,9 +160,9 @@ class _FvpPlayerState extends ConsumerState<_FvpPlayer> {
     _open();
   }
 
-  /// Fires when a connect attempt hasn't produced a texture in time. Retries
-  /// the connection (bounded) so a first attempt that raced the stream start
-  /// recovers without user intervention.
+  /// 当连接尝试超时仍未产生 texture 时触发。
+  ///
+  /// 这里会有界地重试连接，使首次尝试与流启动竞争失败时无需用户介入也能恢复。
   void _onConnectTimeout() {
     if (!mounted || _textureId != null) return;
     if (_autoRetries >= _maxAutoRetries) return;
@@ -181,9 +170,10 @@ class _FvpPlayerState extends ConsumerState<_FvpPlayer> {
     _reconnect(auto: true);
   }
 
-  /// Subscribes to the player's event/status streams and prints them, so the
-  /// decode failure behind a white screen becomes visible in the console, and
-  /// mirrors them into [customVideoDecoderInfoProvider] for the debug panel.
+  /// 订阅播放器事件/状态流并打印日志。
+  ///
+  /// 这样白屏背后的解码失败会显示在控制台，并同步到 [customVideoDecoderInfoProvider]
+  /// 供调试面板展示。
   void _attachDiagnostics(mdk.Player player) {
     final info = ref.read(customVideoDecoderInfoProvider.notifier);
     _diagSubs
@@ -192,8 +182,7 @@ class _FvpPlayerState extends ConsumerState<_FvpPlayer> {
           debugPrint(
             '[fvp event] ${e.category} | err=${e.error} | ${e.detail}',
           );
-          // mdk reports reader buffering progress via the "reader.buffering"
-          // category with the percentage in `error`.
+          // mdk 通过 "reader.buffering" 分类上报读取缓冲进度，百分比放在 error 字段。
           if (e.category == 'reader.buffering') {
             info.setBuffering(
               buffering: e.error < 100,
@@ -228,8 +217,8 @@ class _FvpPlayerState extends ConsumerState<_FvpPlayer> {
     _attempt++;
     final gen = ++_openGen;
     if (mounted) setState(() => _error = null);
-    // Arm the watchdog: if this attempt produces no texture within the timeout
-    // (raced the stream start / blocked on the live socket), retry automatically.
+    // 设置看门狗：如果本次尝试在超时内没有产生 texture（与流启动竞争或阻塞在实时套接字），
+    // 就自动重试。
     _connectWatchdog?.cancel();
     _connectWatchdog = Timer(_connectTimeout, _onConnectTimeout);
     final info = ref.read(customVideoDecoderInfoProvider.notifier)
@@ -237,22 +226,16 @@ class _FvpPlayerState extends ConsumerState<_FvpPlayer> {
     final player = mdk.Player();
     _attachDiagnostics(player);
     try {
-      // Replicate the official line's PROVEN-WORKING fvp setup. That line plays
-      // the SAME kind of live AnnexbTcpServer TCP bridge, but through fvp's
-      // video_player integration, which applies the low-latency live-stream
-      // config below. A direct mdk.Player (needed here only to force the raw
-      // codec demuxer instead of the global hevc force) gets NONE of it by
-      // default — and the missing pieces are what stalled us: buffering on a
-      // live stream made the reader fill then drain forever (the white screen +
-      // `reader.buffering 100 -> 0` loop in the logs), never rendering a frame.
+      // 复用官方链路已验证可工作的 fvp 设置。官方链路同样播放实时 AnnexbTcpServer
+      // TCP 桥接，但通过 fvp 的 video_player 集成获得了下面这些低延迟直播配置。
+      // 这里直接使用 mdk.Player，只是为了按原始编码格式强制解复用器，而不是沿用全局 hevc
+      // 强制；直接播放器默认拿不到这些配置。缺失配置会让实时流缓冲反复填满再耗尽
+      // （日志中出现 `reader.buffering 100 -> 0` 循环），最终白屏且不渲染帧。
       //
-      // setBufferRange(min:0) + fflags=+nobuffer give the real-time, read-
-      // forward behaviour that ffplay uses to decode this exact bridge. The
-      // bridge now primes every client with the keyframe up front
-      // (AnnexbTcpServer), so +nobuffer dropping the very first packet no longer
-      // strands the decoder. Decoder priority and avio/avformat flags mirror
-      // fvp's own Windows defaults so hardware decode + render behave identically
-      // to the official line.
+      // setBufferRange(min: 0) + fflags=+nobuffer 提供与 ffplay 相同的实时读取转发行为。
+      // AnnexbTcpServer 现在会先用关键帧预热每个客户端，因此 +nobuffer 即使丢掉最初包，
+      // 也不会让解码器卡住。解码器优先级和 avio/avformat 参数对齐 fvp 在 Windows 上的
+      // 默认行为，使硬解和渲染尽量与官方链路一致。
       player
         ..setProperty(
           'avformat.format',
@@ -276,15 +259,14 @@ class _FvpPlayerState extends ConsumerState<_FvpPlayer> {
         ..setBufferRange(min: 0)
         ..media = widget.url;
       await player.prepare();
-      // Dump what mdk actually parsed (codec / resolution / track count) — a
-      // white screen with valid video tracks points at decode, not demux.
+      // 输出 mdk 实际解析到的编码格式、分辨率和轨道数量。白屏但有有效视频轨道时，
+      // 问题更可能在解码而不是解复用。
       final videoTracks = player.mediaInfo.video;
       debugPrint(
         '[fvp mediaInfo] video tracks=${videoTracks?.length} '
         '${videoTracks?.map((v) => v.codec).join(", ")}',
       );
-      // Surface the parsed codec/resolution to the debug panel so a black
-      // screen can be diagnosed as a decode (not demux) failure at a glance.
+      // 将已解析的编码格式/分辨率暴露给调试面板，方便快速判断黑屏是否为解码失败。
       if (videoTracks != null && videoTracks.isNotEmpty) {
         final cp = videoTracks.first.codec;
         info
@@ -305,14 +287,14 @@ class _FvpPlayerState extends ConsumerState<_FvpPlayer> {
         info.setError('无法解码视频（已连接但拿不到画面尺寸）');
       }
       player.state = mdk.PlaybackState.playing;
-      // A newer _open() (e.g. watchdog reconnect) superseded this attempt while
-      // it was awaiting; discard this one so it can't clobber the new player.
+      // 如果本次等待期间已有更新的 _open()（例如看门狗重连）取代了它，则丢弃旧播放器，
+      // 避免旧状态覆盖新播放器。
       if (!mounted || gen != _openGen) {
         player.dispose();
         return;
       }
       if (tid >= 0) {
-        // Connected and rendering — stop the watchdog and clear the retry budget.
+        // 已连接且开始渲染，停止看门狗并清空重试预算。
         _connectWatchdog?.cancel();
         _connectWatchdog = null;
         _autoRetries = 0;
@@ -330,11 +312,10 @@ class _FvpPlayerState extends ConsumerState<_FvpPlayer> {
     }
   }
 
-  /// Tears down the current player and opens a fresh one.
+  /// 拆除当前播放器并打开一个新播放器。
   ///
-  /// [auto] distinguishes a watchdog-driven retry from a user tapping 重连: a
-  /// manual reconnect resets the auto-retry budget so the watchdog gets a full
-  /// set of attempts again.
+  /// [auto] 用于区分看门狗触发的重试和用户手动点击重连。手动重连会重置自动重试预算，
+  /// 让看门狗重新获得完整尝试次数。
   Future<void> _reconnect({bool auto = false}) async {
     if (!auto) _autoRetries = 0;
     _connectWatchdog?.cancel();
@@ -392,7 +373,10 @@ class _FvpPlayerState extends ConsumerState<_FvpPlayer> {
           Positioned(
             top: context.sp(8),
             right: context.sp(8),
-            child: _ReconnectChip(attempt: _attempt, onReconnect: _reconnect),
+            child: VideoReconnectChip(
+              attempt: _attempt,
+              onReconnect: _reconnect,
+            ),
           ),
           if (widget.developerMode)
             Positioned(
@@ -427,21 +411,8 @@ class _Initializing extends StatelessWidget {
   }
 }
 
-/// Compact reconnect control overlaid on the video.
-class _ReconnectChip extends StatelessWidget {
-  const _ReconnectChip({required this.attempt, required this.onReconnect});
-
-  final int attempt;
-  final Future<void> Function() onReconnect;
-
-  @override
-  Widget build(BuildContext context) {
-    return VideoReconnectChip(attempt: attempt, onReconnect: onReconnect);
-  }
-}
-
 // ============================================================
-// Preview placeholder (when not running)
+// 预览占位（未运行时）
 // ============================================================
 
 class _PreviewPlaceholder extends StatelessWidget {
@@ -450,11 +421,10 @@ class _PreviewPlaceholder extends StatelessWidget {
     this.codec = CustomVideoCodec.h264,
   });
 
-  /// True once reception has started but the keyframe gate has not opened yet,
-  /// so the player is intentionally not connected to the bridge yet.
+  /// 接收已启动但关键帧闸门尚未打开时为 true，此时播放器会刻意暂不连接桥接。
   final bool waitingForKeyframe;
 
-  /// The active codec (for diagnostic label).
+  /// 当前编码格式，用于诊断标签。
   final CustomVideoCodec codec;
 
   @override
@@ -477,7 +447,7 @@ class _PreviewPlaceholder extends StatelessWidget {
 }
 
 // ============================================================
-// Basic info (always-visible side-panel content)
+// 基础信息（侧边面板始终可见的内容）
 // ============================================================
 
 class _CustomBasicInfo extends ConsumerWidget {

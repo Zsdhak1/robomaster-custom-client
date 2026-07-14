@@ -1,4 +1,4 @@
-/// Expandable debug panel showing all received MQTT topic data.
+/// 可展开的调试面板，显示所有已接收的 MQTT 主题数据。
 library;
 
 import 'package:flutter/material.dart';
@@ -8,9 +8,9 @@ import '../../../../core/responsive/responsive_ext.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../logic/debug_message_log.dart';
 
-/// Expandable overlay panel displaying raw MQTT message data.
+/// 可展开的覆盖层面板，显示原始 MQTT 消息数据。
 class DebugPanel extends ConsumerWidget {
-  /// Creates a [DebugPanel].
+  /// 创建 [DebugPanel]。
   const DebugPanel({super.key});
 
   @override
@@ -104,9 +104,9 @@ class DebugPanel extends ConsumerWidget {
   }
 }
 
-/// List of log entries for a single topic.
+/// 单个主题的日志条目列表。
 class _TopicLog extends StatelessWidget {
-  /// Creates a [_TopicLog].
+  /// 创建 [_TopicLog]。
   const _TopicLog({required this.entries});
 
   final List<DebugLogEntry> entries;
@@ -125,9 +125,9 @@ class _TopicLog extends StatelessWidget {
   }
 }
 
-/// Single log entry display showing parsed Protobuf fields.
+/// 单个日志条目，用于显示已解析的 Protobuf 字段。
 class _LogEntryTile extends StatelessWidget {
-  /// Creates a [_LogEntryTile].
+  /// 创建 [_LogEntryTile]。
   const _LogEntryTile({required this.entry});
 
   final DebugLogEntry entry;
@@ -195,7 +195,7 @@ class _LogEntryTile extends StatelessWidget {
 
   Widget _buildContent(BuildContext context) {
     if (entry.fields.isEmpty) {
-      // Unrecognized or empty message: fall back to hex.
+      // 未识别或空消息时回退到十六进制显示。
       return Text(
         entry.isRecognized ? '(空消息)' : entry.hexSummary,
         style: context.textTheme.bodySmall!.copyWith(

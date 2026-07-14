@@ -2,15 +2,18 @@
 
 ## 1. 项目核心语境
 
-**技术栈：** Flutter 3.x + Dart 3.x，Android + Linux 桌面双平台。状态管理使用 Riverpod（flutter_riverpod）。图表使用 fl_chart。JSON 数据持久化使用 dart:convert + path_provider。
+**当前应用名：** WOD Client。版本号以 `pubspec.yaml` 的 `version` 为唯一权威；接手时先读 `feature_spec.md` 顶部「新 Agent 接手摘要」。
+
+**技术栈：** Flutter 3.x + Dart 3.x，Android + Linux/Windows 桌面多平台。状态管理使用 Riverpod（flutter_riverpod）。图表使用 fl_chart。JSON 数据持久化使用 dart:convert + path_provider。
 
 **网络层：**
 - **MQTT 3333** — 控制指令、配置、比赛状态与事件（Protobuf 序列化），使用 `mqtt_client` 包。
 - **UDP 3334** — HEVC(H.265) AnnexB 视频流（自定义字节偏移分片，非 RTP），使用 `dart:io` RawSocket。
+- **CustomByteBlock / 0x0310** — MQTT 承载 H.264 字节块，经独立 TCP 解码桥进入 fvp/media_kit/ffplay 后端。
 
 **架构模式：** Feature-First 分层架构。每个 Feature 包含 `{presentation, domain, data}` 三层，但千行级项目允许适度简化——不强制要求 Repository 接口抽象，但数据与 UI 必须物理分离。
 
-**核心目标：** 构建一个对接 RoboMaster 自定义客户端双链路（MQTT 3333 + UDP 3334）的监控客户端，实时解析并可视化展示比赛状态，支持赛后 JSON 数据导出与多客户端数据汇总分析。
+**核心目标：** 构建一个对接 RoboMaster 自定义客户端链路（MQTT 3333 + UDP 3334 + 0x0310 自定义图传）的监控客户端，实时解析并可视化展示比赛状态，支持数据导出、回放、调试与多客户端数据汇总分析。
 
 ---
 
@@ -56,6 +59,7 @@ lib/
 │   └── protobuf/                # Protobuf 通用解析与降级处理
 ├── features/                    # 按功能模块组织
 │   ├── dashboard/               # 主监控面板
+│   ├── custom_video/            # 0x0310 / H.264 自定义图传
 │   ├── data_export/             # JSON 导入导出
 │   ├── post_match_analysis/     # 赛后复盘分析
 │   ├── settings/                # 设置页面
@@ -116,8 +120,8 @@ lib/
 
 ### 6.1 任务启动流程
 
-1. **读取 feature_spec.md** — 确认当前**版本号**与要实现的 Task，记下 `vX.Y.Z Phase N, Task M`。
-2. **Codebase 搜索** — 用 Grep/Glob 检查是否存在重复逻辑。
+1. **读取 feature_spec.md** — 先看顶部「新 Agent 接手摘要」，确认当前**版本号**与要实现的 Task，记下 `vX.Y.Z Phase N, Task M`。
+2. **Codebase 搜索** — 优先使用 codebase-memory MCP（`search_graph` / `trace_path` / `get_code_snippet`）；若本线程未暴露 MCP 工具，或查找文档/配置/字符串，再用 `rg` 检查是否存在重复逻辑。
 3. **编写/更新 Spec** — 如需调整计划，先更新 feature_spec.md 再编码。
 4. **编码实现** — 遵循本文件所有规则。
 5. **运行 flutter analyze** — 确保零警告。
@@ -139,7 +143,7 @@ lib/
 3. **变更分类：** 使用 `新增` / `修复` / `优化` / `重构` / `文档` 前缀，一行可含多项，用 `；` 分隔。
 4. **日期格式：** 使用绝对日期 `YYYY-MM-DD`，禁止“今天/昨天/本周”等相对表述。
 5. **不登记滚动预发布：** `push` 到 `master` 的 `latest` 预发布不强制登记，但合入显著功能时建议补充摘要。
-6. **完成后验证：** 更新日志属文档变更，无需 `flutter analyze`，但需在自审计清单中确认该项已处理。
+6. **完成后验证：** 更新日志属文档变更，但本项目仍要求文件写入后运行 `flutter analyze`；若环境无法运行，必须在回复中说明。
 
 ### 6.4 版本化进度规范
 

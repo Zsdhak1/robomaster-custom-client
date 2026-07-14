@@ -1,42 +1,40 @@
-/// Unified user feedback via SnackBars.
+/// 通过 SnackBar 统一展示用户反馈。
 ///
-/// Centralizes the SnackBar styling so every page reports success, errors and
-/// info with consistent colors and behavior, instead of each call site building
-/// its own ad-hoc `SnackBar`. Use the [BuildContext] extension methods.
+/// 这里集中管理 SnackBar 样式，让各页面的成功、错误和提示反馈拥有一致颜色和行为，
+/// 避免每个调用点临时构建自己的 `SnackBar`。使用 [BuildContext] 扩展方法调用。
 library;
 
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
 
-/// Severity of a feedback message, controlling its accent color and icon.
+/// 反馈消息级别，用于控制强调色和图标。
 enum FeedbackLevel {
-  /// Neutral information.
+  /// 普通信息。
   info,
 
-  /// Successful operation.
+  /// 操作成功。
   success,
 
-  /// Recoverable error / failure.
+  /// 可恢复错误或失败。
   error,
 }
 
-/// SnackBar feedback helpers on [BuildContext].
+/// [BuildContext] 上的 SnackBar 反馈辅助函数。
 ///
-/// When calling these *after* an `await`, guard with `if (!context.mounted)
-/// return;` first — using a [BuildContext] across an async gap is unsafe. The
-/// helpers themselves no-op when no [ScaffoldMessenger] is in scope, but that
-/// does not cover a context whose element has been unmounted.
+/// 如果在 `await` 之后调用这些方法，请先用 `if (!context.mounted) return;` 保护。
+/// 跨异步间隔使用 [BuildContext] 不安全。辅助函数在找不到 [ScaffoldMessenger] 时会
+/// 空操作，但无法保护已经卸载的 context。
 extension FeedbackMessenger on BuildContext {
-  /// Shows an error SnackBar with [message].
+  /// 显示携带 [message] 的错误 SnackBar。
   void showErrorSnack(String message) =>
       _showSnack(message, FeedbackLevel.error);
 
-  /// Shows a success SnackBar with [message].
+  /// 显示携带 [message] 的成功 SnackBar。
   void showSuccessSnack(String message) =>
       _showSnack(message, FeedbackLevel.success);
 
-  /// Shows a neutral info SnackBar with [message].
+  /// 显示携带 [message] 的普通信息 SnackBar。
   void showInfoSnack(String message) =>
       _showSnack(message, FeedbackLevel.info);
 

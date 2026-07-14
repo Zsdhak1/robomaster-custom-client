@@ -1,10 +1,8 @@
-/// State + persistence for the GitHub remote-sync configuration.
+/// GitHub 远程同步配置的状态与持久化。
 ///
-/// Holds a [RemoteSyncConfig] (repository, branch, token, in-repo paths) and
-/// persists it via SharedPreferences. The access token IS persisted locally so
-/// the user does not re-enter it every launch; it is stored under a dedicated
-/// key and never serialized into the shared `record_config.json` that gets
-/// pushed to the repo. Treat the local store as device-trust scoped.
+/// 保存 [RemoteSyncConfig]（仓库、分支、令牌、仓库内路径）并通过 SharedPreferences 持久化。
+/// 访问令牌会保存在本地，避免用户每次启动都重新输入；它使用独立键存储，
+/// 不会序列化进推送到仓库的共享 `record_config.json`。本地存储的信任边界是当前设备。
 library;
 
 import 'dart:convert';
@@ -16,27 +14,26 @@ import '../../../core/sync/github_sync_service.dart';
 import '../../../core/sync/remote_sync_service.dart';
 import 'settings_providers.dart';
 
-/// SharedPreferences key for the non-secret sync config JSON.
+/// SharedPreferences 中非敏感同步配置 JSON 使用的键。
 const _keySyncConfig = 'github_sync_config';
 
-/// SharedPreferences key for the access token (kept separate from the rest).
+/// SharedPreferences 中访问令牌使用的键；令牌与其余配置分开保存。
 const _keySyncToken = 'github_sync_token';
 
-/// Notifier owning the [RemoteSyncConfig] and its persistence.
+/// 管理 [RemoteSyncConfig] 及其持久化的通知器。
 class GitHubSyncConfigNotifier extends StateNotifier<RemoteSyncConfig> {
-  /// Creates the notifier and loads any persisted config.
+  /// 创建通知器并加载已持久化的配置。
   GitHubSyncConfigNotifier() : super(const RemoteSyncConfig()) {
     _load();
   }
 
-  /// Replaces the config (except [RemoteSyncConfig.localRecordsDir], which is a
-  /// runtime-only field) and persists.
+  /// 替换并持久化配置；[RemoteSyncConfig.localRecordsDir] 是运行期字段，不参与持久化。
   Future<void> update(RemoteSyncConfig config) async {
     state = config;
     await _persist();
   }
 
-  /// Updates only the runtime local download directory (not persisted).
+  /// 只更新运行期本地下载目录，不写入持久化存储。
   void setLocalRecordsDir(String dir) {
     state = state.copyWith(localRecordsDir: dir);
   }
@@ -65,22 +62,21 @@ class GitHubSyncConfigNotifier extends StateNotifier<RemoteSyncConfig> {
         state = RemoteSyncConfig.fromJson(decoded).copyWith(token: token);
       }
     } on FormatException {
-      // Corrupt persisted value: keep defaults.
+      // 持久化值已损坏：保留默认配置。
     }
   }
 }
 
-/// The current GitHub sync configuration.
+/// 当前 GitHub 同步配置。
 final gitHubSyncConfigProvider =
     StateNotifierProvider<GitHubSyncConfigNotifier, RemoteSyncConfig>(
   (ref) => GitHubSyncConfigNotifier(),
 );
 
-/// Resolves the active [RemoteSyncService] from the current config.
+/// 根据当前配置解析可用的 [RemoteSyncService]。
 ///
-/// Returns a [GitHubSyncService] once a repository is set (public pulls need no
-/// token), otherwise the local [NoopRemoteSyncService]. The local export
-/// directory is attached so downloads know where to land.
+/// 配置了仓库后返回 [GitHubSyncService]（公开仓库拉取无需令牌），否则返回本地
+/// [NoopRemoteSyncService]。本地导出目录会附加到配置中，供下载记录落盘使用。
 final gitHubBackedSyncServiceProvider = Provider<RemoteSyncService>((ref) {
   final config = ref.watch(gitHubSyncConfigProvider);
   final exportDir = ref.watch(exportDirectoryProvider);

@@ -1,4 +1,4 @@
-/// MQTT connection screen with a two-column login + robot selector layout.
+/// MQTT 连接页面，采用登录表单 + 机器人选择器的双栏布局。
 library;
 
 import 'package:flutter/material.dart';
@@ -15,9 +15,9 @@ import '../../../features/settings/logic/record_config_provider.dart';
 import '../../../services/mqtt_service.dart';
 import '../domain/robot_identity.dart';
 
-/// Screen for connecting to the MQTT broker.
+/// 用于连接 MQTT 代理服务器的页面。
 class ConnectionScreen extends ConsumerStatefulWidget {
-  /// Creates a [ConnectionScreen].
+  /// 创建 [ConnectionScreen]。
   const ConnectionScreen({super.key});
 
   @override
@@ -49,8 +49,7 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
     final clientId = ref.read(selectedRobotIdProvider).toString();
 
     final service = ref.read(mqttServiceProvider)
-      // Update client ID before connecting so the MQTT broker
-      // sees the correct robot identity.
+      // 连接前更新客户端 ID，使 MQTT 代理服务器识别正确的机器人身份。
       ..clientId = clientId;
 
     try {
@@ -59,9 +58,7 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
 
       if (mounted) {
         await Navigator.of(context).pushReplacement(
-          MaterialPageRoute<void>(
-            builder: (_) => const AppShell(),
-          ),
+          MaterialPageRoute<void>(builder: (_) => const AppShell()),
         );
       }
     } on Exception catch (e) {
@@ -75,16 +72,13 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
     ref.read(mqttServiceProvider).disconnect();
   }
 
-  /// Enters the app shell without connecting to a broker.
+  /// 不连接代理服务器，直接进入应用外壳。
   ///
-  /// Offline mode is for pure replay / record browsing: the dashboard already
-  /// degrades gracefully when [GameState.isConnected] is false, so no live
-  /// data link is required.
+  /// 离线模式用于纯回放或记录浏览。仪表盘在 [GameState.isConnected] 为 false 时会
+  /// 优雅降级，因此不需要实时数据链路。
   void _goOffline() {
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(
-        builder: (_) => const AppShell(),
-      ),
+      MaterialPageRoute<void>(builder: (_) => const AppShell()),
     );
   }
 
@@ -103,8 +97,7 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
     final selectedId = ref.watch(selectedRobotIdProvider);
     final accent = teamAccentColor(selectedId);
 
-    // The global MaterialApp theme already follows the selected team
-    // (see MainApp), so no local AnimatedTheme is needed here.
+    // 全局 MaterialApp 主题已经跟随所选队伍（见 MainApp），这里不需要本地 AnimatedTheme。
     return Scaffold(
       body: Row(
         children: [
@@ -139,7 +132,7 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
   }
 }
 
-/// Left column: brand header, server fields, client-id field, actions.
+/// 左侧列：品牌头部、服务器字段、客户端 ID 字段和操作按钮。
 class _LoginPanel extends StatelessWidget {
   const _LoginPanel({
     required this.accent,
@@ -173,7 +166,7 @@ class _LoginPanel extends StatelessWidget {
       color: Theme.of(context).colorScheme.surface,
       child: Column(
         children: [
-          // True top accent strip marking the selected team.
+          // 顶部强调色条标记当前选择的队伍。
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             height: context.sp(4),
@@ -220,7 +213,8 @@ class _LoginPanel extends StatelessWidget {
       'assets/LoginLogo.png',
       height: context.sp(72),
       fit: BoxFit.contain,
-      errorBuilder: (_, _, _) => Icon(Icons.memory, size: context.iconSize(56), color: accent),
+      errorBuilder: (_, _, _) =>
+          Icon(Icons.memory, size: context.iconSize(56), color: accent),
     );
   }
 
@@ -280,7 +274,7 @@ class _LoginPanel extends StatelessWidget {
   }
 }
 
-/// The clickable client-id field showing the selected robot identity.
+/// 可点击的客户端 ID 字段，显示当前选择的机器人身份。
 class _ClientIdField extends StatelessWidget {
   const _ClientIdField({
     required this.selectedId,
@@ -296,8 +290,9 @@ class _ClientIdField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final selected =
-        allRobotIdentities.where((r) => r.id == selectedId).firstOrNull;
+    final selected = allRobotIdentities
+        .where((r) => r.id == selectedId)
+        .firstOrNull;
     final label = selected?.displayName ?? '点击选择机器人身份';
 
     return InkWell(
@@ -325,7 +320,7 @@ class _ClientIdField extends StatelessWidget {
   }
 }
 
-/// Right column: expands to a two-team robot grid when the id field is tapped.
+/// 右侧列：点击客户端 ID 字段后展开为双方机器人网格。
 class _RobotSelectorPanel extends StatelessWidget {
   const _RobotSelectorPanel({
     required this.isExpanded,
@@ -356,8 +351,11 @@ class _RobotSelectorPanel extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.touch_app,
-                    size: context.iconSize(64), color: scheme.onSurfaceVariant),
+                Icon(
+                  Icons.touch_app,
+                  size: context.iconSize(64),
+                  color: scheme.onSurfaceVariant,
+                ),
                 context.sizedBox(h: 16),
                 Text(
                   '点击左侧「客户端ID」选择登录身份',
@@ -400,7 +398,7 @@ class _RobotSelectorPanel extends StatelessWidget {
   }
 }
 
-/// A single-team column of robot cards over a solid team background.
+/// 单个队伍的机器人卡片列，使用实心队伍背景色。
 class _TeamColumn extends StatelessWidget {
   const _TeamColumn({
     required this.title,
@@ -448,7 +446,7 @@ class _TeamColumn extends StatelessWidget {
   }
 }
 
-/// A robot card: circular avatar + name, highlighted when selected.
+/// 机器人卡片：圆形头像和名称，选中时高亮。
 class _RobotCard extends StatelessWidget {
   const _RobotCard({
     required this.robot,
@@ -490,8 +488,7 @@ class _RobotCard extends StatelessWidget {
                   ),
                 ),
               ),
-              if (isSelected)
-                Icon(Icons.check_circle, color: robot.sideColor),
+              if (isSelected) Icon(Icons.check_circle, color: robot.sideColor),
             ],
           ),
         ),
@@ -516,18 +513,18 @@ class _RobotCard extends StatelessWidget {
   }
 }
 
-/// Displays a colored dot and text describing the connection state.
+/// 显示彩色圆点和文本来描述连接状态。
 class _ConnectionStatus extends StatelessWidget {
   const _ConnectionStatus({required this.state});
 
   final MqttConnectionState state;
 
   (Color, String) _resolve() => switch (state) {
-        MqttConnectionState.disconnected => (Colors.grey, '未连接'),
-        MqttConnectionState.connecting => (Colors.orange, '连接中...'),
-        MqttConnectionState.connected => (Colors.green, '已连接'),
-        MqttConnectionState.error => (Colors.red, '连接错误'),
-      };
+    MqttConnectionState.disconnected => (Colors.grey, '未连接'),
+    MqttConnectionState.connecting => (Colors.orange, '连接中...'),
+    MqttConnectionState.connected => (Colors.green, '已连接'),
+    MqttConnectionState.error => (Colors.red, '连接错误'),
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -547,13 +544,13 @@ class _ConnectionStatus extends StatelessWidget {
   }
 }
 
-/// Subscribes to the server→client topics enabled in the record [config].
+/// 订阅记录 [config] 中启用的服务器到客户端主题。
 ///
-/// The enabled set comes from the data-record configuration (see
-/// `recordConfigProvider`), so the operator controls exactly which telemetry
-/// topics are received and recorded. Defaults to all recordable topics.
+/// 启用集合来自数据记录配置（见 `recordConfigProvider`），操作者可精确控制接收并记录
+/// 哪些遥测主题。默认启用所有可记录主题。
 void _subscribeConfiguredTopics(MqttService service, RecordConfig config) {
-  for (final topic in config.enabledTopics) {
+  final topics = {...config.enabledTopics, ...notificationRequiredTopics};
+  for (final topic in topics) {
     service.subscribe(topic);
   }
 }

@@ -1,19 +1,17 @@
-/// Unified stream connection Extended FAB for the video pages.
+/// 视频页面共用的流连接扩展 FAB。
 ///
-/// A single bottom-right [FloatingActionButton.extended] whose label, icon and
-/// action switch with the live stream state: 连接 when stopped, 断开连接 when
-/// running. Both video pages share it so their connection controls look and
-/// behave identically. Optional [secondaryActions] surface page-specific
-/// operations (e.g. 自定义图传's 录制保存) in a small menu above the FAB.
+/// 右下角的 [FloatingActionButton.extended] 会根据实时流状态切换标签、图标和操作：
+/// 停止时显示连接，运行时显示断开连接。两条视频链路共享该组件，使连接控件视觉一致。
+/// 可选 [secondaryActions] 用于暴露页面特定操作，例如自定义图传的录制保存。
 library;
 
 import 'package:flutter/material.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// A page-specific secondary action shown above the main connection FAB.
+/// 显示在主连接 FAB 上方的页面特定次级操作。
 class StreamFabAction {
-  /// Creates a [StreamFabAction].
+  /// 创建 [StreamFabAction]。
   const StreamFabAction({
     required this.icon,
     required this.label,
@@ -21,22 +19,22 @@ class StreamFabAction {
     this.enabled = true,
   });
 
-  /// Leading icon for the mini action button.
+  /// mini 操作按钮使用的前导图标。
   final IconData icon;
 
-  /// Tooltip / label describing the action.
+  /// 描述该操作的工具提示和标签。
   final String label;
 
-  /// Called when tapped; ignored when [enabled] is false.
+  /// 点击时调用；[enabled] 为 false 时按钮禁用。
   final VoidCallback onPressed;
 
-  /// Whether the action is selectable.
+  /// 该操作是否可选择。
   final bool enabled;
 }
 
-/// Extended FAB that connects/disconnects a video stream.
+/// 用于连接或断开视频流的扩展 FAB。
 class StreamConnectionFab extends ConsumerWidget {
-  /// Creates a [StreamConnectionFab].
+  /// 创建 [StreamConnectionFab]。
   const StreamConnectionFab({
     required this.isRunning,
     required this.onToggle,
@@ -46,19 +44,19 @@ class StreamConnectionFab extends ConsumerWidget {
     super.key,
   });
 
-  /// Whether the stream is currently running.
+  /// 流当前是否正在运行。
   final bool isRunning;
 
-  /// Toggles the stream on/off.
+  /// 切换流的开关状态。
   final Future<void> Function() onToggle;
 
-  /// Label shown when the stream is stopped.
+  /// 流停止时显示的标签。
   final String connectLabel;
 
-  /// Label shown when the stream is running.
+  /// 流运行时显示的标签。
   final String disconnectLabel;
 
-  /// Page-specific secondary actions shown as mini FABs above the main FAB.
+  /// 显示在主 FAB 上方的页面特定 mini FAB 操作。
   final List<StreamFabAction> secondaryActions;
 
   @override
@@ -70,6 +68,7 @@ class StreamConnectionFab extends ConsumerWidget {
       children: [
         for (final action in secondaryActions) ...[
           FloatingActionButton.small(
+            heroTag: null,
             tooltip: action.label,
             onPressed: action.enabled ? action.onPressed : null,
             backgroundColor: action.enabled
@@ -80,6 +79,7 @@ class StreamConnectionFab extends ConsumerWidget {
           const SizedBox(height: 12),
         ],
         FloatingActionButton.extended(
+          heroTag: null,
           onPressed: onToggle,
           backgroundColor: isRunning ? scheme.errorContainer : null,
           foregroundColor: isRunning ? scheme.onErrorContainer : null,

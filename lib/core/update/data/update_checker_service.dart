@@ -1,4 +1,4 @@
-/// Service that checks the GitHub Releases API for the latest version.
+/// 通过 GitHub Releases API 检查最新版本的服务。
 library;
 
 import 'dart:async';
@@ -8,10 +8,9 @@ import 'dart:io';
 import '../domain/github_release.dart';
 import 'version_comparator.dart';
 
-/// Talks to the GitHub Releases API to determine whether a newer app version
-/// is available.
+/// 调用 GitHub Releases API，判断是否存在可用的新应用版本。
 class UpdateCheckerService {
-  /// Creates an [UpdateCheckerService].
+  /// 创建 [UpdateCheckerService]。
   UpdateCheckerService({
     this.owner = 'Zsdhak1',
     this.repo = 'robomaster-custom-client',
@@ -20,25 +19,24 @@ class UpdateCheckerService {
     this._currentVersion,
   }) : _client = httpClient ?? HttpClient();
 
-  /// Repository owner.
+  /// 仓库所有者。
   final String owner;
 
-  /// Repository name.
+  /// 仓库名称。
   final String repo;
 
-  /// Request timeout.
+  /// 请求超时时间。
   final Duration timeout;
 
   final HttpClient _client;
   final String? _currentVersion;
 
-  /// GitHub REST API host.
+  /// GitHub REST API 主机。
   static const String _apiHost = 'api.github.com';
 
-  /// Fetches the latest release and compares it with the current version.
+  /// 拉取最新发布版本并与当前版本比较。
   ///
-  /// Never throws. On any failure an [UpdateCheckResult.error] is returned
-  /// so the UI can degrade gracefully.
+  /// 不向外抛出异常；任何失败都会返回 [UpdateCheckResult.error]，让 UI 优雅降级。
   Future<UpdateCheckResult> checkForUpdate() async {
     final currentVersion = _currentVersion ?? '';
     try {
@@ -127,7 +125,7 @@ class UpdateCheckerService {
     return _Response(statusCode: response.statusCode, body: body);
   }
 
-  /// Releases the underlying HTTP client.
+  /// 释放底层 HTTP 客户端。
   void dispose() => _client.close(force: true);
 }
 

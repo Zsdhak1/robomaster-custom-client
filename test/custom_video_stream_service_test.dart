@@ -1,8 +1,7 @@
-/// Unit tests for [CustomVideoStreamService] keyframe gating.
+/// [CustomVideoStreamService] 关键帧闸门的单元测试。
 ///
-/// Focus: the SPS/PPS gate must work even when the parameter set straddles a
-/// 300-byte CustomByteBlock boundary — the reason gating lives in the service
-/// (over accumulated bytes) rather than per chunk.
+/// 关注 SPS/PPS 闸门在参数集跨越 300 字节 CustomByteBlock 边界时仍能工作。
+/// 因此门控位于服务层并基于累计字节，而不是逐块判断。
 library;
 
 import 'dart:async';
@@ -20,12 +19,12 @@ void main() {
       final controller = StreamController<Uint8List>();
       await service.start(controller.stream);
 
-      // Non-IDR slice (nal type 1): not a parameter set.
+      // 非 IDR 切片（NAL 类型 1）：不是参数集。
       controller.add(Uint8List.fromList([0, 0, 0, 1, 0x61, 0xAA]));
       await _tick();
       expect(service.gateOpen, isFalse);
 
-      // SPS (nal type 7) -> gate opens.
+      // SPS（NAL 类型 7）会打开闸门。
       controller.add(Uint8List.fromList([0, 0, 0, 1, 0x67, 0x42, 0xC0]));
       await _tick();
       expect(service.gateOpen, isTrue);
@@ -39,12 +38,12 @@ void main() {
       final controller = StreamController<Uint8List>();
       await service.start(controller.stream);
 
-      // First chunk ends mid-start-code.
+      // 第一个块在起始码中间结束。
       controller.add(Uint8List.fromList([0xFF, 0x00, 0x00]));
       await _tick();
       expect(service.gateOpen, isFalse);
 
-      // Second chunk completes "00 00 00 01 67" (SPS) across the boundary.
+      // 第二个块跨边界补齐 "00 00 00 01 67"（SPS）。
       controller.add(Uint8List.fromList([0x00, 0x01, 0x67, 0x42]));
       await _tick();
       expect(service.gateOpen, isTrue);
@@ -74,12 +73,12 @@ void main() {
       final controller = StreamController<Uint8List>();
       await service.start(controller.stream);
 
-      // Before any data: no chunk timestamp, empty gate buffer.
+      // 尚未收到任何数据：无块时间戳，闸门缓冲区为空。
       expect(service.millisSinceLastChunk, isNull);
       expect(service.gateBufferBytes, 0);
       expect(service.tsWrap, isFalse);
 
-      // Pre-keyframe junk accumulates in the gate buffer and is counted.
+      // 关键帧前的杂散字节会累计在闸门缓冲区中并计数。
       controller.add(Uint8List.fromList([0, 0, 0, 1, 0x61, 0xAA]));
       await _tick();
       expect(service.chunksReceived, 1);
@@ -87,7 +86,7 @@ void main() {
       expect(service.gateBufferBytes, 6);
       expect(service.millisSinceLastChunk, isNotNull);
 
-      // SPS opens the gate and flushes the gate buffer.
+      // SPS 打开闸门并刷新闸门缓冲区。
       controller.add(Uint8List.fromList([0, 0, 0, 1, 0x67, 0x42, 0xC0]));
       await _tick();
       expect(service.gateOpen, isTrue);

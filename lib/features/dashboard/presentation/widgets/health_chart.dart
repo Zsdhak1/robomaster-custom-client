@@ -1,4 +1,4 @@
-/// Health trend line chart using fl_chart.
+/// 使用 fl_chart 绘制的血量趋势折线图。
 library;
 
 import 'package:fl_chart/fl_chart.dart';
@@ -12,15 +12,15 @@ import '../../../connection/domain/robot_identity.dart';
 import '../../logic/game_state.dart';
 import '../../logic/stream_providers.dart';
 
-/// Number of ally robots counted into the total health sum.
+/// 计入己方总血量的机器人数量。
 const int _allyRobotCount = 5;
 
-/// History window shown on the X-axis (seconds).
+/// X 轴显示的历史窗口，单位秒。
 const double _historyWindowSec = 120;
 
-/// Displays ally total health trend over the last 120 seconds.
+/// 显示最近 120 秒内的己方总血量趋势。
 class HealthChart extends ConsumerWidget {
-  /// Creates a [HealthChart].
+  /// 创建 [HealthChart]。
   const HealthChart({super.key});
 
   @override
@@ -33,7 +33,7 @@ class HealthChart extends ConsumerWidget {
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 0.0, end: 1.0),
       duration: const Duration(milliseconds: 400),
-      curve: const Cubic(0.2, 0, 0, 1), // MD3 emphasized decelerate
+      curve: const Cubic(0.2, 0, 0, 1), // MD3 强调减速曲线
       builder: (context, value, child) {
         return Opacity(
           opacity: value,
@@ -152,14 +152,14 @@ class HealthChart extends ConsumerWidget {
       padding: const EdgeInsets.only(right: 4),
       child: Text(
         label,
-        // Special case: fl_chart axis-tick callback exposes no BuildContext,
-        // so a fixed micro size is used for the chart's Y-axis labels.
+        // 特殊情况：fl_chart 轴刻度回调拿不到 BuildContext，
+        // 因此这里为 Y 轴标签使用固定的小字号。
         style: const TextStyle(fontSize: 10, color: Colors.grey),
       ),
     );
   }
 
-  /// Computes a padded Y range so a flat line is not rendered as a sliver.
+  /// 计算带留白的 Y 轴范围，避免平直曲线被渲染成细线。
   static (double, double) _yRange(List<FlSpot> spots) {
     if (spots.isEmpty) return (0, 100);
     var min = spots.first.y;
@@ -173,20 +173,19 @@ class HealthChart extends ConsumerWidget {
     return (low, max + pad);
   }
 
-  /// Builds spots with x = negative seconds-ago so time flows left → right.
+  /// 构建 x 为负“距今秒数”的点，使时间从左到右流动。
   ///
-  /// Downsamples to at most one point per second: `GlobalUnitStatus` can arrive
-  /// at tens of Hz, which over the 120-second window would push thousands of
-  /// points into the curve renderer every rebuild. Bucketing by whole-second
-  /// "seconds ago" keeps the line at ≤120 points without changing its shape.
+  /// 下采样到每秒最多一个点：`GlobalUnitStatus` 可能以数十 Hz 到达，
+  /// 120 秒窗口会在每次重建时向曲线渲染器推入数千个点。
+  /// 按整数“距今秒数”分桶可把折线保持在不超过 120 个点，同时尽量不改变形状。
   ///
-  /// [now] is injectable for testing; production callers pass the wall clock.
+  /// [now] 可注入以便测试；生产调用方传入当前墙钟时间。
   static List<FlSpot> buildSpots(
     List<StatusSnapshot> history, {
     required DateTime now,
   }) {
-    // Keep the latest sample per integer second bucket. Iterating in history
-    // order (oldest→newest) means the last write per bucket is the freshest.
+    // 每个整数秒桶保留最新样本。按历史顺序（最旧到最新）遍历，
+    // 表示每个桶最后写入的样本就是最新代表值。
     final bySecond = <int, FlSpot>{};
     for (final snapshot in history) {
       final healthList = snapshot.status.robotHealth;
@@ -196,8 +195,8 @@ class HealthChart extends ConsumerWidget {
       }
       final secondsAgo =
           now.difference(snapshot.timestamp).inMilliseconds / 1000.0;
-      // floor() buckets by whole seconds-ago: [N, N+1) all map to bucket N,
-      // so each one-second window keeps exactly one (freshest) representative.
+      // floor() 按整数距今秒数分桶：[N, N+1) 都映射到桶 N，
+      // 因此每个一秒窗口只保留一个最新代表点。
       bySecond[secondsAgo.floor()] = FlSpot(-secondsAgo, total.toDouble());
     }
     final result = bySecond.values.toList()

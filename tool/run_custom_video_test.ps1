@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+#requires -Version 5.1
 <#
 .SYNOPSIS
     一键启动本地自定义图传测试：Mosquitto + Windows 编码模拟器 + 可选 Flutter 客户端。
@@ -113,7 +113,7 @@ function Start-FlutterClient {
     }
 }
 
-# main
+# 主
 Start-Mosquitto
 Test-PythonEnv
 

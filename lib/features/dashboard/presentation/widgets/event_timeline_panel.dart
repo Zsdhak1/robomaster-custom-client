@@ -1,4 +1,4 @@
-/// Event timeline panel showing decoded game events with relative times.
+/// 事件时间线面板，显示带相对时间的已解码比赛事件。
 library;
 
 import 'package:flutter/material.dart';
@@ -10,9 +10,9 @@ import '../../logic/event_decoder.dart';
 import '../../logic/game_state.dart';
 import '../../logic/stream_providers.dart';
 
-/// Right-side panel displaying recent game events, newest first.
+/// 右侧面板显示最近比赛事件，最新事件在最前。
 class EventTimelinePanel extends ConsumerWidget {
-  /// Creates an [EventTimelinePanel].
+  /// 创建 [EventTimelinePanel]。
   const EventTimelinePanel({super.key});
 
   @override
@@ -22,7 +22,7 @@ class EventTimelinePanel extends ConsumerWidget {
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 0.0, end: 1.0),
       duration: const Duration(milliseconds: 400),
-      curve: const Cubic(0.2, 0, 0, 1), // MD3 emphasized decelerate
+      curve: const Cubic(0.2, 0, 0, 1), // MD3 强调减速曲线
       builder: (context, value, child) {
         return Opacity(
           opacity: value,
@@ -81,18 +81,17 @@ class EventTimelinePanel extends ConsumerWidget {
   }
 }
 
-/// Reusable event timeline view.
+/// 可复用的事件时间线视图。
 ///
-/// Decoupled from [gameStateProvider] so it can render imported/previewed
-/// events as well as live ones.
+/// 与 [gameStateProvider] 解耦，因此既能渲染导入或预览事件，也能渲染实时事件。
 class EventTimelineView extends StatelessWidget {
-  /// Creates an [EventTimelineView].
+  /// 创建 [EventTimelineView]。
   const EventTimelineView({required this.events, this.matchStart, super.key});
 
-  /// Events to display, newest first.
+  /// 要显示的事件，最新在前。
   final List<TimedEvent> events;
 
-  /// Match start time used for relative timestamps.
+  /// 用于计算相对时间戳的比赛开始时间。
   final DateTime? matchStart;
 
   @override
@@ -117,9 +116,9 @@ class EventTimelineView extends StatelessWidget {
   }
 }
 
-/// Single decoded event entry in the timeline.
+/// 时间线中的单个已解码事件条目。
 class _EventTile extends StatelessWidget {
-  /// Creates an [_EventTile].
+  /// 创建 [_EventTile]。
   const _EventTile({required this.timed, required this.matchStart});
 
   final TimedEvent timed;
@@ -175,10 +174,10 @@ class _EventTile extends StatelessWidget {
     );
   }
 
-  /// Formats the event time relative to match start as `mm:ss`.
+  /// 将事件时间格式化为相对于比赛开始的 `mm:ss`。
   ///
-  /// Before the match begins (no [matchStart]), shows wall-clock `HH:mm:ss`
-  /// so events are still ordered/identifiable.
+  /// 比赛开始前或没有 [matchStart] 时显示墙钟时间 `HH:mm:ss`，
+  /// 让事件仍然可排序、可识别。
   String _relativeTime() {
     if (matchStart == null) {
       final t = timed.timestamp;

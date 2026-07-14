@@ -1,38 +1,36 @@
-/// H.264 (AVC) / H.265 (HEVC) parameter-set detection for the custom video line (0x0310).
+/// 自定义图传链路（0x0310）使用的 H.264 / H.265 参数集检测。
 ///
-/// Deliberately separate from the HEVC detector in `byte_data_reader.dart`:
-/// the two codecs encode `nal_unit_type` differently, so mixing them would
-/// let one line's keyframe gate misfire on the other line's stream.
+/// 这里刻意独立于 `byte_data_reader.dart` 中的 HEVC 检测器：两个编码格式的
+/// `nal_unit_type` 编码方式不同，混用会让某条链路的关键帧闸门误判另一条流。
 ///
-/// HEVC: `nal_unit_type = (firstByte >> 1) & 0x3F`, params VPS=32/SPS=33/PPS=34.
-/// H.264: `nal_unit_type = firstByte & 0x1F`, params SPS=7/PPS=8 (no VPS).
+/// HEVC：`nal_unit_type = (firstByte >> 1) & 0x3F`，参数集为 VPS=32/SPS=33/PPS=34。
+/// H.264：`nal_unit_type = firstByte & 0x1F`，参数集为 SPS=7/PPS=8（无 VPS）。
 library;
 
 import 'dart:typed_data';
 
-/// H.264 nal_unit_type for a Sequence Parameter Set.
+/// H.264 序列参数集的 `nal_unit_type`。
 const int _h264NalSps = 7;
 
-/// H.264 nal_unit_type for a Picture Parameter Set.
+/// H.264 图像参数集的 `nal_unit_type`。
 const int _h264NalPps = 8;
 
-/// HEVC nal_unit_type for a Video Parameter Set.
+/// HEVC 视频参数集的 `nal_unit_type`。
 const int _hevcNalVps = 32;
 
-/// HEVC nal_unit_type for a Sequence Parameter Set.
+/// HEVC 序列参数集的 `nal_unit_type`。
 const int _hevcNalSps = 33;
 
-/// HEVC nal_unit_type for a Picture Parameter Set.
+/// HEVC 图像参数集的 `nal_unit_type`。
 const int _hevcNalPps = 34;
 
-/// Returns true if [data] contains an H.264 SPS or PPS NAL unit.
+/// 当 [data] 包含 H.264 SPS 或 PPS NAL 单元时返回 true。
 ///
-/// Walks AnnexB start codes (3- or 4-byte) and reads the 5-bit nal_unit_type
-/// from the byte after each start code. A frame carrying SPS/PPS is the
-/// keyframe the decoder must see before it can render anything.
+/// 遍历 3 字节或 4 字节 AnnexB 起始码，并读取每个起始码之后的 5 位
+/// `nal_unit_type`。携带 SPS/PPS 的帧是解码器开始渲染前必须看到的关键帧。
 ///
-/// HEVC parameter sets do NOT match: HEVC VPS/SPS/PPS (32/33/34) reduce under
-/// `& 0x1F` to 0/1/2, never 7 or 8, so an HEVC stream never trips this gate.
+/// HEVC 参数集不会误触发这里：HEVC VPS/SPS/PPS（32/33/34）经过 `& 0x1F`
+/// 后变为 0/1/2，不会等于 7 或 8。
 bool h264HasParameterSet(Uint8List data) {
   final n = data.length;
   var i = 0;
@@ -56,20 +54,16 @@ bool h264HasParameterSet(Uint8List data) {
   return false;
 }
 
-/// Returns true if [data] contains an HEVC VPS, SPS or PPS NAL unit.
+/// 当 [data] 包含 HEVC VPS、SPS 或 PPS NAL 单元时返回 true。
 ///
-/// Walks AnnexB start codes (3- or 4-byte) and reads the 6-bit nal_unit_type
-/// from the byte after each start code.  A frame carrying any of these
-/// parameter sets is the keyframe the decoder must see before it can render
-/// anything.
+/// 遍历 3 字节或 4 字节 AnnexB 起始码，并读取每个起始码之后的 6 位
+/// `nal_unit_type`。携带任一参数集的帧是解码器开始渲染前必须看到的关键帧。
 ///
-/// This is the custom‑line counterpart of [hevcHasParameterSet] in
-/// `byte_data_reader.dart` — kept here so the two lines maintain independent
-/// NAL parsing and never share gate logic.
+/// 这是 `byte_data_reader.dart` 中 [hevcHasParameterSet] 的自定义链路版本；
+/// 保留在这里可以让两条链路的 NAL 解析和闸门逻辑相互独立。
 ///
-/// H.264 parameter sets do NOT match: H.264 SPS/PPS (7/8) under the HEVC mask
-/// `(>>1)&0x3F` become 3/4, never 32/33/34, so an H.264 stream never trips
-/// this gate.
+/// H.264 参数集不会误触发这里：H.264 SPS/PPS（7/8）经过 HEVC 掩码
+/// `(>> 1) & 0x3F` 后变为 3/4，不会等于 32/33/34。
 bool h265HasParameterSet(Uint8List data) {
   final n = data.length;
   var i = 0;

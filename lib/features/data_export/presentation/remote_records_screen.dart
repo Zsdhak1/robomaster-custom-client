@@ -1,8 +1,6 @@
-/// Screen that lists recordings stored in the shared remote repository and
-/// lets the operator download them to the local export directory.
+/// 列出共享远程仓库中的比赛记录，并允许操作手下载到本地导出目录。
 ///
-/// Remote file names are parsed into date/side/robot-id so the list matches
-/// the mental model of the record management screen.
+/// 远程文件名会被解析为日期、阵营和机器人 ID，使列表与记录管理页的筛选方式保持一致。
 library;
 
 import 'package:flutter/material.dart';
@@ -18,9 +16,9 @@ import '../domain/remote_record_meta.dart';
 import '../logic/data_export_providers.dart';
 import '../logic/remote_records_provider.dart';
 
-/// Screen for browsing remote recordings.
+/// 用于浏览远程记录的页面。
 class RemoteRecordsScreen extends ConsumerStatefulWidget {
-  /// Creates a [RemoteRecordsScreen].
+  /// 创建 [RemoteRecordsScreen]。
   const RemoteRecordsScreen({super.key});
 
   @override

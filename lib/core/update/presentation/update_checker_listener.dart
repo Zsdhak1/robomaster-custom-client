@@ -1,5 +1,4 @@
-/// Widget that listens for update-check results and shows the update dialog
-/// once when a new version is detected.
+/// 监听更新检查结果，并在检测到新版本时显示一次更新对话框的组件。
 library;
 
 import 'package:flutter/material.dart';
@@ -9,12 +8,12 @@ import '../domain/github_release.dart';
 import '../logic/update_providers.dart';
 import 'update_dialog.dart';
 
-/// Wraps [child] and conditionally shows the update dialog on app startup.
+/// 包装 [child]，并在应用启动时按需显示更新对话框。
 class UpdateCheckerListener extends ConsumerStatefulWidget {
-  /// Creates an [UpdateCheckerListener].
+  /// 创建 [UpdateCheckerListener]。
   const UpdateCheckerListener({required this.child, super.key});
 
-  /// The widget below this listener in the tree (usually [MaterialApp]).
+  /// 该监听器下方的组件，通常是 [MaterialApp]。
   final Widget child;
 
   @override
@@ -50,8 +49,7 @@ class _UpdateCheckerListenerState extends ConsumerState<UpdateCheckerListener> {
         _showDialog(result);
       },
       error: (err, _) {
-        // Startup checks should not spam; rely on the About screen for manual
-        // feedback.
+        // 启动检查不应打扰用户；错误反馈交给关于页的手动检查入口。
       },
     );
   }
@@ -82,8 +80,7 @@ class _UpdateCheckerListenerState extends ConsumerState<UpdateCheckerListener> {
   }
 }
 
-/// Tracks which update-dialog tags have already been shown in this session
-/// to prevent duplicates.
+/// 跟踪当前会话中已经显示过的更新对话框 tag，避免重复弹出。
 class _UpdateDialogScope extends InheritedWidget {
   const _UpdateDialogScope({required this.shownTags, required super.child});
 
@@ -98,12 +95,12 @@ class _UpdateDialogScope extends InheritedWidget {
       shownTags.length != old.shownTags.length;
 }
 
-/// Provides the session-scoped shown-tags set for [UpdateCheckerListener].
+/// 为 [UpdateCheckerListener] 提供会话范围内的已显示 tag 集合。
 class UpdateCheckerHost extends StatelessWidget {
-  /// Creates an [UpdateCheckerHost].
+  /// 创建 [UpdateCheckerHost]。
   const UpdateCheckerHost({required this.child, super.key});
 
-  /// The widget below this host in the tree.
+  /// 该主机下方的组件。
   final Widget child;
 
   @override

@@ -1,7 +1,6 @@
-/// Data export management screen.
+/// 数据导出管理页面。
 ///
-/// Left side lists saved JSON match records; right side previews the selected
-/// record's event timeline.
+/// 左侧列出已保存的 JSON 比赛记录，右侧预览所选记录的事件时间线。
 library;
 
 import 'dart:io';
@@ -34,9 +33,9 @@ const _jsonTypeGroup = XTypeGroup(
   extensions: ['json'],
 );
 
-/// Screen for managing saved match records and previewing their events.
+/// 用于管理已保存比赛记录并预览事件的页面。
 class DataExportScreen extends ConsumerWidget {
-  /// Creates a [DataExportScreen].
+  /// 创建 [DataExportScreen]。
   const DataExportScreen({super.key});
 
   @override
@@ -126,10 +125,10 @@ class _RecordingIndicator extends StatelessWidget {
   }
 }
 
-/// Export / import operations invoked from the page FAB menu.
+/// 页面 FAB 菜单触发的导出和导入操作。
 ///
-/// Kept as static helpers (rather than buttons) so the FAB can call them
-/// directly with the ambient [BuildContext] and [WidgetRef].
+/// 这些操作保留为静态辅助函数，而不是拆成按钮组件，便于 FAB 直接传入当前
+/// [BuildContext] 和 [WidgetRef] 调用。
 abstract final class _DataActions {
   static Future<void> export(BuildContext context, WidgetRef ref) async {
     final directory = ref.read(exportDirectoryProvider);
@@ -161,8 +160,7 @@ abstract final class _DataActions {
     }
   }
 
-  /// Copies one or more external JSON record files into the export directory so
-  /// they show up in the record list and can be selected for merging.
+  /// 将一个或多个外部 JSON 记录文件复制到导出目录，使其出现在记录列表中并可参与合并。
   static Future<void> import(BuildContext context, WidgetRef ref) async {
     final directory = ref.read(exportDirectoryProvider);
     if (directory.isEmpty) {
@@ -197,8 +195,7 @@ abstract final class _DataActions {
     }
   }
 
-  /// Copies [sourcePath] into [directory], skipping when it already lives there
-  /// and de-duplicating the file name on collision.
+  /// 将 [sourcePath] 复制到 [directory]；源文件已在目录内时跳过，命名冲突时自动去重。
   static Future<void> _copyIntoDirectory(
     String sourcePath,
     String directory,
@@ -207,10 +204,10 @@ abstract final class _DataActions {
     final name = source.uri.pathSegments.last;
     var target = File('$directory${Platform.pathSeparator}$name');
 
-    // Already inside the export directory: nothing to copy.
+    // 源文件已经位于导出目录内时无需复制。
     if (source.absolute.path == target.absolute.path) return;
 
-    // Avoid clobbering an existing record with the same name.
+    // 避免覆盖同名的已有记录。
     if (target.existsSync()) {
       final stem = name.endsWith('.json')
           ? name.substring(0, name.length - 5)
@@ -228,10 +225,10 @@ abstract final class _DataActions {
   }
 }
 
-/// Sort options for the record list.
+/// 记录列表的排序选项。
 enum _RecordSort { timeDesc, timeAsc, durationDesc }
 
-/// Side filter for the record list.
+/// 记录列表的阵营筛选项。
 enum _SideFilter { all, blue, red, merged }
 
 class _RecordList extends ConsumerStatefulWidget {
@@ -649,8 +646,7 @@ class _PreviewPanel extends ConsumerWidget {
   }
 }
 
-/// Key-data summary card identifying which match this record is, plus a button
-/// to open the full replay screen.
+/// 展示记录关键摘要，并提供打开完整回放页面的入口。
 class _MatchSummaryCard extends ConsumerWidget {
   const _MatchSummaryCard({required this.record});
 
@@ -1033,7 +1029,7 @@ class _RecordActions extends ConsumerWidget {
   }
 }
 
-/// A compact "已合并" badge shown on merged record tiles.
+/// 显示在合并记录条目上的紧凑“已合并”徽标。
 class _MergedBadge extends StatelessWidget {
   const _MergedBadge();
 
@@ -1091,7 +1087,7 @@ class _StatChip extends StatelessWidget {
 }
 
 void _showSnackBar(BuildContext context, String message) {
-  // Route through the unified messenger; failure phrasing gets the error style.
+  // 统一走反馈消息入口；失败类文案使用错误样式。
   const errorMarkers = ['失败', '无法', '错误'];
   if (errorMarkers.any(message.contains)) {
     context.showErrorSnack(message);

@@ -1,4 +1,4 @@
-﻿/// 图传 — 官方图传解码器 + 自定义图传参数
+/// 图传 — 官方图传解码器 + 自定义图传参数
 library;
 
 import 'dart:io';
@@ -11,12 +11,12 @@ import '../../../core/theme/app_theme.dart';
 import '../logic/settings_providers.dart';
 import 'hwdec_screen.dart';
 
-/// Sub-screen for all video transmission settings.
+/// 管理全部图传设置的子页面。
 class VideoSettingsScreen extends ConsumerWidget {
-  /// Creates a [VideoSettingsScreen].
+  /// 创建 [VideoSettingsScreen]。
   const VideoSettingsScreen({super.key, this.embedded = false});
 
-  /// When true, renders only the body without its own Scaffold/AppBar.
+  /// 为 true 时只渲染主体，不包含自己的 [Scaffold] 或 [AppBar]。
   final bool embedded;
 
   @override
@@ -161,9 +161,10 @@ class VideoSettingsScreen extends ConsumerWidget {
     );
   }
 
-  /// MPEG-TS wrap toggle. media_kit forces TS on (its libmpv lacks the raw
-  /// H.264 demuxer), so the switch is locked on and explained for that backend
-  /// instead of silently overriding a switch the user left off.
+  /// MPEG-TS 封装开关。
+  ///
+  /// media_kit 的 libmpv 缺少原始 H.264 解复用器，因此该后端会强制开启 TS 封装。
+  /// 这里直接锁定开关并展示原因，避免用户关闭后又被静默覆盖。
   Widget _buildTsWrapCard(WidgetRef ref) {
     final forced =
         ref.watch(customVideoBackendProvider) == VideoDecoderBackend.mediaKit;
@@ -183,9 +184,8 @@ class VideoSettingsScreen extends ConsumerWidget {
   }
 
   Future<void> _setTsWrap(WidgetRef ref, {required bool enabled}) async {
-    // Persist only. If this changes the effective TS value while streaming,
-    // customVideoControllerProvider's listener restarts the bridge — keeping
-    // restart logic in one place and avoiding a double restart.
+    // 这里只负责持久化。如果它改变了当前生效的 TS 值，流控制器的监听器会重启桥接，
+    // 从而让重启逻辑集中在一个位置，避免重复重启。
     await ref.read(customVideoTsWrapProvider.notifier).set(enabled: enabled);
   }
 

@@ -1,8 +1,7 @@
-/// Shared MQTT login-status badge.
+/// 共享的 MQTT 登录状态徽标。
 ///
-/// Mirrors the dashboard top bar's login indicator (登录身份 + 己方红/蓝 pill +
-/// connection dot) so the video pages can show the same status in their
-/// top-right corner. Reads the live game/connection providers directly.
+/// 与仪表盘顶部栏的登录指示器保持一致（登录身份、己方红/蓝胶囊和连接圆点），
+/// 让视频页面也能在右上角展示同一套实时比赛和连接状态。
 library;
 
 import 'package:flutter/material.dart';
@@ -14,15 +13,14 @@ import '../responsive/responsive_ext.dart';
 import '../state/session_providers.dart';
 import '../theme/app_theme.dart';
 
-/// A compact horizontal badge showing MQTT login identity and connection state.
+/// 显示 MQTT 登录身份和连接状态的紧凑横向徽标。
 ///
-/// Designed to sit on a translucent overlay in the top-right of the video
-/// pages; pass [onDark] true to render text/icons in light colors.
+/// 设计为放置在视频页面右上角的半透明覆盖层中；[onDark] 为 true 时使用浅色文字和图标。
 class MqttLoginBadge extends ConsumerWidget {
-  /// Creates a [MqttLoginBadge].
+  /// 创建 [MqttLoginBadge]。
   const MqttLoginBadge({this.onDark = true, super.key});
 
-  /// When true, renders for a dark/translucent background (white foreground).
+  /// 为 true 时按深色或半透明背景渲染，前景使用浅色。
   final bool onDark;
 
   @override
@@ -74,7 +72,7 @@ class MqttLoginBadge extends ConsumerWidget {
   }
 }
 
-/// Solid pill badge showing the own side (己方 红/蓝).
+/// 显示己方红/蓝阵营的实心胶囊徽标。
 class _SideBadge extends StatelessWidget {
   const _SideBadge({required this.ownIsBlue});
 

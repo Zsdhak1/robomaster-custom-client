@@ -1,10 +1,8 @@
-/// Unit tests for GitHub remote-sync configuration and graceful degradation.
+/// GitHub 远程同步配置和优雅降级行为的单元测试。
 ///
-/// Network paths are not exercised here (no live HTTP); these tests pin the
-/// config semantics and the no-credential degradation that keep the UI safe.
-/// The default config points at the shared team repository and ships an
-/// embedded default token, so cases that must avoid touching the network use
-/// an explicit empty `repository` or an explicit empty `token`.
+/// 这里不触发网络路径（没有实时 HTTP）；测试只固定配置语义，以及缺少凭据时保护 UI 的降级行为。
+/// 默认配置指向共享队伍仓库并内置默认令牌，因此需要避免触网的用例会显式传入空 `repository`
+/// 或空 `token`。
 library;
 
 import 'package:flutter_test/flutter_test.dart';

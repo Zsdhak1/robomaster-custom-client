@@ -1,10 +1,9 @@
-/// Regression test for the AnnexbTcpServer high-rate write crash.
+/// [AnnexbTcpServer] 高频写入崩溃的回归测试。
 ///
-/// The bug: `_writeToClients` did `client..add(data)..flush()`. flush() marks
-/// the IOSink as bound until its Future completes; the next high-rate add()
-/// then throws `Bad state: StreamSink is bound to a stream` (a StateError that
-/// escapes the `on Exception` catch), crashing the feed and dropping frames →
-/// decoder "Could not find ref with POC" glitches.
+/// 问题源于旧版 `_writeToClients` 调用了 `client..add(data)..flush()`。
+/// flush() 会让 IOSink 在 Future 完成前处于绑定状态，下一次高频 add() 会抛出
+/// `Bad state: StreamSink is bound to a stream`。这是 StateError，不会被
+/// `on Exception` 捕获，最终中断数据流并丢帧，引发解码器 “Could not find ref with POC” 花屏。
 library;
 
 import 'dart:io';
@@ -13,7 +12,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:robomaster_custom_client_1/services/annexb_tcp_server.dart';
 
-/// Builds an AnnexB NAL: 4-byte start code + 2-byte NAL header + body.
+/// 构建 AnnexB NAL：4 字节起始码 + 2 字节 NAL 头部 + 主体。
 Uint8List nal(int nalType, List<int> body) {
   return Uint8List.fromList([0, 0, 0, 1, (nalType << 1) & 0xFF, 0x01, ...body]);
 }
@@ -34,19 +33,19 @@ void main() {
       client.destroy();
     });
 
-    // Give the server a moment to register the client.
+    // 给服务器一点时间注册客户端。
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
-    // Keyframe (VPS = NAL type 32) opens the gate.
+    // 关键帧（VPS = NAL 类型 32）会打开闸门。
     server.feedFrame(nal(32, [1, 2, 3, 4]));
 
-    // High-rate P-frames. With the old `add()..flush()` this threw
-    // "StreamSink is bound to a stream" on the 2nd iteration.
+    // 高频 P 帧。旧版 `add()..flush()` 会在第 2 次迭代抛出
+    // "StreamSink is bound to a stream"。
     for (var i = 0; i < 500; i++) {
       server.feedFrame(nal(1, List<int>.filled(20, i & 0xFF)));
     }
 
-    // Let the async socket writes drain.
+    // 等待异步套接字写入排空。
     await Future<void>.delayed(const Duration(milliseconds: 300));
 
     expect(server.framesForwarded, greaterThan(400),
@@ -60,16 +59,14 @@ void main() {
     await server.start();
     addTearDown(server.stop);
 
-    // The real-world race: the bridge is fed (by MQTT/UDP) and opens its gate
-    // BEFORE any decoder attaches, because players connect asynchronously once
-    // the bridge URL is known. The keyframe is forwarded to an empty client
-    // list and would otherwise be lost.
-    final keyframe = nal(32, [1, 2, 3, 4]); // VPS (type 32) opens the gate
+    // 真实竞态：桥接由 MQTT/UDP 喂入并打开闸门时，可能尚无解码器连接；
+    // 播放器会在拿到桥接 URL 后异步接入。若不缓存关键帧，它会被转发给空客户端列表并丢失。
+    final keyframe = nal(32, [1, 2, 3, 4]); // VPS（类型 32）打开闸门。
     server
       ..feedFrame(keyframe)
-      ..feedFrame(nal(1, [9, 9, 9])); // a live P-frame after the keyframe
+      ..feedFrame(nal(1, [9, 9, 9])); // 关键帧后的实时 P 帧。
 
-    // Now a decoder connects late.
+    // 现在让一个解码器较晚接入。
     final received = <int>[];
     final client =
         await Socket.connect(InternetAddress.loopbackIPv4, server.port!);
@@ -81,8 +78,7 @@ void main() {
 
     await Future<void>.delayed(const Duration(milliseconds: 100));
 
-    // It must be primed with the cached keyframe, otherwise it would sit on a
-    // white screen (no parameter sets / no IDR) until the next keyframe.
+    // 它必须先收到缓存关键帧，否则会在没有参数集和 IDR 的白屏状态等待到下一个关键帧。
     expect(received, isNotEmpty, reason: 'late client got no keyframe');
     expect(received.take(keyframe.length).toList(), keyframe,
         reason: 'late client was not primed with the cached keyframe bytes');

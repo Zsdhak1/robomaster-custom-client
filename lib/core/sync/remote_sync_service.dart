@@ -1,33 +1,29 @@
-/// Abstractions for syncing record configuration and match recordings with a
-/// remote store (e.g. a shared GitHub repository).
+/// 用于将记录配置和比赛记录同步到远程存储的抽象层。
 ///
-/// This file defines the *interfaces* only. The current build ships a local
-/// no-op implementation; a GitHub-backed implementation can be dropped in next
-/// phase without touching callers. See [RemoteSyncService].
+/// 当前文件只定义接口，并提供本地空操作实现；后续可以接入 GitHub 仓库等后端，
+/// 而无需修改调用方。参见 [RemoteSyncService]。
 library;
 
 import '../../features/data_export/domain/match_record.dart';
 
-/// Identifies a remote backend and its credentials/location.
-///
-/// For the GitHub implementation: [repository] is `owner/repo`, [branch] the
-/// target branch, [token] a personal access token, and [configPath] /
-/// [recordsDir] the in-repo paths for the shared config and recordings.
-/// Default shared repository every client points at out of the box.
+/// 默认共享仓库用于让每个客户端开箱即用地指向同一个位置。
 const String defaultSyncRepository = 'Zsdhak1/custom-client-sync';
 
-/// Default target branch of [defaultSyncRepository].
+/// [defaultSyncRepository] 的默认目标分支。
 const String defaultSyncBranch = 'main';
 
-/// Default GitHub personal access token placeholder.
+/// 默认 GitHub 个人访问令牌占位值。
 ///
-/// SECURITY: Never embed a real PAT in source code or committed binaries.
-/// GitHub Push Protection blocks pushes containing secrets. Users must enter
-/// their own PAT in Settings → Remote Sync before uploading recordings.
+/// 安全提醒：不要在源码或已提交的二进制中嵌入真实 PAT。GitHub Push Protection
+/// 会阻止包含密钥的推送；用户需要在“设置 → 远程同步”中输入自己的 PAT 后再上传记录。
 const String defaultSyncToken = '';
 
+/// 远程后端的凭据和路径配置。
+///
+/// GitHub 实现中，[repository] 为 `owner/repo`，[branch] 为目标分支，
+/// [token] 为个人访问令牌，[configPath] / [recordsDir] 为仓库内共享配置和记录路径。
 class RemoteSyncConfig {
-  /// Creates a [RemoteSyncConfig].
+  /// 创建 [RemoteSyncConfig]。
   const RemoteSyncConfig({
     this.repository = defaultSyncRepository,
     this.branch = defaultSyncBranch,
@@ -37,39 +33,38 @@ class RemoteSyncConfig {
     this.localRecordsDir = '',
   });
 
-  /// `owner/repo` slug of the remote repository.
+  /// 远程仓库的 `owner/repo` 标识。
   final String repository;
 
-  /// Target branch.
+  /// 目标分支。
   final String branch;
 
-  /// Access token (kept out of logs; never echo its value).
+  /// 访问令牌；不得写入日志或回显其值。
   final String token;
 
-  /// In-repo path of the shared record configuration JSON.
+  /// 仓库内共享记录配置 JSON 的路径。
   final String configPath;
 
-  /// In-repo directory holding uploaded match recordings.
+  /// 仓库内存放已上传比赛记录的目录。
   final String recordsDir;
 
-  /// Local directory downloads are written into (typically the export dir).
+  /// 下载写入的本地目录，通常为导出目录。
   ///
-  /// Not persisted to the remote config; populated at runtime from the local
-  /// export directory setting.
+  /// 该字段不会持久化到远程配置，而是在运行时从本地导出目录设置填充。
   final String localRecordsDir;
 
-  /// Whether a remote target exists to read from (public pulls need no token).
+  /// 是否存在可读取的远程目标；公开拉取不需要令牌。
   bool get canPull => repository.isNotEmpty;
 
-  /// Whether pushes/uploads are possible (writes require a token).
+  /// 是否可以推送或上传；写入需要令牌。
   bool get canPush => repository.isNotEmpty && token.isNotEmpty;
 
-  /// Whether this config is fully populated (repository + token).
+  /// 该配置是否已完整填写仓库和令牌。
   ///
-  /// Retained for callers/UI that gate write actions; equivalent to [canPush].
+  /// 保留给调用方/UI 判断写入操作是否可用；等价于 [canPush]。
   bool get isConfigured => canPush;
 
-  /// Creates a copy with selected fields replaced.
+  /// 创建替换部分字段后的副本。
   RemoteSyncConfig copyWith({
     String? repository,
     String? branch,
@@ -88,8 +83,9 @@ class RemoteSyncConfig {
     );
   }
 
-  /// Restores from JSON (token is intentionally NOT persisted here; store it
-  /// separately in secure storage when the GitHub impl lands).
+  /// 从 JSON 还原配置。
+  ///
+  /// 令牌刻意不在这里持久化；GitHub 实现接入后应单独存入安全存储。
   factory RemoteSyncConfig.fromJson(Map<String, dynamic> json) {
     return RemoteSyncConfig(
       repository: json['repository'] as String? ?? defaultSyncRepository,
@@ -100,7 +96,7 @@ class RemoteSyncConfig {
     );
   }
 
-  /// Serializes to JSON (excludes [token] by design).
+  /// 序列化为 JSON；按设计排除 [token]。
   Map<String, dynamic> toJson() => {
         'repository': repository,
         'branch': branch,
@@ -109,74 +105,73 @@ class RemoteSyncConfig {
       };
 }
 
-/// A recording available on the remote, before it is downloaded.
+/// 远程可用但尚未下载的比赛记录引用。
 class RemoteRecordRef {
-  /// Creates a [RemoteRecordRef].
+  /// 创建 [RemoteRecordRef]。
   const RemoteRecordRef({
     required this.fileName,
     required this.remotePath,
     this.sizeBytes = 0,
   });
 
-  /// Base file name.
+  /// 基础文件名。
   final String fileName;
 
-  /// In-repo path used to fetch the file.
+  /// 用于拉取文件的仓库内路径。
   final String remotePath;
 
-  /// File size in bytes if known.
+  /// 文件大小，单位为字节；未知时为 0。
   final int sizeBytes;
 }
 
-/// Result of a sync operation, carrying a success flag and a message.
+/// 同步操作结果，包含成功标记和面向用户的消息。
 class SyncResult {
-  /// Creates a [SyncResult].
+  /// 创建 [SyncResult]。
   const SyncResult({required this.ok, this.message = ''});
 
-  /// Whether the operation succeeded.
+  /// 操作是否成功。
   final bool ok;
 
-  /// Human-readable detail (shown to the user; never contains the token).
+  /// 可读详情，显示给用户；不得包含令牌。
   final String message;
 
-  /// A successful result with optional [message].
+  /// 创建成功结果，可附带 [message]。
   static SyncResult success([String message = '']) =>
       SyncResult(ok: true, message: message);
 
-  /// A failed result with [message].
+  /// 创建失败结果，并附带 [message]。
   static SyncResult failure(String message) =>
       SyncResult(ok: false, message: message);
 }
 
-/// Contract for pulling the shared record config and exchanging recordings
-/// with a remote store. Implementations must never throw; return a failed
-/// [SyncResult] / null instead so the UI can degrade gracefully.
+/// 拉取共享记录配置、并与远程存储交换比赛记录的服务契约。
+///
+/// 实现不得向 UI 抛出异常；应返回失败 [SyncResult]、null 或空集合，让 UI 能优雅降级。
 abstract class RemoteSyncService {
-  /// Pulls the shared record config JSON. Returns the raw decoded map, or null
-  /// if unavailable. Callers pass it to `RecordConfig.fromJson`.
+  /// 拉取共享记录配置 JSON。
+  ///
+  /// 返回原始解码后的 map；不可用时返回 null。调用方会将其传给 `RecordConfig.fromJson`。
   Future<Map<String, dynamic>?> pullRecordConfig();
 
-  /// Pushes the local record config JSON to the remote shared location.
+  /// 将本地记录配置 JSON 推送到远程共享位置。
   Future<SyncResult> pushRecordConfig(Map<String, dynamic> config);
 
-  /// Lists recordings available on the remote.
+  /// 列出远程可用的比赛记录。
   Future<List<RemoteRecordRef>> listRemoteRecords();
 
-  /// Downloads [ref] into the local export directory; returns its local path,
-  /// or null on failure.
+  /// 将 [ref] 下载到本地导出目录，成功时返回本地路径，失败时返回 null。
   Future<String?> downloadRecord(RemoteRecordRef ref);
 
-  /// Uploads a local [record] to the remote records directory.
+  /// 将本地 [record] 上传到远程记录目录。
   Future<SyncResult> uploadRecord(MatchRecord record);
 }
 
-/// Local no-op implementation used until the GitHub backend is built.
+/// GitHub 后端接入前使用的本地空操作实现。
 ///
-/// Every method degrades gracefully: pulls return null/empty, pushes report a
-/// "not configured" failure. Wiring callers to this today means the GitHub
-/// implementation can replace it with zero changes at call sites.
+/// 所有方法都会优雅降级：拉取返回 null 或空集合，推送报告“未配置”失败。
+/// 调用方先接入该实现，后续替换成 GitHub 实现时无需改调用点。
 class NoopRemoteSyncService implements RemoteSyncService {
-  /// Creates a [NoopRemoteSyncService].
+  /// 创建 [NoopRemoteSyncService]。
   const NoopRemoteSyncService();
 
   static const SyncResult _notConfigured =

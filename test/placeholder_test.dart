@@ -7,7 +7,7 @@ void main() {
     });
 
     test('protobuf messages are registered', () {
-      // Verifies that generated protobuf classes compile correctly.
+      // 验证生成的 protobuf 类可以正确编译。
       expect(true, isTrue);
     });
   });

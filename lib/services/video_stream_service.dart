@@ -1,7 +1,7 @@
-/// UDP 3334 HEVC video stream service.
+/// UDP 3334 HEVC 视频流服务。
 ///
-/// Binds to UDP port, parses packet headers, delegates reassembly
-/// to [FrameReassembler], and exposes the frame stream.
+/// 绑定 UDP 端口，读取包并交给 [FrameReassembler] 重组，
+/// 再向上暴露完整帧流。
 library;
 
 import 'dart:async';
@@ -13,165 +13,173 @@ import '../core/video/frame_reassembler.dart';
 import '../core/video/video_frame.dart';
 import 'annexb_tcp_server.dart';
 
-/// Service for receiving and reassembling HEVC video frames over UDP.
+/// 通过 UDP 接收并重组 HEVC 视频帧的服务。
 class VideoStreamService {
-  /// Creates a [VideoStreamService].
+  /// 创建 [VideoStreamService]。
   ///
-  /// [port] defaults to [defaultUdpVideoPort].
+  /// [port] 默认为 [defaultUdpVideoPort]。
   VideoStreamService({int? port}) : _port = port ?? defaultUdpVideoPort;
 
   final int _port;
 
-  /// Raw UDP socket for receiving packets.
+  /// 接收 UDP 包的原始套接字。
   RawDatagramSocket? _socket;
 
-  /// Frame reassembler instance.
+  /// 帧重组器实例。
   FrameReassembler? _reassembler;
 
-  /// Subscription forwarding reassembled frames into [_frameController].
+  /// 将重组后的帧转发到 [_frameController] 的订阅。
   StreamSubscription<VideoFrame>? _reassemblerSub;
 
-  /// TCP bridge that serves the AnnexB stream to decoder players.
+  /// 将 AnnexB 流提供给解码器播放器的 TCP 桥接。
   final AnnexbTcpServer _tcpServer = AnnexbTcpServer();
 
-  /// Subscription that feeds each frame into the TCP bridge.
+  /// 将每帧送入 TCP 桥接的订阅。
   StreamSubscription<VideoFrame>? _tcpSub;
 
-  /// Stable broadcast controller so [frameStream] survives start/stop cycles.
+  /// 稳定的广播控制器，让 [frameStream] 可跨 start/stop 周期复用。
   final StreamController<VideoFrame> _frameController =
       StreamController<VideoFrame>.broadcast();
 
-  /// Whether the service is currently listening.
+  /// 服务当前是否正在监听。
   bool get isListening => _socket != null;
 
-  /// Exposes the stream of reassembled video frames.
-  ///
-  /// Backed by a stable broadcast controller, so consumers may subscribe
-  /// before [start] and keep receiving frames across start/stop cycles.
+  /// 对外暴露已重组的视频帧流。
+///
+  /// 底层使用稳定的广播控制器，因此调用方可以在 [start] 前订阅，
+  /// 并在多次启动/停止之间持续接收帧。
   Stream<VideoFrame> get frameStream => _frameController.stream;
 
-  /// Frames successfully reassembled (0 when not listening).
+  /// 成功重组的帧数（未监听时为 0）。
   int get framesCompleted => _reassembler?.framesCompleted ?? 0;
 
-  /// Frames dropped due to timeout/overflow (0 when not listening).
+  /// 因超时或溢出丢弃的帧数（未监听时为 0）。
   int get framesDropped => _reassembler?.framesDropped ?? 0;
 
-  /// Frames currently awaiting fragments (0 when not listening).
+  /// 当前等待分片补齐的帧数（未监听时为 0）。
   int get pendingFrameCount => _reassembler?.pendingFrameCount ?? 0;
 
-  /// URL for decoder players to consume the AnnexB stream.
-  ///
-  /// Null when the TCP bridge is not running.
+  /// 解码器播放器读取 AnnexB 流的 URL。
+///
+  /// TCP 桥接未运行时为 null。
   String? get streamUrl => _tcpServer.streamUrl;
 
-  /// Total UDP packets received since start.
+  /// 自启动以来接收的 UDP 包总数。
   int packetsReceived = 0;
 
-  /// UDP packets dropped due to parse errors.
+  /// 因解析错误丢弃的 UDP 包数。
   int packetsDropped = 0;
 
-  /// Whether the OS receive buffer (SO_RCVBUF) was successfully enlarged.
-  ///
-  /// 1080p60 HEVC sends bursty I-frames (~100+ packets at once); the default
-  /// UDP buffer overflows and drops fragments, glitching the whole GOP.
+  /// 是否成功放大 OS 接收缓冲区（SO_RCVBUF）。
+///
+  /// 1080p60 HEVC 的 I 帧会突发发送约 100+ 个包；
+  /// 默认 UDP 缓冲区容易溢出并丢分片，导致整段 GOP 花屏。
   bool receiveBufferEnlarged = false;
 
-  /// Number of currently connected decoder clients.
+  /// 当前已连接的解码器客户端数。
   int get decoderClients => _tcpServer.clientCount;
 
-  /// Total frames forwarded into the TCP bridge.
+  /// 已转发进 TCP 桥接的总帧数。
   int get tcpFramesForwarded => _tcpServer.framesForwarded;
 
-  /// Total bytes forwarded into the TCP bridge.
+  /// 已转发进 TCP 桥接的总字节数。
   int get tcpBytesForwarded => _tcpServer.bytesForwarded;
 
-  /// Whether the keyframe gate has opened (VPS/SPS/PPS frame seen).
+  /// 关键帧闸门是否已打开（已见到 VPS/SPS/PPS 帧）。
   bool get bridgeStarted => _tcpServer.hasStarted;
 
-  /// Frames buffered in the bridge awaiting the first keyframe.
+  /// 桥接中等待首个关键帧的缓存帧数。
   int get bridgePending => _tcpServer.pendingCount;
 
-  /// Completed frames that carried HEVC parameter sets (VPS/SPS/PPS).
+  /// 已完成且携带 HEVC 参数集（VPS/SPS/PPS）的帧数。
   int get framesWithParamSet => _reassembler?.framesWithParamSet ?? 0;
 
-  /// Largest fragment count seen in any single frame.
+  /// 单帧内已见到的最大分片数。
   int get maxFragmentsSeen => _reassembler?.maxFragmentsSeen ?? 0;
 
-  /// Largest declared frame_size seen, in bytes.
+  /// 已见到的最大声明 frame_size，单位字节。
   int get maxFrameSizeSeen => _reassembler?.maxFrameSizeSeen ?? 0;
 
-  /// Raw bytes of the first received UDP packet (for header diagnosis).
-  ///
-  /// Null until at least one packet arrives. Captured once per [start].
+  /// 首个 UDP 包的原始字节（用于包头诊断）。
+///
+  /// 每次 [start] 后只捕获一次；首包到达前为 null。
   Uint8List? firstPacketBytes;
 
-  /// Length in bytes of the first received UDP packet.
+  /// 首个 UDP 包长度，单位字节。
   int firstPacketLength = 0;
 
-  /// frame_size parsed little-endian from the first packet (current logic).
-  ///
-  /// Returns null when no packet has been captured yet.
+  /// 从首包按小端序解析出的 frame_size（诊断当前错误假设）。
+///
+  /// 尚未捕获首包时返回 null。
   int? get firstFrameSizeLittleEndian {
     final b = firstPacketBytes;
     if (b == null || b.length < 8) return null;
     return b[4] | (b[5] << 8) | (b[6] << 16) | (b[7] << 24);
   }
 
-  /// frame_size parsed big-endian (network order) from the first packet.
-  ///
-  /// Returns null when no packet has been captured yet.
+  /// 从首包按大端序（网络字节序）解析出的 frame_size。
+///
+  /// 尚未捕获首包时返回 null。
   int? get firstFrameSizeBigEndian {
     final b = firstPacketBytes;
     if (b == null || b.length < 8) return null;
     return (b[4] << 24) | (b[5] << 16) | (b[6] << 8) | b[7];
   }
 
-  /// Starts listening on the UDP port and the TCP bridge.
+  /// 启动 UDP 端口监听和 TCP 桥接。
   Future<void> start() async {
     if (_socket != null) return;
 
     packetsReceived = 0;
     packetsDropped = 0;
+    receiveBufferEnlarged = false;
+    firstPacketBytes = null;
+    firstPacketLength = 0;
 
-    // Start the TCP bridge so the decoder can connect before frames arrive.
-    await _tcpServer.start();
+    try {
+      // 先启动 TCP 桥接，让解码器可在帧到达前连接。
+      await _tcpServer.start();
 
-    final reassembler = FrameReassembler()..start();
-    _reassembler = reassembler;
-    // Forward reassembled frames into the stable broadcast controller so
-    // consumers subscribed before/after start keep receiving frames.
-    _reassemblerSub = reassembler.frameStream.listen(_frameController.add);
-    // Also feed frames into the TCP bridge for decoder rendering.
-    _tcpSub = reassembler.frameStream.listen(
-      (frame) => _tcpServer.feedFrame(frame.annexbData),
-    );
+      final reassembler = FrameReassembler()..start();
+      _reassembler = reassembler;
+      // 将重组后的帧转发到稳定广播控制器，
+      // 让 start 前后订阅的调用方都能持续收到帧。
+      _reassemblerSub = reassembler.frameStream.listen(_frameController.add);
+      // 同时把帧送入 TCP 桥接，供解码器渲染。
+      _tcpSub = reassembler.frameStream.listen(
+        (frame) => _tcpServer.feedFrame(frame.annexbData),
+      );
 
-    _socket = await RawDatagramSocket.bind(
-      InternetAddress.anyIPv4,
-      _port,
-    );
-    _enlargeReceiveBuffer(_socket!);
+      _socket = await RawDatagramSocket.bind(
+        InternetAddress.anyIPv4,
+        _port,
+      );
+      _enlargeReceiveBuffer(_socket!);
 
-    _socket!.listen(_onPacket);
+      _socket!.listen(_onPacket);
+    } on Object {
+      stop();
+      rethrow;
+    }
   }
 
-  /// Enlarges the OS UDP receive buffer (SO_RCVBUF) to absorb bursty I-frame
-  /// traffic. The default (~64–256 KB) overflows when a keyframe's ~100+
-  /// packets arrive at once, dropping fragments — the lost keyframe then
-  /// glitches the entire GOP ("Could not find ref with POC").
-  ///
-  /// SOL_SOCKET / SO_RCVBUF use raw platform constants; failure is non-fatal
-  /// (a smaller buffer just means more drops under burst).
+  /// 放大 OS UDP 接收缓冲区（SO_RCVBUF），吸收 I 帧突发流量。
+  /// 默认缓冲区约 64-256 KB，当关键帧的 100+ 个包同时到达时容易溢出；
+  /// 一旦关键帧分片丢失，整段 GOP 都可能花屏并出现
+  /// “Could not find ref with POC”。
+///
+  /// SOL_SOCKET / SO_RCVBUF 使用平台原始常量；设置失败不致命，
+  /// 只是突发流量下更容易丢包。
   void _enlargeReceiveBuffer(RawDatagramSocket socket) {
     const targetBytes = 8 * 1024 * 1024; // 8 MB
-    // Android runs a Linux kernel, so it uses Linux's SOL_SOCKET/SO_RCVBUF
-    // constants (1/8), NOT the BSD/Windows values (0xffff/0x1002). Platform
-    // .isLinux is false on Android, hence the explicit isAndroid check.
+    // Android 运行 Linux 内核，因此使用 Linux 的 SOL_SOCKET/SO_RCVBUF
+    // 常量 (1/8)，不是 BSD/Windows 值 (0xffff/0x1002)。
+    // Platform.isLinux 在 Android 上为 false，所以要显式判断 isAndroid。
     final linuxAbi = Platform.isLinux || Platform.isAndroid;
     final level = linuxAbi ? 1 : 0xffff; // SOL_SOCKET
     final option = linuxAbi ? 8 : 0x1002; // SO_RCVBUF
     try {
-      // fromInt encodes the value as a 4-byte host-endian integer.
+      // fromInt 会把值编码为 4 字节主机字节序整数。
       socket.setRawOption(RawSocketOption.fromInt(level, option, targetBytes));
       receiveBufferEnlarged = true;
     } on Object catch (_) {
@@ -179,10 +187,10 @@ class VideoStreamService {
     }
   }
 
-  /// Stops listening and releases the socket, reassembler and TCP bridge.
-  ///
-  /// The broadcast [frameStream] stays open so the UI can resubscribe on a
-  /// later [start]; only [dispose] closes it permanently.
+  /// 停止监听并释放套接字、重组器和 TCP 桥接。
+///
+  /// 广播 [frameStream] 会保持打开，便于 UI 在之后的 [start] 中重新订阅；
+  /// 只有 [dispose] 会永久关闭它。
   void stop() {
     _socket?.close();
     _socket = null;
@@ -198,30 +206,34 @@ class VideoStreamService {
   void _onPacket(RawSocketEvent event) {
     if (event != RawSocketEvent.read) return;
 
-    // Drain EVERY queued datagram per read event. Under an I-frame burst many
-    // datagrams can be ready at once; handling only one lets the socket buffer
-    // back up and overflow, dropping fragments that glitch the GOP.
-    for (Datagram? datagram = _socket!.receive();
+    final socket = _socket;
+    final reassembler = _reassembler;
+    if (socket == null || reassembler == null) return;
+
+    // 每次 read 事件都要清空所有已排队 datagram。
+    // I 帧突发时可能一次准备好很多包；如果只处理一个，
+    // 套接字缓冲区会积压并溢出，导致分片丢失和 GOP 花屏。
+    for (Datagram? datagram = socket.receive();
         datagram != null;
-        datagram = _socket!.receive()) {
+        datagram = socket.receive()) {
       final data = datagram.data;
       packetsReceived++;
 
-      // Capture the first packet's bytes for header diagnosis.
+      // 捕获首包字节用于包头诊断。
       if (firstPacketBytes == null) {
         firstPacketLength = data.length;
         final take = data.length < 16 ? data.length : 16;
         firstPacketBytes = Uint8List.fromList(data.sublist(0, take));
       }
 
-      final accepted = _reassembler!.processPacket(data);
+      final accepted = reassembler.processPacket(data);
       if (!accepted) {
         packetsDropped++;
       }
     }
   }
 
-  /// Releases all resources, including the broadcast [frameStream].
+  /// 释放所有资源，包括广播 [frameStream]。
   void dispose() {
     stop();
     _frameController.close();

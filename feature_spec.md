@@ -1,15 +1,15 @@
-# Feature Spec — 自定义客户端数据监控 (RoboMaster 2026 V1.3.1)
+# Feature Spec — WOD Client 自定义客户端数据监控 (RoboMaster 2026 V1.3.1)
 
 ## 项目概览
 
 | 属性     | 值                             |
 | ------ | ----------------------------- |
-| 项目名称   | RoboMaster_monitor（自定义客户端监控） |
+| 项目名称   | WOD Client（自定义客户端监控） |
 | 技术栈    | Flutter 3.x + Dart 3.x        |
-| 目标平台   | Android, Linux Desktop        |
+| 目标平台   | Android, Linux Desktop, Windows Desktop |
 | 状态管理   | flutter_riverpod              |
 | 图表库    | fl_chart                      |
-| 目标代码规模 | ~1800 行 Dart 代码               |
+| 当前版本   | 0.1.3（以 `pubspec.yaml` 为准） |
 
 > **架构说明：** 本监控客户端仅对接自定义客户端的两条标准链路：
 > 1. **MQTT 3333** — 控制指令、配置、比赛状态与事件（Protobuf 序列化）
@@ -19,11 +19,221 @@
 
 ---
 
+## 新 Agent 接手摘要
+
+| 项 | 当前结论 |
+|---|---|
+| 当前版本 | `0.1.3`，通知与比赛规则可配置化已完整实现；版本号以 `pubspec.yaml` 为唯一权威。 |
+| 当前状态 | `v0.1.3 Phase 1–11` 已完成；全局界面已接入 MiSans 常用字重，桌面设置返回按钮命中区与二级页面过渡叠层已修复。`flutter analyze` 零问题，MiSans 主题测试通过；上一轮 178 项全量测试通过，当前状态为已实现、待发布。 |
+| 历史待办 | `v0.0.1 Phase 3, Task 3.5` 是历史遗留未交付项，不是当前默认下一任务；只有用户点名赛后分析看板时再接。 |
+| 主要链路 | 官方线：MQTT 3333 + UDP 3334 HEVC；自定义图传线：MQTT `CustomByteBlock` / `0x0310` + H.264 + 独立 TCP 解码桥。 |
+| 设计现状 | v0.1.1 已完成 Typography、Color、Layout、Elevation、Motion 的 MD3 收口；继续 UI 工作时先复用现有 theme/responsive/provider。 |
+| 验证命令 | 每次文件写入后运行 `flutter analyze`；改动 Dart 逻辑时补跑最小相关测试，发布前跑 `flutter test`。 |
+| 搜索入口 | 代码发现优先用 codebase-memory MCP（若本线程可用），不可用或查文档/配置时用 `rg`。 |
+
+---
+
 ## 开发进度表
 
 > **AI 执行指令：** 按 Phase 顺序逐个完成，在每个Phase开始前，必须询问用户这个Phase的具体执行方式，确认用户需求理解无误之后开始具体执行。每完成一个 Task，在状态列标记 `[x]`，运行 `flutter analyze` 确认零警告，执行自审计检查清单，然后自动进入下一个 Task。严禁跳过 Phase。
 
 > **版本化规范：** 开发进度以**版本号为顶层迭代单元**。每个版本（如 `v0.1.0`）是一次独立迭代，其内部 Phase 与 Task 从 `Phase 1, Task 1` 重新编号。在本表登记或更新任务时，**必须在功能描述前标注其所属版本号 + Phase + Task**，格式为 `vX.Y.Z Phase N, Task M`（例：`v0.1.0 Phase 1, Task 1`）。版本号须与 `pubspec.yaml` 的 `version` 字段、附录 E Changelog、git tag 三者一致（见附录 E.1）。**历史版本（v0.0.1 / v0.0.2）保留其原始 Phase 编号以便追溯**，新版本（v0.1.0 起）一律从 Phase 1 Task 1 起编。
+
+---
+
+### v0.1.3 — 通知与比赛规则可配置化（2026-07-13）
+
+> **状态：已实现，待发布。** 本版本已把通知实验台升级为可长期维护的通知系统：具备版本化规则档案、JSON 导入导出、持久化设置、Material 3 设置与手动测试入口、全局通知运行时、战术规则、部署模式自动跳转、连接质量与模块状态通知。
+
+#### Phase 1: 通知设置与规则配置基础
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.1.3 Phase 1, Task 1 | 通知与比赛规则模型 | 定义通知总览、事件开关、斩杀线、复活判定、部署自动跳转、连接质量和版本化规则档案；全部模型实现 `toJson/fromJson`、默认值、范围钳制和不可变复制 | `lib/features/settings/domain/notification_*.dart` | `[x]` |
+| v0.1.3 Phase 1, Task 2 | 配置档案持久化 | 使用 SharedPreferences 保存官方只读档案、自定义档案与当前激活档案；支持复制、切换、更新、恢复默认和删除 | `lib/features/settings/logic/notification_profile_provider.dart` | `[x]` |
+| v0.1.3 Phase 1, Task 3 | JSON 导入导出 | 使用 file_selector 导入/导出带 `schema_version`、协议版本和规则版本的 JSON 档案，非法档案显示用户可见错误 | `lib/features/settings/data/notification_profile_file_service.dart` | `[x]` |
+| v0.1.3 Phase 1, Task 4 | Material 3 设置入口 | 在设置 Master–Detail 分类中新增“通知与规则”，提供档案管理、通知总览、斩杀线、敌方复活、部署跳转和连接质量基础表单 | `lib/features/settings/presentation/notification_rules_settings_screen.dart`, `settings_screen.dart` | `[x]` |
+| v0.1.3 Phase 1, Task 5 | 配置测试与验证 | 覆盖 JSON 往返、非法值钳制、官方档案保护、复制/导入和设置页基础渲染；运行 analyze 与相关测试 | `test/notification_rule_profile_test.dart`, `test/notification_profile_provider_test.dart`, `test/notification_rules_settings_screen_test.dart` | `[x]` |
+
+**Phase 1 验收标准：** 用户可在设置页查看官方规则档案、复制为自定义档案、切换当前档案、修改常用通知与规则参数、恢复默认，并通过 JSON 文件导入/导出；官方档案不可直接修改；所有配置可持久化且异常输入安全降级；本阶段不改变实时通知触发逻辑。
+
+---
+
+#### Phase 2: 通知运行时、分级展示与历史
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.1.3 Phase 2, Task 1 | 通知运行时模型 | 将通知类型、严重级别、展示位置、自动关闭策略、去重键和历史记录整合为不可变运行时模型 | `lib/features/dashboard/logic/dashboard_notification_models.dart` | `[x]` |
+| v0.1.3 Phase 2, Task 2 | 规则化通知控制器 | 按激活档案执行事件开关、冷却、INFO 最大可见数、CRITICAL 确认/恢复关闭和历史上限；保留开发者预览入口 | `lib/features/dashboard/logic/dashboard_notification_controller.dart` | `[x]` |
+| v0.1.3 Phase 2, Task 3 | 全局通知宿主 | 将通知覆盖层提升到 AppShell 内容区，使监控、视频、数据和设置页面均能实时看到通知；INFO/CRITICAL 可分别使用设置中的展示位置 | `lib/core/navigation/app_shell.dart`, `dashboard_notification_overlay.dart` | `[x]` |
+| v0.1.3 Phase 2, Task 4 | 通知历史与反馈 | 提供本次运行内的通知历史、清空操作，并按设置触发系统提示音及 Android 震动 | `lib/features/dashboard/presentation/widgets/notification_history_sheet.dart` | `[x]` |
+
+**Phase 2 验收标准：** 激活档案实时决定通知是否显示、严重级别、位置、持续时间、确认方式与冷却；不同级别可同时出现在不同位置；历史数量受配置限制；关闭通知不影响历史记录。
+
+---
+
+#### Phase 3: 英雄部署模式自动进入自定义图传
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.1.3 Phase 3, Task 1 | 可编程顶层导航 | 将 AppShell 当前目标页改为 Riverpod 状态，使通知运行时可安全切换到自定义图传页，同时保留 IndexedStack 页面状态 | `lib/core/navigation/app_shell.dart`, `app_navigation_rail.dart` | `[x]` |
+| v0.1.3 Phase 3, Task 2 | 部署倒计时控制器 | 仅在登录身份为英雄且 `DeployModeStatusSync.status` 从 0 变为 1 时启动配置秒数倒计时；支持取消、立即进入、本场抑制和新比赛重置 | `lib/features/dashboard/logic/deployment_navigation_controller.dart` | `[x]` |
+| v0.1.3 Phase 3, Task 3 | 图传预启动与失败降级 | 按档案配置在倒计时期间预启动自定义图传；启动失败时显示错误，并按策略留在当前页或继续跳转 | `lib/features/dashboard/logic/notification_providers.dart` | `[x]` |
+| v0.1.3 Phase 3, Task 4 | Material 3 倒计时提示 | 使用高显著度 MD3 色调卡片显示剩余秒数、取消和立即进入操作，并覆盖桌面与紧凑布局 | `lib/features/dashboard/presentation/widgets/deployment_countdown_overlay.dart` | `[x]` |
+
+**Phase 3 验收标准：** 非英雄身份、首次收到已部署状态和重复状态均不触发；英雄 0→1 后默认倒数 3 秒进入自定义图传，用户可取消或立即进入；失败降级和本场抑制遵循当前档案。
+
+---
+
+#### Phase 4: 斩杀线、复活/买活与比赛事件判定
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.1.3 Phase 4, Task 1 | 敌方斩杀线引擎 | 按预计弹丸、血量比例或固定血量模式检测敌方英雄/工程/步兵/哨兵进入斩杀线，并执行再武装差值和冷却 | `lib/features/dashboard/logic/notification_rule_engine.dart` | `[x]` |
+| v0.1.3 Phase 4, Task 2 | 敌方复活与买活判定 | 记录敌方血量清零时间，按比赛剩余时间、历史买活次数、基地低血量加速和容差计算免费复活最早时刻；提前恢复判为买活 | `lib/features/dashboard/logic/notification_rule_engine.dart` | `[x]` |
+| v0.1.3 Phase 4, Task 3 | 己方复活与装配事件 | 检测己方机器人 0→正血量、装配成功事件和敌方申请四级装配事件，并映射为配置中的 INFO/CRITICAL 通知 | `lib/features/dashboard/logic/notification_rule_engine.dart`, `dashboard_notification_factory.dart` | `[x]` |
+| v0.1.3 Phase 4, Task 4 | 战术规则测试 | 覆盖三种斩杀线、冷却/再武装、正常复活、买活、疑似买活、己方复活和协议事件映射 | `test/notification_rule_engine_test.dart` | `[x]` |
+
+**Phase 4 验收标准：** 血量变化不会重复刷屏；敌方在免费复活最早时刻前恢复时产生买活通知，到时或之后恢复时产生普通复活通知；缺失关键比赛信息时遵循“抑制/疑似”配置。
+
+---
+
+#### Phase 5: MQTT、连接质量与模块状态通知
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.1.3 Phase 5, Task 1 | MQTT 断开与重连 | 忽略应用启动时的初始未连接状态，仅在曾连接后断开时通知，并在随后恢复连接时通知重连成功 | `lib/features/dashboard/logic/notification_providers.dart` | `[x]` |
+| v0.1.3 Phase 5, Task 2 | 连接质量评估器 | 依据 MQTT 消息停滞、UDP 窗口丢包率、自定义图传块停滞和关键帧/解码停滞计算 good/warning/critical；执行防抖和稳定恢复 | `lib/features/dashboard/logic/connection_quality_evaluator.dart` | `[x]` |
+| v0.1.3 Phase 5, Task 3 | 模块断联与恢复 | 对 `RobotModuleStatus` 建立首帧基线，检测每个模块在线→离线和离线→恢复，断联使用 CRITICAL、恢复使用 INFO | `lib/features/dashboard/logic/notification_rule_engine.dart` | `[x]` |
+| v0.1.3 Phase 5, Task 4 | 设置表单补全 | 补齐通知位置、CRITICAL 关闭方式、事件级别/声音/冷却、复活公式、部署失败策略和全部连接质量阈值的可视化配置 | `lib/features/settings/presentation/widgets/notification_*.dart` | `[x]` |
+| v0.1.3 Phase 5, Task 5 | 连接与模块测试 | 覆盖初始连接、断开/重连、质量降级/恢复、防抖、模块断联/恢复和设置页交互 | `test/connection_quality_evaluator_test.dart`, `test/notification_runtime_test.dart` | `[x]` |
+
+**Phase 5 验收标准：** 图片中列出的 MQTT 断开、MQTT 重连、连接质量、模块断联通知均由真实运行状态驱动；质量波动受防抖和恢复稳定时间约束；首次状态快照不产生误报。
+
+---
+
+#### Phase 6: 完整回归与交付
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.1.3 Phase 6, Task 1 | 场景级组件测试 | 覆盖全局通知宿主、INFO/CRITICAL 分位显示、历史、部署倒计时取消/立即进入和图传失败反馈 | `test/notification_runtime_widget_test.dart` | `[x]` |
+| v0.1.3 Phase 6, Task 2 | 自审与全量验证 | 已完成格式化、函数/文件长度、空安全、异步错误、MD3 与跨平台自审；`flutter analyze` 零问题，173 项全量测试通过 | 验证结果 | `[x]` |
+| v0.1.3 Phase 6, Task 3 | 文档收口 | 更新新 Agent 接手摘要、v0.1.3 状态、任务完成标记和 Changelog，使规格、版本号与实现一致 | `feature_spec.md` | `[x]` |
+
+**v0.1.3 验收标准：** 图片中的 INFO/CRITICAL 通知均有真实数据触发链路；英雄部署自动跳转可取消；斩杀线和买活逻辑由档案配置驱动；规则变化可通过设置或 JSON 档案适配；所有通知具备冷却、历史和错误降级；`flutter analyze` 零问题且全量测试通过。
+
+---
+
+#### Phase 7: 设置页手动通知测试
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.1.3 Phase 7, Task 1 | Material 3 通知测试卡片 | 在“通知与规则”设置页增加通知测试卡片，提供 INFO、CRITICAL 和全部事件类型的手动触发入口 | `lib/features/settings/presentation/widgets/notification_test_section.dart` | `[x]` |
+| v0.1.3 Phase 7, Task 2 | 全局预览调度 | 通过设置 Feature 内的请求接口和 AppShell 组合层连接全局通知控制器；测试通知使用当前档案的位置、时长、关闭、声音与震动设置，但绕过事件开关和冷却 | `lib/features/settings/logic/notification_test_provider.dart`, `lib/core/navigation/app_shell.dart` | `[x]` |
+| v0.1.3 Phase 7, Task 3 | 测试与回归 | 覆盖设置页手动触发、INFO/CRITICAL 级别覆盖、事件档案设置应用和全局覆盖层显示；`flutter analyze` 零问题，173 项全量测试通过 | `test/notification_rules_settings_screen_test.dart`, `test/dashboard_notification_controller_test.dart`, `test/notification_runtime_widget_test.dart` | `[x]` |
+
+**Phase 7 验收标准：** 用户可在设置页直接触发 INFO、CRITICAL 或任意已定义事件的测试通知；测试不受全局/事件启用开关和冷却阻挡，但准确使用当前档案的展示位置、持续时间、确认策略、历史、声音与 Android 震动配置。
+
+---
+
+#### Phase 8: 通知设置逐项作用说明
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.1.3 Phase 8, Task 1 | 辅助文本组件与集中式文案 | 为滑杆和自定义选择器增加统一的 MD3 辅助文本样式，并集中定义所有通知设置作用说明 | `notification_settings_components.dart`, `notification_settings_strings.dart` | `[x]` |
+| v0.1.3 Phase 8, Task 2 | 全设置说明补全 | 为通知总览、事件级设置、斩杀线、复活公式、部署跳转、连接质量和档案选择中的每个设置补充具体作用描述 | `lib/features/settings/presentation/widgets/notification_*.dart` | `[x]` |
+| v0.1.3 Phase 8, Task 3 | 描述渲染测试与回归 | 验证关键设置说明在页面中可见；`flutter analyze` 零问题，173 项全量测试通过 | `test/notification_rules_settings_screen_test.dart` | `[x]` |
+
+**Phase 8 验收标准：** “通知与规则”页面的每个可配置项均具有紧邻控件的具体作用说明；说明使用 `bodySmall` 与 `onSurfaceVariant` 语义色，不依赖悬停才能阅读，并在紧凑与桌面布局中保持可访问性。
+
+---
+
+#### Phase 9: 通知设置二级页面整理
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.1.3 Phase 9, Task 1 | 设置目录信息架构 | 将原长列表整理为“通知管理”和“比赛与链路规则”两组 Material 3 列表入口，集中展示六个二级页面的名称、图标与用途摘要 | `notification_rules_settings_screen.dart`, `notification_settings_strings.dart` | `[x]` |
+| v0.1.3 Phase 9, Task 2 | 六个二级配置页面 | 拆分规则档案、通知展示与测试、事件通知、斩杀线与复活、英雄部署跳转、连接质量页面；复用现有 Provider、文件导入导出和设置组件，并兼容紧凑全屏与宽屏嵌套 Navigator | `notification_profile_settings_screen.dart`, `notification_settings_subpages.dart`, `settings_screen.dart` | `[x]` |
+| v0.1.3 Phase 9, Task 3 | 导航测试与完整回归 | 验证六个入口、页面标题、关键设置说明、档案复制、手动通知测试和返回目录行为；已完成格式化，`flutter analyze` 零问题，175 项全量测试通过 | `test/notification_rules_settings_screen_test.dart` | `[x]` |
+
+**Phase 9 验收标准：** “通知与规则”首页只承担目录导航，不再显示完整设置表单；六个入口的名称与目标内容一致，桌面宽屏在详情区内完成二级跳转，紧凑布局使用标准全屏返回导航；现有设置、档案管理和手动通知测试行为保持不变。
+
+---
+
+#### Phase 10: 桌面设置导航交互修复
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.1.3 Phase 10, Task 1 | 返回按钮命中区修复 | 避免 Windows 顶部拖动区域覆盖设置详情返回按钮中心，保持至少 48dp 可点击目标与正常窗口拖动能力 | `settings_screen.dart`, `notification_rules_settings_screen_test.dart` | `[x]` |
+| v0.1.3 Phase 10, Task 2 | 二级页面过渡表面修复 | 为宽屏嵌入式通知二级页面绘制完整不透明的 MD3 `surface`，防止路由进入动画期间新旧内容透叠 | `notification_settings_subpages.dart` | `[x]` |
+| v0.1.3 Phase 10, Task 3 | 交互回归验证 | 覆盖 Windows 窗口框架下返回按钮点击、过渡中页面表面尺寸与原有通知导航；已完成格式化，`flutter analyze` 零问题，178 项全量测试通过 | `notification_rules_settings_screen_test.dart`, `desktop_window_frame_test.dart` | `[x]` |
+
+**Phase 10 验收标准：** Windows 桌面端返回按钮整个中心区域均可点击，点击后优先退出通知二级页面；进入任一通知二级页面时不再出现目录文字和新页面内容透叠；紧凑布局、窗口拖动和窗口控制按钮行为不受影响。
+
+---
+
+#### Phase 11: 全局 MiSans 字体统一
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.1.3 Phase 11, Task 1 | MiSans 字体资源与主题接入 | 从官方字体包接入 Regular、Medium、Semibold、Bold、Heavy 字重，在 Flutter 字体清单、全局主题和响应式文本主题中统一使用 MiSans | `assets/fonts/`, `pubspec.yaml`, `lib/core/theme/text_theme.dart`, `lib/core/theme/app_theme.dart` | `[x]` |
+| v0.1.3 Phase 11, Task 2 | 字体配置验证 | 验证全局主题与响应式文本主题均解析为 MiSans，并运行 `flutter analyze` | `test/app_theme_font_test.dart` | `[x]` |
+
+**Phase 11 验收标准：** 普通界面文字在 Android、Linux 和 Windows 上统一使用随应用打包的 MiSans；400、500、600、700、900 字重均有明确字体资源映射；调试数据中显式声明的等宽字体保持不变；`flutter analyze` 零问题且字体主题测试通过。
+
+---
+
+### v0.1.2 — 仪表盘血量可视化、击杀估算与桌面等比缩放（2026-07-11）
+
+> **状态：已实现，待发布。** 本版本把仪表盘调整为固定设计画布上的实时比赛 HUD：机器人行直接承载血量进度与低血量告警，底部集中展示比赛、操作、录制和连接状态；Windows/Linux 桌面端整体等比缩放，保证全屏与不同窗口尺寸下布局比例一致。
+
+#### Phase 1: 击杀估算参数模型与设置
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.1.2 Phase 1, Task 1 | 击杀估算配置模型 | 定义命中率、17mm/42mm 单发伤害、英雄/工程/步兵3/步兵4/哨兵血量上限；实现 `toJson/fromJson`、输入钳制、默认值和预计弹丸纯函数 | `lib/features/settings/domain/kill_estimate_config.dart` | `[x]` |
+| v0.1.2 Phase 1, Task 2 | 配置持久化 Provider | 使用 SharedPreferences 持久化击杀估算配置，支持逐项更新与恢复默认值 | `lib/features/settings/logic/kill_estimate_provider.dart` | `[x]` |
+| v0.1.2 Phase 1, Task 3 | 仪表盘设置入口 | 在仪表盘设置页新增“击杀估算参数”区段，提供命中率、弹丸伤害和各机器人血量上限的校验输入 | `lib/features/settings/presentation/dashboard_settings_screen.dart` | `[x]` |
+
+#### Phase 2: 机器人血量卡片与预计击杀弹丸量
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.1.2 Phase 2, Task 1 | 整行血量卡片 | 将机器人普通列表行改为整行血量卡片；彩色填充宽度等于当前血量/配置血量上限，损失部分使用 surface 色；头像/文字与预计弹丸覆盖层使用半透明亚克力材质透出连续血条 | `lib/features/dashboard/presentation/widgets/robot_status_list.dart` | `[x]` |
+| v0.1.2 Phase 2, Task 2 | 血量节点语义色 | 正常血量使用阵营色；低于 60% 切换橙色，低于 30% 切换红色，低于 25% 增加轻微脉冲告警；宽度和颜色变化使用平滑动画 | `lib/features/dashboard/presentation/widgets/robot_status_list.dart` | `[x]` |
+| v0.1.2 Phase 2, Task 3 | 预计弹丸显示 | 右侧区域显示 `ceil(当前血量 / (单发伤害 × 命中率))`；英雄使用大弹丸，步兵/哨兵使用小弹丸，无射击能力身份显示不适用；无人机继续显示反制进度 | `lib/features/dashboard/presentation/widgets/robot_status_list.dart` | `[x]` |
+| v0.1.2 Phase 2, Task 4 | 无数据扫描光晕 | 普通机器人尚未获取血量遥测时，在整行血量显示层循环播放从左到右的阵营色渐变光晕，提示该区域为血条；收到数据后立即停止并复位，无人机反制进度不播放该动画 | `lib/features/dashboard/presentation/widgets/robot_status_list.dart` | `[x]` |
+
+#### Phase 3: 底部状态面板与 MD3 操作按钮
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.1.2 Phase 3, Task 1 | 比赛状态纵向卡片 | 比赛状态卡片占满底部栏高度，并展示阶段、局数、比分、剩余/已过时间、暂停、经济、科技、加密和特殊机制；缺失数据不伪造为 0 | `lib/features/dashboard/presentation/widgets/game_status_card.dart` | `[x]` |
+| v0.1.2 Phase 3, Task 2 | 录制状态卡片 | 新增录制状态面板，展示录制中/停止、消息数、起止时间、持续时间和容量；只局部刷新运行时长 | `lib/features/dashboard/presentation/widgets/recording_status_panel.dart` | `[x]` |
+| v0.1.2 Phase 3, Task 3 | 四面板底部布局 | 移除空白占位，正确排列比赛状态、操作、录制状态与连接质量，保证连接信息不裁切 | `lib/features/dashboard/presentation/dashboard_screen.dart` | `[x]` |
+| v0.1.2 Phase 3, Task 4 | MD3 原生操作按钮 | 四个英雄/步兵操作统一使用 `FilledButton.tonalIcon`，共享高度、图标、文字、间距和状态样式，保留 hover/focus/pressed/disabled 反馈 | `lib/features/dashboard/presentation/widgets/operation_panel.dart` | `[x]` |
+| v0.1.2 Phase 3, Task 5 | 面板安全边距统一 | Dashboard 底部四面板统一使用相同的窗口边距、面板间距和零 Card 外边距，避免操作/连接面板贴住窗口边框；底部栏增加内容安全高度，连接质量改为固定可见的紧凑摘要 | `lib/features/dashboard/presentation/dashboard_screen.dart`, `game_status_card.dart`, `recording_status_panel.dart`, `connection_quality_panel.dart` | `[x]` |
+| v0.1.2 Phase 3, Task 6 | 操作按钮对比度与买弹数量 | 操作按钮改用有静止阴影的高对比度 MD3 Filled 按钮；英雄/步兵普通买弹支持选择 10/20/30/50 发，并把所选数量写入 CommonCommand.param；滚动视口为按钮阴影保留底部安全区 | `lib/features/dashboard/presentation/widgets/operation_panel.dart` | `[x]` |
+
+#### Phase 4: 桌面固定设计画布整体缩放
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.1.2 Phase 4, Task 1 | 桌面设计画布 | Windows/Linux 以 1280×720 固定画布排版，使用单一 `min(widthRatio, heightRatio)` 对应用外壳整体缩放，避免组件尺寸缩放后布局继续拉伸 | `lib/core/responsive/desktop_design_canvas.dart`, `lib/core/navigation/app_shell.dart` | `[x]` |
+| v0.1.2 Phase 4, Task 2 | 比例不匹配降级 | 非 16:9 窗口使用 contain 策略居中留边，不变形、不裁切；Android 保留紧凑/自适应导航布局 | `lib/core/responsive/desktop_design_canvas.dart` | `[x]` |
+| v0.1.2 Phase 4, Task 3 | 高分辨率全屏放大修复 | 强制桌面 `FittedBox` 占满窗口约束，修复窗口大于 1280×720 时画布只保持原始尺寸而不继续放大的问题；Windows/Linux 共用逻辑像素 contain 策略，Android 明确绕过固定画布 | `lib/core/responsive/desktop_design_canvas.dart`, `test/desktop_design_canvas_test.dart` | `[x]` |
+| v0.1.2 Phase 4, Task 4 | 3:2～16:9 可变设计画布 | 桌面窗口处于允许比例范围时，以 720 为设计高度、按实时宽高比生成 1080～1280 的可变设计宽度；主内容与底部面板通过 Flex 同步分配宽度，避免固定 16:9 画布产生留白；超出范围时才使用 contain 降级 | `lib/core/responsive/desktop_design_canvas.dart`, `lib/core/responsive/responsive_ext.dart` | `[x]` |
+| v0.1.2 Phase 4, Task 5 | Windows 页面内窗口控件 | 移除 Windows 原生标题栏，不再新增独立应用标题行；仅把透明拖动区和最小化、最大化/还原、关闭按钮叠加到现有页面顶部，Dashboard 状态栏为按钮组预留空间；Linux 保留 GTK HeaderBar，Android 不显示桌面窗口控件 | `lib/core/window/`, `lib/main.dart`, `windows/runner/` | `[x]` |
+| v0.1.2 Phase 4, Task 6 | 桌面缩放比例限位 | Windows 在 `WM_SIZING` 中、Linux 在 GTK geometry hints 中把用户拖动缩放限制到 3:2～16:9；使用逻辑尺寸和 DPI 感知计算，不绑定具体 PC 分辨率 | `windows/runner/win32_window.cpp`, `linux/runner/my_application.cc` | `[x]` |
+
+#### Phase 5: 验证与回归
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.1.2 Phase 5, Task 1 | 单元与组件测试 | 覆盖配置 JSON、击杀弹丸计算、无数据扫描光晕、零血/满血、比赛信息展示和桌面画布放大/缩小；组件测试额外守卫窄高度溢出，并确认 Windows/Linux 使用固定画布、Android 保留自适应布局 | `test/kill_estimate_config_test.dart`, `test/dashboard_v012_test.dart`, `test/desktop_design_canvas_test.dart` | `[x]` |
+| v0.1.2 Phase 5, Task 2 | 多尺寸与 Windows 验证 | 完成常规桌面窗口固定画布目检；运行格式化、`flutter analyze`、全量 `flutter test`、`flutter run -d windows`，并修复共享 FAB 默认 Hero tag 冲突 | 构建与测试结果 | `[x]` |
+
+**v0.1.2 验收标准：** 血量卡片比例来自实时血量与可配置上限；未获取血量时显示从左到右的扫描光晕，收到数据后停止；低血量节点颜色清晰；预计弹丸随设置实时更新；底部四面板无空白占位或裁切；四个操作按钮为一致的 MD3 原生按钮；Windows 全屏与不同尺寸下保持同一布局比例；`flutter analyze` 零问题且相关测试通过。
 
 ---
 
@@ -95,6 +305,8 @@
 | 3.5 | 赛后数据看板 | 创建赛后分析页面，使用 fl_chart 绘制：击杀/摧毁时间线、经济变化曲线、事件分布饼图、血量变化曲线。 | `lib/features/post_match_analysis/presentation/analysis_screen.dart` | `[ ]` |
 | 3.6 | 多客户端数据汇总 | 实现多文件数据合并功能：导入多个 JSON 文件，按 MQTT 消息时间戳对齐合并，生成汇总统计。 | `lib/features/post_match_analysis/domain/data_merger.dart` | `[x]` |
 | 3.7 | GitHub 远程记录同步 | 实现基于 GitHub Contents API 的远程记录同步：默认共享仓库 `Zsdhak1/custom-client-sync`，默认分支 `main`，内置默认 PAT；支持上传本地记录、浏览远程记录、下载远程记录到本地；云端记录列表以日期/红蓝方/机器人编号展示，并支持按日期、阵营、机器人编号筛选。 | `lib/core/sync/github_sync_service.dart`, `lib/core/sync/remote_sync_service.dart`, `lib/features/settings/logic/github_sync_provider.dart`, `lib/features/data_export/presentation/remote_records_screen.dart`, `lib/features/data_export/domain/remote_record_meta.dart` | `[x]` |
+
+> **历史遗留说明：** Task 3.5 未交付，后续已通过 v0.1.0 调试/回放能力覆盖主要现场排障需求。新 agent 不应把它当作默认当前任务，除非用户明确要求补齐赛后分析看板。
 
 
 **Phase 3 验收标准：** 可完整录制 MQTT 数据、导出 JSON、导入 JSON、绘制赛后分析图表。多文件合并结果时间戳对齐误差 < 1 秒。GitHub 远程同步在无凭证或空仓库配置时优雅降级，不触发网络请求。
@@ -467,6 +679,8 @@
 - 无 `elevation:` 残留在非必要位置；
 - `flutter analyze` 零新增问题。
 
+> **编号说明：** v0.1.1 没有独立 Phase 5；Accessibility 在 Phase 1-4 的排版、颜色、布局、surface 收口中合并处理，随后直接进入 Phase 6 Motion。
+
 #### Phase 6: M3 动效系统（Motion 0/10 → ≥7）
 
 > MD3 Expressive（2025年5月）引入了基于弹簧的物理运动（spring-based motion physics）取代传统的缓动/持续时间系统。本 Phase 为关键导航与组件交互注入 M3 动效，包括页面过渡、组件交互动画与加载反馈。
@@ -510,25 +724,34 @@ dependencies:
     sdk: flutter
   flutter_riverpod: ^2.6.1
   fl_chart: ^0.70.0
+  path: ^1.9.0
   path_provider: ^2.1.5
   file_selector: ^1.1.0
   shared_preferences: ^2.5.0
   mqtt_client: ^10.0.0        # MQTT 3333 链路
-  protobuf: ^3.1.0           # Protobuf 序列化/反序列化
+  protobuf: ^6.0.0           # Protobuf 序列化/反序列化
   fixnum: ^1.1.0             # Protobuf int64/uint64 支持
   freezed_annotation: ^3.0.0
   json_annotation: ^4.9.0
+  typed_data: ^1.4.0
+  package_info_plus: ^8.0.0
+  url_launcher: ^6.3.0
+  media_kit: ^1.2.0
+  media_kit_video: ^2.0.0
+  media_kit_libs_video: ^1.0.4
+  video_player: ^2.11.0
+  fvp: ^0.37.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^5.0.0
+  flutter_lints: ^6.0.0
   build_runner: ^2.4.0
   freezed: ^3.0.0
   json_serializable: ^6.9.0
 ```
 
-> **外部工具依赖：** 开发环境需安装 `protoc` (Protocol Buffers Compiler) 以从 `.proto` 文件生成 Dart 代码。
+> **说明：** 依赖清单是阅读摘要，准确版本以 `pubspec.yaml` 为准。开发环境需安装 `protoc` (Protocol Buffers Compiler) 以从 `.proto` 文件生成 Dart 代码。
 
 ---
 
@@ -653,10 +876,14 @@ class VideoFrame {
 
 | 版本 | 日期 | 变更摘要 |
 |------|------|----------|
+| 0.1.3 | 2026-07-13 | 新增 可跨页面显示的 INFO/CRITICAL 通知运行时、独立位置与关闭策略、会话历史、系统声音和 Android 震动；新增 设置页 INFO、CRITICAL 与全部事件类型的手动通知测试入口，测试使用当前档案反馈和展示策略但绕过开关与冷却；新增 通知总览、事件级设置、斩杀线、复活公式、部署跳转、连接质量与档案选择的逐项作用说明，统一使用 MD3 辅助文本层级；新增 英雄部署模式 0→1 三秒倒计时、取消/立即进入、本场抑制、自定义图传预启动与失败降级；新增 三种敌方斩杀线、免费复活公式、买活/普通复活/己方复活与装配事件判定；新增 MQTT 断开/重连、连接质量防抖恢复和机器人模块断联/恢复通知；新增 通知与比赛规则版本化配置档案、JSON 导入导出、持久化设置与完整 Material 3 配置表单；修复 AppShell 非默认初始页面的 Riverpod 构建期写入、部署准备期间取消后的异步竞态和导航失败反馈；修复 AppShell 宽屏内容区因未纵向拉伸而折叠为零高度的启动空白；修复 设置详情区内嵌 Navigator 在当前 Flutter 页面 API 下缺少移除回调的断言；修复 Windows 顶部拖动层覆盖设置返回按钮中心以及通知二级页进入动画新旧内容透叠；优化 通知设置由单页长列表重构为两组目录和六个二级页面，兼容紧凑全屏与桌面详情区导航；优化 通知规则引擎拆分、必需主题订阅与 178 项全量回归；优化 全局普通界面文字统一使用随应用打包的 MiSans，覆盖 400、500、600、700、900 字重并保留调试数据等宽字体；修复 Dashboard 机器人列表、连接质量与操作面板裁切；修复 最大化工作区轻微超宽时画布产生左右白边、视频页侧栏血量列表越界；优化 Windows 窗口控件为页面内悬浮叠加，不再占用独立标题栏高度 |
+| 0.1.2 | 2026-07-12 | 新增 仪表盘整行血量卡片、亚克力信息层、预计击杀弹丸量及可配置命中率/弹丸伤害/机器人血量上限；新增 比赛详情与录制状态面板；优化 无血量遥测时使用从左到右的扫描光晕提示血条区域；优化 底部四面板布局与 MD3 原生操作按钮；优化 Windows/Linux 固定设计画布整体等比缩放；修复 高分辨率全屏时固定画布不放大及多页面共享 FAB 默认 Hero tag 冲突 |
+| 0.1.1 | 2026-07-03 | 修复 稳定性审查问题：MQTT 自动重连保留用户实际 broker/port，手动断开后再次连接恢复自动重连，并忽略旧客户端迟到回调；修复 UDP/自定义图传启动失败后的资源回滚与迟到数据保护；优化 Android 安装包下载超时与打开链接异常兜底 |
 | 0.1.1 | 2026-06-28 | 优化 Material 3 合规（审计基线 52/100 → 目标 ≥80）：排版令牌化（消化 139 处裸 fontSize，改用 type scale 角色）；颜色双轨收口（协议语义色集中、中性色改 colorScheme 角色，消化 117+23 处硬编码）；自适应布局（窗口尺寸类 + compact 降级 NavigationBar，宽屏适配移除——等比例缩放为预期行为）；Elevation 色调表面化（移除全局卡片阴影+边框，改用 surfaceContainer* 链，settings_screen 卡片 elevation 修复）；M3 动效系统（页面过渡 emphasized curve 500ms + slide+fade、NavigationRail 展开/收起 `AnimatedContainer` 300ms、Dashboard 三面板入场动画 400ms、连接状态 `AnimatedSwitcher` 350ms、FAB 菜单旋转动画 350ms）。无新增业务功能 |
 | 0.1.0 | 2026-06-21 | 新增 调试基础设施：三种可实时切换的拼包模式（verbatim/stripPrefix/fixed）、uint64 LE 序列号丢包检测与统计；新增 全面调试面板（CustomVideoDebugPanel）显示流水线红绿灯、NAL 类型计数、实时码率与丢包率；新增 解码器诊断信息模型（fvp/media_kit 上报 resolution/codec/fps/error 到滚动日志）；新增 20 秒 H.264 原始码流导出（保存 .h264 供 ffprobe 离线分析）；新增 准星点击移动交互；新增 Dashboard 事件通知样式实验台（监控页内切换多种高显著通知样式并手动预览）；更新 Proto CustomByteBlock 新增 is_frame_start 字段 |
 | 0.0.4 | 2026-06-19 | 新增 自定义图传后端切换（fvp/media_kit/ffplay）；新增 MPEG-TS 封装模式（media_kit 缺裸 H.264 解封装，包 TS 后可正常播放）；新增 桥端关键帧缓存与后连接客户端补发机制（修复解码器连接竞态白屏）；新增 自定义图传设置页独立后端选择与 TS 开关；新增 Windows 端 ffplay 验证面板；新增 pure-Dart MPEG-TS muxer（ffprobe/ffmpeg 验证可完整解码） |
 | 0.0.3 | 2026-06-18 | 新增 自定义数据图传线（0x0310 / CustomByteBlock / H.264）监控页面；新增 Windows 端本地模拟器（H.264 编码 + MQTT 发送）；复用现有 media_kit/fvp 解码桥，与官方 UDP 3334 图传线并存；新增 准星叠加与解码统计覆盖层 |
+| 0.0.2 | 2026-06-15 | 新增 应用内更新检查与 Linux 启动脚本；优化 对外名称更名为 WOD Client；文档 关于页面信息收口 |
 | 0.0.1 | 2026-06-14 | 新增 RoboMaster Monitor 首个正式版本：MQTT 3333 / UDP 3334 双链路监控、实时面板、数据导出与回放、多客户端合并、GitHub 远程同步 |
 
 ### E.1 版本号与发布流程
@@ -720,7 +947,7 @@ class VideoFrame {
 
 ---
 
-*文档版本：v2.10（Phase 3 自适应布局完成—宽屏适配已移除；Phase 4 Elevation 色调表面化完成；Phase 6 M3 动效系统完成；全 v0.1.1 功能已交付）*
+*文档版本：v2.16（完成 v0.1.3 Phase 10 桌面设置导航交互修复，并记录 178 项全量回归）*
 *适配协议：RoboMaster 2026 自定义客户端协议（MQTT 3333 + UDP 3334）*
 *参考依据：V1.3.1 第2章 + 自定义客户端 UDP 流问答 + 0x0310 抓包分析 + MD3 合规审计（2026-06-23）*
-*修正日期：2026-06-25*
+*修正日期：2026-07-13*

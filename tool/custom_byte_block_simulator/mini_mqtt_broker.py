@@ -152,7 +152,7 @@ class MiniMqttBroker:
         self._forward(topic, message)
 
     def _forward(self, topic: str, message: bytes) -> None:
-        # QoS0 转发给所有订阅了该 topic 的客户端。
+        # QoS0 转发给所有订阅了该主题的客户端。
         topic_bytes = topic.encode("utf-8")
         var_header = struct.pack("!H", len(topic_bytes)) + topic_bytes
         body = var_header + message

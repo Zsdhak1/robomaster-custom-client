@@ -1,6 +1,6 @@
 plugins {
     id("com.android.application")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    // Flutter Gradle Plugin 必须在 Android 和 Kotlin Gradle 插件之后应用。
     id("dev.flutter.flutter-gradle-plugin")
 }
 
@@ -25,10 +25,10 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
+        // TODO：指定你自己的唯一应用 ID：https://developer.android.com/studio/build/application-id.html。
         applicationId = "com.example.robomaster_custom_client_1"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
+        // 可根据应用需要更新以下值。
+        // 更多信息见：https://flutter.dev/to/review-gradle-config。
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

@@ -1,11 +1,10 @@
-/// Standalone reproduction harness — NOT part of the app.
+/// 独立复现脚本，不属于应用运行路径。
 ///
-/// Serves a real captured HEVC AnnexB stream through the project's actual
-/// [AnnexbTcpServer] and prints the tcp:// URL + live stats. Point any
-/// libavformat-based decoder (ffmpeg / ffplay / libmpv) at the URL to verify
-/// the bridge serves a decodable stream over TCP.
+/// 使用项目真实的 [AnnexbTcpServer] 提供已捕获的 HEVC AnnexB 流，并打印
+/// tcp:// URL 与实时统计。可让任何基于 libavformat 的解码器
+///（ffmpeg / ffplay / libmpv）连接该 URL，验证 TCP 桥接输出是否可解码。
 ///
-/// Run:  dart run tool/bridge_repro.dart [path-to-hevc] [seconds]
+/// 运行：dart run tool/bridge_repro.dart [path-to-hevc] [秒]
 library;
 
 import 'dart:async';
@@ -32,8 +31,8 @@ Future<void> main(List<String> args) async {
   await server.start();
   stdout.writeln('BRIDGE_URL=${server.streamUrl}');
 
-  // Feed continuously at ~60fps, looping the file. Late-connecting decoders
-  // still decode because the bridge injects cached parameter sets per frame.
+  // 以约 60fps 循环推送文件内容。后接入的解码器仍可解码，
+  // 因为桥接会先注入已缓存的参数集帧。
   var idx = 0;
   final feeder = Timer.periodic(const Duration(milliseconds: 16), (_) {
     server.feedFrame(frames[idx % frames.length]);
@@ -56,9 +55,10 @@ Future<void> main(List<String> args) async {
   exit(0);
 }
 
-/// Splits a raw AnnexB elementary stream into frames: each frame is the run
-/// of NAL units ending at (and including) the first VCL NAL (type 0..31).
-/// Leading non-VCL NALs (VPS/SPS/PPS/SEI/AUD, type >=32) attach to the frame.
+/// 将原始 AnnexB elementary stream 拆分为帧。
+///
+/// 每帧包含一组连续 NAL 单元，直到并包括第一个 VCL NAL（类型 0..31）。
+/// 前导 non-VCL NAL（VPS/SPS/PPS/SEI/AUD，类型 >=32）会附加到该帧。
 List<Uint8List> _splitFrames(Uint8List d) {
   final starts = <int>[];
   final n = d.length;

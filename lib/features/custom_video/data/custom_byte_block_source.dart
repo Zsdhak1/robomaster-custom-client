@@ -1,18 +1,13 @@
-/// Data source that subscribes to the MQTT `CustomByteBlock` topic and emits
-/// the H.264 Annex-B byte chunks carried inside each message.
+/// 订阅 MQTT `CustomByteBlock` 主题，并发出每条消息携带的 H.264 AnnexB 字节块。
 ///
-/// Wire format (per the current robot firmware): each packet's
-/// `CustomByteBlock.data` starts with an 8-byte uint64 little-endian sequence
-/// number (incrementing by 1 per packet, used here for packet-loss detection),
-/// followed by the H.264 payload. The payload itself may carry an additional
-/// protobuf-style length prefix (`0x0A <varint> <payload> [padding]`), so the
-/// slicing of the post-sequence body is configurable (see
-/// [CustomVideoSliceMode]) and read **live** per packet — a settings change
-/// applies on the next packet without a restart.
+/// 线缆格式（当前机器人固件）：每个包的 `CustomByteBlock.data` 以 8 字节 uint64
+/// 小端序序列号开头（每包递增 1，用于丢包检测），后面跟 H.264 载荷。载荷本身可能
+/// 再带一个 protobuf 风格长度前缀（`0x0A <varint> <载荷> [padding]`），因此序列号
+/// 之后的主体切片方式通过 [CustomVideoSliceMode] 配置，并且每包实时读取；设置变更
+/// 会在下一个包立即生效，无需重启。
 ///
-/// The `is_frame_start` marker is intentionally NOT used for framing here — in
-/// practice the robot does not set it reliably, so gating emission on it
-/// strands the stream (no chunk is ever forwarded).
+/// 这里刻意不使用 `is_frame_start` 标记做分帧。实测机器人并不可靠设置该标记，
+/// 如果用它作为发送闸门，整条流可能被卡住而没有任何块被转发。
 library;
 
 import 'dart:async';
@@ -26,16 +21,14 @@ import '../../../services/mqtt_service.dart';
 import 'custom_packet_slicer.dart';
 import 'packet_sequence_tracker.dart';
 
-/// Emits H.264 Annex-B byte chunks received via MQTT `CustomByteBlock`.
+/// 发出通过 MQTT `CustomByteBlock` 接收到的 H.264 AnnexB 字节块。
 class CustomByteBlockSource {
-  /// Creates a source bound to [mqttService] and [parser].
+  /// 创建绑定到 [mqttService] 和 [parser] 的数据源。
   ///
-  /// The slicing behavior is supplied as live callbacks so a settings change
-  /// applies on the next packet:
-  /// - `sliceMode` returns the active [CustomVideoSliceMode].
-  /// - `headerBytes` / `payloadBytes` feed [CustomVideoSliceMode.fixed].
-  /// - `seqHeaderEnabled` toggles parsing/stripping the leading uint64 LE
-  ///   sequence number used for packet-loss detection.
+  /// 切片行为通过实时回调提供，因此设置变更会在下一个包生效：
+  /// - `sliceMode` 返回当前 [CustomVideoSliceMode]。
+  /// - `headerBytes` / `payloadBytes` 在 [CustomVideoSliceMode.fixed] 下生效。
+  /// - `seqHeaderEnabled` 控制是否解析并剥离用于丢包检测的前置 uint64 LE 序列号。
   CustomByteBlockSource({
     required this._mqttService,
     required this._parser,
@@ -55,52 +48,53 @@ class CustomByteBlockSource {
   StreamSubscription<({String topic, Uint8List payload})>? _mqttSub;
   final _chunkController = StreamController<Uint8List>.broadcast();
 
-  /// Tracks the leading sequence number for packet-loss reporting.
+  /// 跟踪前置序列号，用于丢包报告。
   final _seqTracker = PacketSequenceTracker();
 
-  // ---- Diagnostics (read by the debug panel) -----------------------------
+  // ---- 诊断数据（由调试面板读取）-----------------------------
 
-  /// Total packets received on the topic.
+  /// 该主题已接收的总包数。
   int packetsReceived = 0;
 
-  /// Packets where a `0x0A <varint>` prefix was detected (stripPrefix mode).
+  /// 检测到 `0x0A <varint>` 前缀的包数（stripPrefix 模式）。
   int packetsWithPrefix = 0;
 
-  /// Packets where the declared length exceeded the bytes that arrived
-  /// (truncated packet — a sign of a link/MTU problem upstream).
+  /// 声明长度超过实际到达字节数的包数。
+  ///
+  /// 这通常表示上游存在链路或 MTU 截断问题。
   int packetsTruncated = 0;
 
-  /// The most recent packet's raw length (pre-slice).
+  /// 最近一个包切片前的原始长度。
   int lastRawLength = 0;
 
-  /// The most recent packet's declared payload length (-1 if no prefix).
+  /// 最近一个包声明的载荷长度；无前缀时为 -1。
   int lastDeclaredLength = -1;
 
-  /// The most recent packet's sequence number (uint64 LE leading 8 bytes).
+  /// 最近一个包的序列号（前置 8 字节 uint64 LE）。
   int get lastSequence => _seqTracker.lastSeq;
 
-  /// Whether at least one sequence number has been observed.
+  /// 是否已经观察到至少一个序列号。
   bool get hasSequence => _seqTracker.hasData;
 
-  /// Packets observed via their sequence number since [start].
+  /// 自 [start] 后通过序列号观察到的包数。
   int get seqPacketsSeen => _seqTracker.packetsSeen;
 
-  /// Packets inferred lost from sequence-number gaps since [start].
+  /// 自 [start] 后从序列号间隔推断出的丢包数。
   int get packetsLost => _seqTracker.packetsLost;
 
-  /// Out-of-order / duplicate sequence numbers seen since [start].
+  /// 自 [start] 起见到的乱序或重复序列号。
   int get seqRegressions => _seqTracker.regressions;
 
-  /// Packet-loss rate in [0, 1] derived from the sequence span.
+  /// 根据序列号范围推导出的丢包率，取值范围为 `[0, 1]`。
   double get lossRate => _seqTracker.lossRate;
 
-  /// Whether the source is currently subscribed.
+  /// 数据源当前是否已订阅主题。
   bool get isSubscribed => _mqttSub != null;
 
-  /// Stream of H.264 Annex-B chunks extracted from `CustomByteBlock` messages.
+  /// 从 `CustomByteBlock` 消息中提取出的 H.264 AnnexB 块流。
   Stream<Uint8List> get chunkStream => _chunkController.stream;
 
-  /// Starts listening to [topicCustomByteBlock]. Idempotent.
+  /// 开始监听 [topicCustomByteBlock]；可重复调用。
   void start() {
     if (_mqttSub != null) return;
     packetsReceived = 0;
@@ -111,14 +105,14 @@ class CustomByteBlockSource {
     _mqttSub = _mqttService.messageStream.listen(_onMqttMessage);
   }
 
-  /// Stops listening and unsubscribes from the topic.
+  /// 停止监听并取消订阅主题。
   void stop() {
     _mqttSub?.cancel();
     _mqttSub = null;
     _mqttService.unsubscribe(topicCustomByteBlock);
   }
 
-  /// Releases all resources, including the broadcast [chunkStream].
+  /// 释放所有资源，包括广播 [chunkStream]。
   void dispose() {
     stop();
     _chunkController.close();
@@ -138,9 +132,8 @@ class CustomByteBlockSource {
     packetsReceived++;
     lastRawLength = data.length;
 
-    // The robot prepends an 8-byte uint64 LE sequence number for loss
-    // detection. Observe it for the loss counters, then strip it so the slicer
-    // sees only the H.264 payload (whatever framing it carries).
+    // 机器人会前置 8 字节 uint64 LE 序列号用于丢包检测。先观察并更新丢包计数，
+    // 再剥离它，让切片器只看到带原始帧封装的 H.264 载荷。
     var body = data;
     if (_seqHeaderEnabled() && data.length >= customVideoSeqHeaderBytes) {
       _seqTracker.observe(data);
@@ -170,7 +163,7 @@ class CustomByteBlockSource {
       packetsTruncated++;
     }
 
-    if (result.bytes.isNotEmpty) {
+    if (result.bytes.isNotEmpty && !_chunkController.isClosed) {
       _chunkController.add(Uint8List.fromList(result.bytes));
     }
   }

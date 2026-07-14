@@ -1,15 +1,11 @@
-/// GitHub-backed implementation of [RemoteSyncService].
+/// 基于 GitHub 的 [RemoteSyncService] 实现。
 ///
-/// Uses the GitHub REST Contents API over `dart:io` [HttpClient] (no extra
-/// package dependency). The shared record configuration and uploaded match
-/// recordings live inside a single repository, addressed by the in-repo paths
-/// from [RemoteSyncConfig].
+/// 通过 `dart:io` [HttpClient] 调用 GitHub REST Contents API，不引入额外依赖。
+/// 共享记录配置和上传的比赛记录都存放在同一个仓库中，仓库内路径来自 [RemoteSyncConfig]。
 ///
-/// Every method degrades gracefully — failures return a failed [SyncResult],
-/// null, or an empty list rather than throwing — so the UI never crashes on a
-/// network or auth error. The personal access token is sent only in the
-/// `Authorization` header and is never written to a log or a [SyncResult]
-/// message.
+/// 每个方法都会优雅降级：失败时返回失败的 [SyncResult]、null 或空列表，而不是向外抛出，
+/// 避免 UI 因网络或认证错误崩溃。个人访问令牌只会放入 `Authorization` 头，
+/// 不会写入日志或 [SyncResult] 消息。
 library;
 
 import 'dart:async';
@@ -19,21 +15,21 @@ import 'dart:io';
 import '../../features/data_export/domain/match_record.dart';
 import 'remote_sync_service.dart';
 
-/// Talks to the GitHub Contents API to sync config and recordings.
+/// 通过 GitHub Contents API 同步配置和记录。
 class GitHubSyncService implements RemoteSyncService {
-  /// Creates a [GitHubSyncService] from [config].
+  /// 使用 [config] 创建 [GitHubSyncService]。
   GitHubSyncService({required this.config, HttpClient? httpClient})
       : _client = httpClient ?? HttpClient();
 
-  /// Remote location and credentials.
+  /// 远程位置和凭据。
   final RemoteSyncConfig config;
 
   final HttpClient _client;
 
-  /// GitHub REST API host.
+  /// GitHub REST API 主机。
   static const String _apiHost = 'api.github.com';
 
-  /// Network timeout for a single request.
+  /// 单个网络请求的超时时间。
   static const Duration _timeout = Duration(seconds: 20);
 
   @override
@@ -126,7 +122,7 @@ class GitHubSyncService implements RemoteSyncService {
     );
   }
 
-  /// Fetches and decodes a repository file's content + sha, or null on miss.
+  /// 拉取并解码仓库文件内容和 sha；未命中时返回 null。
   Future<_RemoteFile?> _getContent(String path) async {
     try {
       final response = await _request('GET', _contentsPath(path));
@@ -142,8 +138,7 @@ class GitHubSyncService implements RemoteSyncService {
     }
   }
 
-  /// Creates or updates a repository file, fetching the existing sha first so
-  /// updates do not 409-conflict.
+  /// 创建或更新仓库文件；先拉取已有 sha，避免更新时触发 409 冲突。
   Future<SyncResult> _putContent({
     required String path,
     required List<int> bytes,
@@ -174,7 +169,7 @@ class GitHubSyncService implements RemoteSyncService {
     }
   }
 
-  /// Builds the `/repos/{owner}/{repo}/contents/{path}` URL path.
+  /// 构建 `/repos/{owner}/{repo}/contents/{路径}` URL 路径。
   String _contentsPath(String inRepoPath) {
     final clean = inRepoPath.startsWith('/')
         ? inRepoPath.substring(1)
@@ -182,7 +177,7 @@ class GitHubSyncService implements RemoteSyncService {
     return '/repos/${config.repository}/contents/$clean';
   }
 
-  /// Executes an authenticated request and reads the full response body.
+  /// 执行已认证请求，并读取完整响应体。
   Future<_Response> _request(
     String method,
     String path, {
@@ -194,8 +189,7 @@ class GitHubSyncService implements RemoteSyncService {
       ..set(HttpHeaders.acceptHeader, 'application/vnd.github+json')
       ..set('X-GitHub-Api-Version', '2022-11-28')
       ..set(HttpHeaders.userAgentHeader, 'robomaster-custom-client');
-    // Only authenticate when a token is present: public reads work
-    // unauthenticated, and an empty Bearer header would 401.
+    // 仅在存在令牌时认证；公开读取可匿名访问，空 Bearer 头会导致 401。
     if (config.token.isNotEmpty) {
       request.headers.set(
         HttpHeaders.authorizationHeader,
@@ -215,7 +209,7 @@ class GitHubSyncService implements RemoteSyncService {
     return _Response(statusCode: response.statusCode, body: text);
   }
 
-  /// Maps an HTTP error response to a user-facing message (no token leakage).
+  /// 将 HTTP 错误响应映射为面向用户的消息，并避免泄漏令牌。
   String _describeError(_Response response) {
     final code = response.statusCode;
     if (code == HttpStatus.unauthorized) return '认证失败：令牌无效或已过期';
@@ -229,16 +223,16 @@ class GitHubSyncService implements RemoteSyncService {
         detail = '：${json['message']}';
       }
     } on FormatException {
-      // Ignore non-JSON error bodies.
+      // 忽略非 JSON 错误响应体。
     }
     return 'GitHub 返回错误 $code$detail';
   }
 
-  /// Releases the underlying [HttpClient].
+  /// 释放底层 [HttpClient]。
   void dispose() => _client.close(force: true);
 }
 
-/// A repository file fetched from GitHub.
+/// 从 GitHub 拉取到的仓库文件。
 class _RemoteFile {
   const _RemoteFile({required this.bytes, required this.sha});
 
@@ -246,7 +240,7 @@ class _RemoteFile {
   final String sha;
 }
 
-/// Minimal response holder (status + decoded text body).
+/// 最小响应载体，包含状态码和已解码文本响应体。
 class _Response {
   const _Response({required this.statusCode, required this.body});
 

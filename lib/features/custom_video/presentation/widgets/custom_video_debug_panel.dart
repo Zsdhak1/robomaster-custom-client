@@ -1,11 +1,9 @@
-﻿/// Comprehensive debug panel for the custom H.264/H.265 video line (0x0310).
+/// 自定义 H.264/H.265 视频链路（0x0310）的综合调试面板。
 ///
-/// Surfaces the whole pipeline at a glance so a black screen can be triaged
-/// fast: MQTT ingest -> keyframe gate -> MPEG-TS mux -> TCP bridge -> decoder.
-/// Each section maps to one stage, with live throughput rates, the decoder's
-/// negotiated resolution/codec/fps, and a rolling log of decoder events and
-/// errors. Read top-to-bottom: the first section that looks wrong is where the
-/// stream is stuck.
+/// 以一屏视图展示整条流水线，便于快速定位黑屏：
+/// MQTT 接入 -> 关键帧闸门 -> MPEG-TS 封装 -> TCP 桥接 -> 解码器。
+/// 每个区段对应一个阶段，展示实时吞吐率、解码器协商的分辨率/编解码器/帧率，
+/// 以及解码器事件和错误的滚动日志。自上而下阅读时，第一个异常区段通常就是卡点。
 library;
 
 import 'package:flutter/material.dart';
@@ -15,17 +13,17 @@ import '../../../../core/responsive/responsive_ext.dart';
 import '../../../../features/settings/logic/settings_providers.dart';
 import '../../logic/custom_video_providers.dart';
 
-/// Full diagnostics panel shown beside the custom-video player.
+/// 显示在自定义图传播放器旁边的完整诊断面板。
 // ============================================================
-// Pipeline health — one-line verdict per stage
+// 流水线状态：每个阶段一行结论
 // ============================================================
 
-/// Embeddable debug content (no Card chrome) for the shared side panel.
+/// 可嵌入共享侧边面板的调试内容，不包含外层卡片装饰。
 ///
-/// Renders the same pipeline sections as [CustomVideoDebugPanel] but as a plain
-/// column so it can be dropped into `VideoSidePanel`'s developer section.
+/// 渲染与 [CustomVideoDebugPanel] 相同的流水线区段，但以普通列形式输出，
+/// 便于放入 `VideoSidePanel` 的开发者区段。
 class CustomVideoDebugContent extends ConsumerWidget {
-  /// Creates a [CustomVideoDebugContent].
+  /// 创建 [CustomVideoDebugContent]。
   const CustomVideoDebugContent({super.key});
 
   @override
@@ -54,7 +52,7 @@ class CustomVideoDebugContent extends ConsumerWidget {
   }
 }
 
-/// A traffic-light summary of each pipeline stage.
+/// 各流水线阶段的红黄绿灯摘要。
 class _PipelineHealth extends StatelessWidget {
   const _PipelineHealth({required this.stats, required this.decoder});
 
@@ -68,7 +66,7 @@ class _PipelineHealth extends StatelessWidget {
     final gateOk = s?.gateOpen ?? false;
     final clientOk = (s?.decoderClients ?? 0) > 0;
     final pictureOk = decoder.hasResolution && decoder.playing;
-    // A stalled feed: data was flowing but nothing arrived in >2s.
+    // 数据流停滞：曾经有数据流动，但超过 2 秒没有新数据到达。
     final stale = (s?.millisSinceLastChunk ?? 0) > 2000 && ingestOk;
 
     return _Section(
@@ -154,7 +152,7 @@ class _HealthRow extends StatelessWidget {
 }
 
 // ============================================================
-// Ingest section — MQTT -> gate
+// 接入区段：MQTT -> 闸门
 // ============================================================
 
 class _IngestSection extends StatelessWidget {
@@ -198,13 +196,12 @@ class _IngestSection extends StatelessWidget {
 }
 
 // ============================================================
-// Loss section — packet sequence number & loss rate
+// 丢包区段：包序列号和丢包率
 // ============================================================
 
-/// Shows the leading uint64 sequence number and the packet-loss rate derived
-/// from gaps in it. A climbing loss rate points squarely at the robot→client
-/// link (suspicion #1): the bytes never arrived, independent of how they are
-/// later sliced or decoded.
+/// 显示前导 uint64 序列号，以及由序列号间隔推导出的丢包率。
+/// 丢包率上升会直接指向机器人到客户端链路问题：字节根本没有到达，
+/// 与后续如何切片或解码无关。
 class _LossSection extends StatelessWidget {
   const _LossSection({required this.stats});
 
@@ -235,14 +232,13 @@ class _LossSection extends StatelessWidget {
 }
 
 // ============================================================
-// Keyframe section — NAL-type tally over the post-slice stream
+// 关键帧区段：切片后流中的 NAL 类型统计
 // ============================================================
 
-/// Shows whether keyframes (IDR/SPS/PPS) actually arrive, the fast way to tell
-/// "link never sends keyframes" from "keyframes arrive but packing corrupts
-/// them". If non-IDR (type 1) climbs while IDR (type 5) and SPS (type 7) stay
-/// at 0, the upstream link/encoder is not delivering keyframes. If IDR/SPS
-/// climb but the picture still never appears, suspect the packing/slice mode.
+/// 显示关键帧（IDR/SPS/PPS）是否实际到达，用于快速区分
+/// “链路从未发送关键帧”和“关键帧到达但被打包破坏”。
+/// 如果 non-IDR（类型 1）增加，而 IDR（类型 5）和 SPS（类型 7）保持 0，
+/// 则上游链路或编码器没有提供关键帧。若 IDR/SPS 增加但仍无画面，应怀疑打包或切片模式。
 class _KeyframeSection extends StatelessWidget {
   const _KeyframeSection({required this.stats});
 
@@ -281,7 +277,7 @@ class _KeyframeSection extends StatelessWidget {
 }
 
 // ============================================================
-// Bridge section — TCP bridge throughput
+// 桥接区段：TCP 桥接吞吐量
 // ============================================================
 
 class _BridgeSection extends StatelessWidget {
@@ -317,7 +313,7 @@ class _BridgeSection extends StatelessWidget {
 }
 
 // ============================================================
-// Decoder section — what the player negotiated
+// 解码器区段：播放器协商结果
 // ============================================================
 
 class _DecoderSection extends StatelessWidget {
@@ -393,7 +389,7 @@ class _DecoderSection extends StatelessWidget {
 }
 
 // ============================================================
-// Decoder log — rolling event/error scrollback
+// 解码器日志：滚动事件和错误记录
 // ============================================================
 
 class _DecoderLogSection extends StatelessWidget {
@@ -412,8 +408,7 @@ class _DecoderLogSection extends StatelessWidget {
             style: context.textTheme.labelSmall!.copyWith(color: Colors.grey.shade600),
           )
         else
-          // Newest first so the latest event is always visible without
-          // scrolling; the panel itself is inside the parent ListView.
+          // 最新事件放在最前面，避免必须滚动才能看到；面板本身已位于父级 ListView 内。
           ...logs.reversed.take(30).map((e) => _LogLine(entry: e)),
       ],
     );
@@ -461,10 +456,10 @@ class _LogLine extends StatelessWidget {
 }
 
 // ============================================================
-// Shared building blocks
+// 共享构建块
 // ============================================================
 
-/// A titled group of debug rows with a subtle divider.
+/// 带标题和弱分隔线的一组调试行。
 class _Section extends StatelessWidget {
   const _Section({required this.title, required this.children});
 

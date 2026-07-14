@@ -1,4 +1,4 @@
-/// Dialog that presents a new release and lets the user download it.
+/// 展示新版本并允许用户下载的对话框。
 library;
 
 import 'dart:io';
@@ -12,9 +12,9 @@ import '../../../core/theme/app_theme.dart';
 import '../data/installer_downloader.dart';
 import '../domain/github_release.dart';
 
-/// Shows a dialog describing [release] and offering download actions.
+/// 显示新版本详情，并提供下载或打开发布页操作。
 class UpdateDialog extends ConsumerWidget {
-  /// Creates an [UpdateDialog].
+  /// 创建 [UpdateDialog]。
   const UpdateDialog({
     required this.release,
     required this.currentVersion,
@@ -22,13 +22,13 @@ class UpdateDialog extends ConsumerWidget {
     super.key,
   });
 
-  /// The latest GitHub release to present.
+  /// 检测到的最新 GitHub Release。
   final GitHubRelease release;
 
-  /// Current app version string.
+  /// 当前应用版本字符串。
   final String currentVersion;
 
-  /// Latest version string parsed from the release tag.
+  /// 从 release tag 解析出的最新版本字符串。
   final String latestVersion;
 
   @override

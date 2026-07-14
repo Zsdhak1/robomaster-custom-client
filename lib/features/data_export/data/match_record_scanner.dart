@@ -1,4 +1,4 @@
-/// Scanner that enumerates saved JSON match records in the export directory.
+/// 扫描导出目录中已保存的 JSON 比赛记录。
 library;
 
 import 'dart:convert';
@@ -8,16 +8,15 @@ import 'package:flutter/foundation.dart';
 
 import '../domain/match_record.dart';
 
-/// Scans [exportDirectory] for JSON export files and parses lightweight
-/// summaries for the data management list view.
+/// 扫描 [exportDirectory] 下的 JSON 导出文件，并解析数据管理列表需要的轻量摘要。
 class MatchRecordScanner {
-  /// Creates a [MatchRecordScanner].
+  /// 创建 [MatchRecordScanner]。
   MatchRecordScanner({required this.exportDirectory});
 
-  /// Directory to scan for `*.json` files.
+  /// 用于扫描 `*.json` 文件的目录。
   final String exportDirectory;
 
-  /// Returns parsed [MatchRecord]s sorted by match time (newest first).
+  /// 返回按比赛时间倒序排列的 [MatchRecord] 列表。
   Future<List<MatchRecord>> scan() async {
     if (exportDirectory.isEmpty) return [];
 
@@ -41,7 +40,7 @@ class MatchRecordScanner {
     try {
       final text = await file.readAsString();
       final size = await file.length();
-      // Parse JSON off the UI thread; long matches can be several MB.
+      // 在后台 isolate 解析 JSON，避免数 MB 级比赛记录阻塞 UI 线程。
       final summary = await compute(
         parseMatchSummary,
         ScanInput(text: text, path: file.path, sizeBytes: size),
@@ -53,29 +52,29 @@ class MatchRecordScanner {
   }
 }
 
-/// Input bundle for the isolate-friendly [parseMatchSummary].
+/// 传给 isolate 友好的 [parseMatchSummary] 的输入数据包。
 class ScanInput {
-  /// Creates a [ScanInput].
+  /// 创建 [ScanInput]。
   const ScanInput({
     required this.text,
     required this.path,
     required this.sizeBytes,
   });
 
-  /// Raw JSON file contents.
+  /// 原始 JSON 文件内容。
   final String text;
 
-  /// Absolute file path.
+  /// 绝对文件路径。
   final String path;
 
-  /// File size in bytes.
+  /// 文件大小，单位为字节。
   final int sizeBytes;
 }
 
-/// Parses a single export file's JSON [text] into a [MatchRecord] summary.
+/// 将单个导出文件的 JSON [text] 解析为 [MatchRecord] 摘要。
 ///
-/// Top-level and isolate-safe (no instance state) so it can run via
-/// [compute]. Returns null on any structural error.
+/// 该函数是顶层纯函数，不依赖实例状态，因此可以通过 [compute] 放入 isolate 执行。
+/// 任意结构错误都会返回 null。
 MatchRecord? parseMatchSummary(ScanInput input) {
   try {
     final json = jsonDecode(input.text) as Map<String, dynamic>;
@@ -84,8 +83,8 @@ MatchRecord? parseMatchSummary(ScanInput input) {
 
     final isMerged = metadata?['merged'] == true;
 
-    // Merged files carry robot_id 0 (no single owner). Derive a representative
-    // side from the `side` metadata so the team filter classifies them.
+    // 合并记录会携带 robot_id 0，表示没有单一来源机器人。
+    // 这里根据 side 元数据派生一个代表性 ID，让阵营筛选仍能正确分类。
     var robotId = (metadata?['robot_id'] as num?)?.toInt() ?? 0;
     if (isMerged && robotId == 0) {
       robotId = metadata?['side'] == 'blue' ? 100 : 1;
@@ -165,7 +164,7 @@ Map<String, int> _countTypes(List<dynamic> messages) {
   return counts;
 }
 
-/// Whether any GameStatus message reached the settlement stage (5).
+/// 是否有任意 GameStatus 消息进入结算阶段（5）。
 bool _reachedSettlement(List<dynamic> messages) {
   for (final msg in messages.reversed) {
     if (msg is! Map<String, dynamic>) continue;

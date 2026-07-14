@@ -1,11 +1,10 @@
-/// Domain model and algorithm for merging multiple per-client match records
-/// into a single complete match dataset.
+/// 将多个客户端比赛记录合并为一份完整比赛数据集的领域模型和算法。
 ///
-/// The merge respects [TopicScope]:
-/// - [TopicScope.teamShared] topics are broadcast to every same-side client;
-///   merge keeps the union and de-duplicates by (topic, timestamp, payload).
-/// - [TopicScope.robotPrivate] topics are only received by the client bound to
-///   that robot id; merge reassembles per-robot streams keyed by robot id.
+/// 合并遵循 [TopicScope]：
+/// - [TopicScope.teamShared] 主题会广播给同阵营所有客户端；合并时取并集，并按
+///   （主题，时间戳，载荷）去重。
+/// - [TopicScope.robotPrivate] 主题只会被绑定到对应机器人 ID 的客户端接收；合并时按
+///   机器人 ID 重组逐机器人流。
 library;
 
 import 'dart:convert';
@@ -15,33 +14,33 @@ import 'package:path/path.dart' as p;
 
 import '../../../core/constants/topic_registry.dart';
 
-/// Result of a merge attempt.
+/// 一次合并尝试的结果。
 sealed class MergeResult {
-  /// Creates a [MergeResult].
+  /// 创建 [MergeResult]。
   const MergeResult();
 }
 
-/// Merge succeeded; [record] describes the produced file.
+/// 合并成功；[record] 描述生成的文件。
 final class MergeSuccess extends MergeResult {
-  /// Creates a [MergeSuccess].
+  /// 创建 [MergeSuccess]。
   const MergeSuccess({required this.record});
 
-  /// Summary of the merged record that was written to disk.
+  /// 已写入磁盘的合并记录摘要。
   final MergedMatchRecord record;
 }
 
-/// Merge failed because the selected files cannot represent the same match.
+/// 合并失败，通常因为所选文件无法代表同一场比赛。
 final class MergeFailure extends MergeResult {
-  /// Creates a [MergeFailure].
+  /// 创建 [MergeFailure]。
   const MergeFailure({required this.reason});
 
-  /// Human-readable reason the merge was rejected.
+  /// 合并被拒绝的可读原因。
   final String reason;
 }
 
-/// Lightweight summary of a merged record file.
+/// 合并记录文件的轻量摘要。
 class MergedMatchRecord {
-  /// Creates a [MergedMatchRecord].
+  /// 创建 [MergedMatchRecord]。
   const MergedMatchRecord({
     required this.filePath,
     required this.matchTime,
@@ -49,38 +48,38 @@ class MergedMatchRecord {
     required this.messageCount,
   });
 
-  /// Absolute path to the merged JSON file.
+  /// 已合并 JSON 文件的绝对路径。
   final String filePath;
 
-  /// Match start time (UTC) derived from the source files.
+  /// 从源文件推导出的比赛开始时间（UTC）。
   final DateTime matchTime;
 
-  /// Robot ids that contributed private telemetry.
+  /// 贡献私有遥测的机器人 ID。
   final List<int> robotIds;
 
-  /// Total number of messages after de-duplication / reassembly.
+  /// 去重和重组后的消息总数。
   final int messageCount;
 }
 
-/// Merges multiple exported JSON match records into one complete record.
+/// 将多份已导出的 JSON 比赛记录合并为一份完整记录。
 ///
-/// Files must describe the same match. The heuristic requires:
-/// - match start times within [maxTimeDelta]
-/// - if scores are present, blue and red scores must agree
-/// - all robots must be on the same side (all blue or all red)
+/// 文件必须描述同一场比赛。判定启发式要求：
+/// - 比赛开始时间差在 [maxTimeDelta] 内
+/// - 如果存在比分，蓝方和红方比分必须一致
+/// - 所有机器人必须属于同一阵营（全蓝方或全红方）
 class MatchMerger {
-  /// Creates a [MatchMerger].
+  /// 创建 [MatchMerger]。
   const MatchMerger({
     this.maxTimeDelta = const Duration(seconds: 30),
   });
 
-  /// Maximum allowed difference between source match start times.
+  /// 源文件比赛开始时间之间允许的最大差值。
   final Duration maxTimeDelta;
 
-  /// Validates that [filePaths] can be merged and then performs the merge.
+  /// 校验 [filePaths] 是否可合并，并执行合并。
   ///
-  /// The merged JSON is written to [exportDirectory] with the naming convention
-  /// `rm_merged_{side}_{yyyyMMdd_HHmmss}.json`.
+  /// 合并后的 JSON 会写入 [exportDirectory]，命名约定为
+  /// `rm_merged_{side}_{yyyyMMdd_HHmmss}.json`。
   Future<MergeResult> merge({
     required List<String> filePaths,
     required String exportDirectory,
@@ -149,13 +148,13 @@ class MatchMerger {
   MergeFailure? _validateSameMatch(List<_SourceRecord> sources) {
     final first = sources.first;
 
-    // All robots must be on the same side.
+    // 所有机器人必须属于同一阵营。
     final sides = sources.map((s) => _sideOf(s.robotId)).toSet();
     if (sides.length != 1) {
       return const MergeFailure(reason: '只能合并同一阵营的记录（红方或蓝方）');
     }
 
-    // Match times must be close enough.
+    // 比赛开始时间必须足够接近。
     for (final source in sources.skip(1)) {
       final delta = source.matchTime.difference(first.matchTime).abs();
       if (delta > maxTimeDelta) {
@@ -165,7 +164,7 @@ class MatchMerger {
       }
     }
 
-    // Scores must agree when present.
+    // 存在比分时必须一致。
     int? consensusBlue;
     int? consensusRed;
     for (final source in sources) {
@@ -235,13 +234,12 @@ class MatchMerger {
     return '$topic|$timestamp|$payloadKey';
   }
 
-  /// Builds a stable string key for a payload without mutating the source.
+  /// 为载荷构建稳定字符串键，同时不修改原始对象。
   ///
-  /// Falls back to raw bytes when the payload is not a JSON object.
+  /// 载荷不是 JSON 对象时，回退到原始字符串表示。
   String _stablePayloadKey(Object? payload) {
     if (payload is Map<String, dynamic>) {
-      // Copy so removing the raw-byte fallback does not affect the message
-      // that will be written to the merged output.
+      // 复制后再移除 raw-byte 降级字段，避免影响将写入合并输出的原消息。
       final copy = Map<String, dynamic>.of(payload)..remove('raw_base64');
       return const JsonEncoder().convert(copy);
     }
@@ -255,7 +253,7 @@ class MatchMerger {
     final payload = msg['payload'];
     if (payload is! Map<String, dynamic>) return null;
 
-    // Protobuf JSON uses lowerCamelCase for Dart proto fields.
+    // Protobuf JSON 对 Dart proto 字段使用 lowerCamelCase。
     final id = payload['robotId'] ?? payload['senderId'];
     if (id is int) return id;
     if (id is num) return id.toInt();

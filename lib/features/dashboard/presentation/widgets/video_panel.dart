@@ -1,10 +1,10 @@
-/// Video-stream monitoring panel with real decoder rendering.
+/// 带真实解码器渲染的视频流监控面板。
 ///
-/// Supports two backends:
-///  • media_kit (libmpv) — selected via [videoDecoderBackendProvider]
-///  • fvp (libmdk via video_player) — selected via the same provider
+/// 支持两个后端：
+///  • media_kit（libmpv）— 通过 [videoDecoderBackendProvider] 选择
+///  • fvp（通过 video_player 使用 libmdk）— 通过同一 Provider 选择
 ///
-/// Both consume the AnnexB stream from the local loopback TCP bridge.
+/// 两者都消费本地回环 TCP 桥接提供的 AnnexB 流。
 library;
 
 import 'dart:async';
@@ -26,9 +26,9 @@ import '../../../settings/logic/settings_providers.dart';
 import '../../logic/stream_providers.dart';
 import 'video_debug_panel.dart';
 
-/// Panel body of the video screen: real player + stream stats.
+/// 视频页面的面板主体：真实播放器和流统计。
 class VideoPanel extends ConsumerWidget {
-  /// Creates a [VideoPanel].
+  /// 创建 [VideoPanel]。
   const VideoPanel({super.key});
 
   @override
@@ -78,7 +78,7 @@ class VideoPanel extends ConsumerWidget {
 }
 
 // ============================================================
-// media_kit player
+// media_kit 播放器
 // ============================================================
 
 class _MediaKitPlayer extends StatefulWidget {
@@ -90,10 +90,10 @@ class _MediaKitPlayer extends StatefulWidget {
 
   final String url;
 
-  /// libmpv `hwdec` property value (e.g. 'auto-safe', 'd3d11va', 'no').
+  /// libmpv `hwdec` 属性值，例如 `auto-safe`、`d3d11va`、`no`。
   final String hwdec;
 
-  /// When false, the overlay shows only a reconnect button.
+  /// 为 false 时，覆盖层只显示一个重连按钮。
   final bool developerMode;
 
   @override
@@ -108,27 +108,26 @@ class _MediaKitPlayerState extends State<_MediaKitPlayer> {
   StreamSubscription<PlayerLog>? _logSub;
   StreamSubscription<bool>? _playingSub;
 
-  /// Last error reported by libmpv, shown as an overlay.
+  /// libmpv 最近报告的错误，会作为覆盖层显示。
   String? _lastError;
 
-  /// Whether libmpv has started decoding/playing frames.
+  /// libmpv 是否已经开始解码或播放帧。
   bool _playing = false;
 
-  /// How many times we've (re)opened the stream this session.
+  /// 本会话中已经打开或重新打开流的次数。
   int _attempt = 0;
 
   @override
   void initState() {
     super.initState();
-    // logLevel: warn surfaces libmpv's connection/demuxer diagnostics so we
-    // can see WHY a decoder fails to attach to the TCP bridge (the default
-    // `error` level hides "Connection failed"/"Failed to open" lines).
+    // warn 级日志会暴露 libmpv 的连接和解复用诊断，便于看到解码器为何无法连接 TCP 桥接。
+    // 默认 error 级别会隐藏“连接失败/打开失败”的链路细节。
     _player = Player(
       configuration: const PlayerConfiguration(logLevel: MPVLogLevel.warn),
     );
     _controller = VideoController(_player);
 
-    // Surface libmpv's real failure reason instead of silently swallowing it.
+    // 暴露 libmpv 的真实失败原因，避免被静默吞掉。
     _errorSub = _player.stream.error.listen((msg) {
       debugPrint('media_kit error: $msg');
       if (mounted) setState(() => _lastError = msg);
@@ -143,37 +142,32 @@ class _MediaKitPlayerState extends State<_MediaKitPlayer> {
     _configureAndOpen();
   }
 
-  /// Configures libmpv, then opens the stream.
-  ///
-  /// The decisive fix is `load-unsafe-playlists=yes`: media_kit loads URLs via
-  /// a temp playlist + `loadlist`, and libmpv refuses tcp:// playlist entries
-  /// by default — that is why the decoder never connected. The rest mirrors
-  /// VLC's proven `:demux=hevc :network-caching=1000` setup.
+  /// 配置 libmpv 并打开流。
+///
+  /// 关键修复是 `load-unsafe-playlists=yes`：media_kit 通过临时播放列表和 `loadlist`
+  /// 加载 URL，而 libmpv 默认拒绝播放列表中的 tcp:// 条目，这会导致解码器从未连接。
+  /// 其余参数对齐 VLC 已验证的 `:demux=hevc :network-caching=1000` 设置。
   Future<void> _configureAndOpen() async {
     _attempt++;
     if (mounted) setState(() => _lastError = null);
     final platform = _player.platform;
     if (platform is NativePlayer) {
       try {
-        // ROOT CAUSE of "decoder connections: 0": media_kit's open() does
-        // not loadfile the URL directly — it writes the URL into a temp
-        // playlist and runs `loadlist`. libmpv then refuses the tcp:// entry
-        // ("Refusing to load potentially unsafe URL from a playlist") and
-        // never even opens the stream, so the bridge sees zero clients.
-        // This MUST be set before open() (which runs loadlist internally).
+        // “解码器连接:0”的根因：media_kit.open() 不直接 loadfile URL，
+        // 而是把 URL 写入临时播放列表并执行 `loadlist`。libmpv 会拒绝播放列表里的 tcp:// 条目，
+        // 因而从未打开流，桥接端看到的客户端数始终为 0。
+        // 该选项必须在 open() 之前设置，因为 open() 内部会运行 loadlist。
         await platform.setProperty('load-unsafe-playlists', 'yes');
-        // = VLC :demux=hevc — force the raw-HEVC demuxer (skip probing).
+        // 等价于 VLC :demux=hevc，强制原始 HEVC 解复用器并跳过探测。
         await platform.setProperty('demuxer-lavf-format', 'hevc');
-        // Raw stream has no timestamps; assume 60 fps so PTS advance.
+        // 原始流没有时间戳，假定 60fps 以便 PTS 推进。
         await platform.setProperty('demuxer-lavf-o', 'framerate=60');
-        // = VLC :network-caching=1000 — buffer ~1s so the demuxer has
-        // enough bytes to lock on. The old `cache=no` was the root cause
-        // of media_kit showing nothing while VLC worked.
+        // 等价于 VLC :network-caching=1000，提供约 1 秒缓冲，让解复用器有足够字节锁定。
+        // 旧的 `cache=no` 是 VLC 能显示而 media_kit 无内容的根因。
         await platform.setProperty('cache', 'yes');
         await platform.setProperty('demuxer-readahead-secs', '0.3');
         await platform.setProperty('cache-secs', '0.3');
-        // User-selected hardware decoder. mpv falls back to software decode
-        // automatically if the chosen mode is unsupported on this platform.
+        // 用户选择的硬件解码器；如果平台不支持，mpv 会自动回退到软件解码。
         await platform.setProperty('hwdec', widget.hwdec);
       } on Object catch (e) {
         debugPrint('media_kit property warning: $e');
@@ -187,11 +181,10 @@ class _MediaKitPlayerState extends State<_MediaKitPlayer> {
     }
   }
 
-  /// Tears down the current stream and reopens it from scratch.
-  ///
-  /// Use when the decoder failed to connect or the stream stalled — this
-  /// forces libmpv to drop its state and reconnect to the TCP bridge,
-  /// re-triggering the keyframe gate.
+  /// 关闭当前流并从头重新打开。
+///
+  /// 当解码器连接失败或流停滞时使用，强制 libmpv 丢弃内部状态并重连 TCP 桥接，
+  /// 从而重新触发关键帧闸门。
   Future<void> _reconnect() async {
     try {
       await _player.stop();
@@ -204,7 +197,7 @@ class _MediaKitPlayerState extends State<_MediaKitPlayer> {
   @override
   void didUpdateWidget(covariant _MediaKitPlayer oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Reopen on URL change OR hwdec change (hwdec only takes effect on load).
+    // URL 或 hwdec 变化时重新打开；hwdec 只在加载时生效。
     if (oldWidget.url != widget.url || oldWidget.hwdec != widget.hwdec) {
       _configureAndOpen();
     }
@@ -243,11 +236,10 @@ class _MediaKitPlayerState extends State<_MediaKitPlayer> {
   }
 }
 
-/// Status chip + reconnect control overlaid on the media_kit video.
+/// 叠加在 media_kit 视频上的状态标签和重连控件。
 ///
-/// When [developerMode] is off, only a compact reconnect button is shown
-/// (普通用户也能手动重连); the status light, attempt counter and error detail
-/// are developer-only.
+/// [developerMode] 关闭时只显示紧凑重连按钮，普通用户也能手动重连；
+/// 浅色状态、尝试计数和错误详情仅面向开发者。
 class _MediaKitOverlay extends StatelessWidget {
   const _MediaKitOverlay({
     required this.playing,
@@ -266,7 +258,7 @@ class _MediaKitOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!developerMode) {
-      // Keep only the reconnect affordance for end users.
+      // 普通用户只保留重连入口。
       return _pill(context, child: _reconnectButton(context));
     }
     return Column(
@@ -345,14 +337,14 @@ class _MediaKitOverlay extends StatelessWidget {
     );
   }
 
-  /// Translucent rounded container shared by the status chip and error box.
+  /// 状态标签和错误框共用的半透明圆角容器。
   Widget _pill(BuildContext context, {required Widget child}) {
     return VideoOverlayPill(child: child);
   }
 }
 
 // ============================================================
-// fvp player (via video_player)
+// fvp 播放器 (通过 video_player)
 // ============================================================
 
 class _FvpPlayer extends StatefulWidget {
@@ -461,10 +453,8 @@ class _FvpPlayerState extends State<_FvpPlayer> {
     );
 
     if (_isFullscreen) {
-      // Hide the surrounding Row/Padding when in fullscreen so the video fills
-      // the whole screen. The caller still owns the state, so we rebuild in
-      // place; the Scaffold is underneath and its appBar/FAB auto-hide via the
-      // system UI modes above.
+      // 全屏时隐藏周围行和内边距，让视频填满页面。
+      // 调用方仍持有状态，因此原地重建；底层 Scaffold 的 appBar/FAB 会随系统 UI 模式自动隐藏。
       player = Scaffold(
         backgroundColor: Colors.black,
         body: SafeArea(child: player),
@@ -482,7 +472,7 @@ class _FvpPlayerState extends State<_FvpPlayer> {
   }
 }
 
-/// Overlay controls for the fvp backend: play/pause, seek, time, mute, fullscreen.
+/// fvp 后端使用的覆盖层控件：播放/暂停、进度拖动、时间、静音和全屏。
 class _FvpControls extends StatefulWidget {
   const _FvpControls({
     required this.controller,
@@ -499,10 +489,10 @@ class _FvpControls extends StatefulWidget {
 }
 
 class _FvpControlsState extends State<_FvpControls> {
-  /// Whether the user is currently dragging the progress bar.
+  /// 用户当前是否正在拖动进度条。
   bool _dragging = false;
 
-  /// The value during drag, overriding the controller's position.
+  /// 拖动期间使用的值，会覆盖控制器当前位置。
   Duration _dragPosition = Duration.zero;
 
   @override
@@ -515,7 +505,7 @@ class _FvpControlsState extends State<_FvpControls> {
         return Stack(
           fit: StackFit.expand,
           children: [
-            // Tapping the video toggles play/pause.
+            // 点击视频切换播放/暂停。
             GestureDetector(
               onTap: () {
                 value.isPlaying
@@ -636,7 +626,7 @@ class _FvpControlsState extends State<_FvpControls> {
       child: Stack(
         alignment: Alignment.centerLeft,
         children: [
-          // Buffered background.
+          // 已在后台缓冲。
           LinearProgressIndicator(
             value: duration.inMilliseconds > 0 ? bufferedMs / maxMs : 0,
             backgroundColor: Colors.white12,
@@ -644,7 +634,7 @@ class _FvpControlsState extends State<_FvpControls> {
             minHeight: 4,
             borderRadius: BorderRadius.circular(2),
           ),
-          // Seek slider.
+          // 拖动进度滑块。
           Slider(
             value: positionMs,
             max: maxMs.toDouble(),
@@ -680,7 +670,7 @@ class _FvpControlsState extends State<_FvpControls> {
   }
 }
 
-/// Compact circular control button used inside the fvp overlay.
+/// fvp 覆盖层内部使用的紧凑圆形控制按钮。
 class _ControlsButton extends StatelessWidget {
   const _ControlsButton({
     required this.icon,
@@ -709,13 +699,13 @@ class _ControlsButton extends StatelessWidget {
 }
 
 // ============================================================
-// ffplay panel (Windows verification backend)
+// ffplay 面板（Windows 验证后端）
 // ============================================================
 
-/// Hosts the [FfplayDecoder] lifecycle and shows its status.
+/// 持有 [FfplayDecoder] 生命周期并显示其状态。
 ///
-/// ffplay renders in its own OS window, so this panel only attaches the
-/// decoder to the frame stream and reports state — there is no in-app video.
+/// ffplay 在自己的系统窗口中渲染，因此该面板只负责把解码器接到帧流并报告状态；
+/// 应用内不会显示视频。
 class _FfplayPanel extends ConsumerStatefulWidget {
   const _FfplayPanel();
 
@@ -727,7 +717,7 @@ class _FfplayPanelState extends ConsumerState<_FfplayPanel> {
   @override
   void initState() {
     super.initState();
-    // Attach after first frame so providers are ready.
+    // 首帧之后再附加，确保 Provider 已经准备好。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final decoder = ref.read(ffplayDecoderProvider);
       final service = ref.read(videoStreamServiceProvider);
@@ -738,7 +728,7 @@ class _FfplayPanelState extends ConsumerState<_FfplayPanel> {
 
   @override
   void dispose() {
-    // Stop feeding but keep the provider alive across rebuilds.
+    // 停止喂数据，但保留 Provider 跨重建存活。
     ref.read(ffplayDecoderProvider).stop();
     super.dispose();
   }
@@ -819,7 +809,7 @@ class _FfplayPanelState extends ConsumerState<_FfplayPanel> {
 }
 
 // ============================================================
-// Preview placeholder (shown when not listening)
+// 预览占位（未监听时显示）
 // ============================================================
 
 class _PreviewPlaceholder extends StatelessWidget {
@@ -844,10 +834,10 @@ class _PreviewPlaceholder extends StatelessWidget {
 }
 
 // ============================================================
-// Side-panel content (basic info + dev-only debug section)
+// 侧边面板内容（基础信息和开发者调试区）
 // ============================================================
 
-/// Always-visible basic connection info for the side panel.
+/// 侧边面板中始终可见的基础连接信息。
 class _BasicInfo extends StatelessWidget {
   const _BasicInfo({
     required this.isListening,

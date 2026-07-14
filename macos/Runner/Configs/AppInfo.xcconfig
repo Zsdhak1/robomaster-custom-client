@@ -1,14 +1,13 @@
-// Application-level settings for the Runner target.
+// Runner target 的应用级设置。
 //
-// This may be replaced with something auto-generated from metadata (e.g., pubspec.yaml) in the
-// future. If not, the values below would default to using the project name when this becomes a
-// 'flutter create' template.
+// 未来这里可能会被元数据（例如 pubspec.yaml）自动生成的内容替换。
+// 如果没有替换，当该文件成为 `flutter create` 模板时，下面的值会默认使用项目名称。
 
-// The application's name. By default this is also the title of the Flutter window.
+// 应用名称；默认也作为 Flutter 窗口标题。
 PRODUCT_NAME = WOD Client
 
-// The application's bundle identifier
+// 应用的 bundle identifier。
 PRODUCT_BUNDLE_IDENTIFIER = com.example.robomasterCustomClient1
 
-// The copyright displayed in application information
+// 应用信息中显示的版权声明。
 PRODUCT_COPYRIGHT = Copyright © 2026 com.example. All rights reserved.

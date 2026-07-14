@@ -1,4 +1,4 @@
-/// Unit tests for [RemoteRecordMeta] file-name parsing.
+/// [RemoteRecordMeta] 文件名解析的单元测试。
 library;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -50,9 +50,8 @@ void main() {
     });
 
     test('malformed date falls back to null date but keeps kind', () {
-      // 13th month — DateTime would roll over, but our pattern requires 8
-      // digits so this still matches; rollover is acceptable, just ensure no
-      // throw and a non-null result.
+      // 第 13 个月会被 DateTime 自动滚动，但解析模式只要求 8 位数字。
+      // 这里仍然会匹配；日期滚动可接受，只需确保不抛异常且结果非 null。
       final meta = RemoteRecordMeta.parse('rm_export_1_20261301_143005.json');
       expect(meta.kind, RecordKind.export);
       expect(meta.robotId, 1);

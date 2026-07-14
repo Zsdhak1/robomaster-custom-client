@@ -1,4 +1,4 @@
-/// Unit tests for [CustomByteBlockSource].
+/// [CustomByteBlockSource] 的单元测试。
 library;
 
 import 'dart:async';
@@ -13,7 +13,7 @@ import 'package:robomaster_custom_client_1/features/settings/logic/settings_prov
 import 'package:robomaster_custom_client_1/generated/robomaster_custom_client.pb.dart';
 import 'package:robomaster_custom_client_1/services/mqtt_service.dart';
 
-/// Minimal in-memory [MqttService] for testing.
+/// 最小 in-memory [MqttService] 用于 testing。
 class _FakeMqttService implements MqttService {
   _FakeMqttService();
 
@@ -85,7 +85,7 @@ void main() {
       source.start();
       expect(mqtt._subscribed, contains(topicCustomByteBlock));
 
-      // data = 0x0A 0x04 <4 payload bytes> <padding>. Declared length 4.
+      // 数据 = 0x0A 0x04 <4 字节载荷> <填充>，声明长度为 4。
       mqtt.emit(
         topicCustomByteBlock,
         CustomByteBlock(data: [0x0A, 0x04, 0xAA, 0xBB, 0xCC, 0xDD, 0, 0])
@@ -109,7 +109,7 @@ void main() {
       final sub = source.chunkStream.listen(chunks.add);
       source.start();
 
-      // 0x96 0x01 is varint 150. Provide exactly 150 payload bytes.
+      // 0x96 0x01 是 varint 150，提供精确 150 字节载荷。
       final payload = List<int>.generate(150, (i) => i & 0xFF);
       mqtt.emit(
         topicCustomByteBlock,
@@ -133,7 +133,7 @@ void main() {
       final sub = source.chunkStream.listen(chunks.add);
       source.start();
 
-      // Declares 10 bytes but only 3 follow → truncated, emit the 3 present.
+      // 声明 10 字节但后续只有 3 字节 → 截断，发出实际存在的 3 字节。
       mqtt.emit(
         topicCustomByteBlock,
         CustomByteBlock(data: [0x0A, 0x0A, 0x11, 0x22, 0x33]).writeToBuffer(),
@@ -224,7 +224,7 @@ void main() {
 
     test('seq header: strips 8-byte seq and counts loss from gaps', () async {
       final mqtt = _FakeMqttService();
-      // verbatim slicing so the post-seq body is forwarded unchanged.
+      // verbatim 切片会原样转发序列号之后的主体。
       final source = build(
         mqtt,
         mode: CustomVideoSliceMode.verbatim,
@@ -244,7 +244,7 @@ void main() {
         return CustomByteBlock(data: b.toBytes()).writeToBuffer();
       }
 
-      // seq 0,1,2 then jump to 5 (lost 3,4), then 6.
+      // seq 0,1,2 后跳到 5（丢失 3,4），随后到 6。
       mqtt
         ..emit(topicCustomByteBlock, packet(0, [0xA0]))
         ..emit(topicCustomByteBlock, packet(1, [0xA1]))
@@ -253,12 +253,12 @@ void main() {
         ..emit(topicCustomByteBlock, packet(6, [0xA6]));
       await Future<void>.delayed(Duration.zero);
 
-      // Body (after the 8-byte seq) is forwarded verbatim.
+      // 8 字节 seq 之后的主体会被 verbatim 原样转发。
       expect(chunks.map((c) => c.first).toList(), [0xA0, 0xA1, 0xA2, 0xA5, 0xA6]);
       expect(source.lastSequence, 6);
       expect(source.seqPacketsSeen, 5);
-      expect(source.packetsLost, 2); // 3 and 4
-      // span = 6 - 0 + 1 = 7, lost 2 → ~0.2857
+      expect(source.packetsLost, 2); // 3 和 4
+      // 范围 = 6 - 0 + 1 = 7，丢失 2 → ~0.2857
       expect(source.lossRate, closeTo(2 / 7, 1e-9));
 
       await sub.cancel();

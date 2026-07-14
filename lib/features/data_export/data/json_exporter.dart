@@ -1,7 +1,7 @@
-/// JSON exporter for recorded MQTT messages.
+/// 已记录 MQTT 消息的 JSON 导出器。
 ///
-/// Produces a JSON file with schema version, metadata and a flat array of
-/// Protobuf messages encoded via [GeneratedMessage.toProto3Json].
+/// 生成包含 Schema 版本、元数据和 Protobuf 消息扁平数组的 JSON 文件。
+/// Protobuf 消息通过 [GeneratedMessage.toProto3Json] 编码。
 library;
 
 import 'dart:convert';
@@ -12,38 +12,38 @@ import 'package:protobuf/protobuf.dart';
 
 import '../domain/data_recorder.dart';
 
-/// Current export schema version.
+/// 当前导出 Schema 版本。
 const String _schemaVersion = '2.0';
 
-/// Application version written into every export file.
+/// 写入每个导出文件的应用版本。
 const String _appVersion = '0.1.0+1';
 
-/// Exports [DataRecorderState] to a JSON file under [exportDirectory].
+/// 将 [DataRecorderState] 导出到 [exportDirectory] 中的 JSON 文件。
 ///
-/// The file name follows the convention:
+/// 文件名遵循约定：
 /// `rm_export_{robotId}_{yyyyMMdd_HHmmss}.json`
-/// where the timestamp is derived from [matchStartTime] or the current time.
+/// 其中时间戳来自 [matchStartTime]，没有时使用当前时间。
 class JsonExporter {
-  /// Creates a [JsonExporter].
+  /// 创建 [JsonExporter]。
   JsonExporter({
     required this.robotId,
     required this.exportDirectory,
     this.matchStartTime,
   });
 
-  /// Robot identity that recorded this data (protocol id).
+  /// 记录该数据的机器人身份（协议 ID）。
   final int robotId;
 
-  /// Target directory path (must be writable).
+  /// 目标目录路径，必须可写。
   final String exportDirectory;
 
-  /// Match start time used for file naming; falls back to now.
+  /// 用于文件命名的比赛开始时间；没有时回退到当前时间。
   final DateTime? matchStartTime;
 
-  /// Writes the export file and returns the absolute path.
+  /// 写入导出文件，并返回其绝对路径。
   ///
-  /// Throws [StateError] if [exportDirectory] is empty.
-  /// Throws [FileSystemException] if writing fails.
+  /// [exportDirectory] 为空时抛出 [StateError]。
+  /// 写入失败时抛出 [FileSystemException]。
   Future<String> export(DataRecorderState state) async {
     if (exportDirectory.isEmpty) {
       throw StateError('导出目录未设置');

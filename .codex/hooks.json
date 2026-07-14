@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash 'D:\\11AndroidLearnings\\MyApplication\\robomaster_custom_client_1\\.codex\\hooks\\post-edit-lint.sh'",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash 'D:\\11AndroidLearnings\\MyApplication\\robomaster_custom_client_1\\.codex\\hooks\\session-start.sh'",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

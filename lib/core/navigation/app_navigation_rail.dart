@@ -1,13 +1,11 @@
-/// Shared app navigation rail (Material 3 NavigationRail).
+/// 共享应用导航栏，基于 Material 3 [NavigationRail]。
 ///
-/// A persistent rail pinned to the left of the [AppShell], listing the app's
-/// destinations — monitoring dashboard, video stream, data management and
-/// settings. The shell owns the selected index and the extended/collapsed
-/// state; this widget is purely presentational plus a toggle callback.
+/// 这是固定在 [AppShell] 左侧的持久化导航栏，列出应用顶层页面：监控、视频、
+/// 自定义图传、数据和设置。选中索引以及展开/收起状态由外壳持有；本组件只负责展示
+/// 并通过回调上报选择变化。
 ///
-/// The leading mark shows the robot icon of the currently logged-in identity
-/// (same assets as the login screen). The two infantry robots (3 / 4) share
-/// one icon, so a small number badge is overlaid to tell them apart.
+/// 前导区域显示当前登录身份的机器人图标，与登录页使用同一资源。两个步兵机器人
+/// （3 / 4）共享图标，因此会叠加一个小数字徽标用于区分。
 library;
 
 import 'package:flutter/material.dart';
@@ -17,31 +15,35 @@ import '../../features/connection/domain/robot_identity.dart';
 import '../responsive/responsive_ext.dart';
 import '../state/session_providers.dart';
 
-/// Top-level app destinations reachable from the navigation rail.
+/// 可从导航栏访问的应用顶层目标页。
 enum AppDestination {
-  /// The main monitoring dashboard (index 0).
+  /// 主监控仪表盘（索引 0）。
   dashboard,
 
-  /// The UDP video-stream page (index 1).
+  /// UDP 视频流页面（索引 1）。
   video,
 
-  /// The custom H.264 video-stream page (index 2).
+  /// 自定义 H.264 视频流页面（索引 2）。
   customVideo,
 
-  /// The data export/import management page (index 3).
+  /// 数据导出/导入管理页面（索引 3）。
   data,
 
-  /// The settings page (index 4).
+  /// 设置页面（索引 4）。
   settings,
 }
 
-/// Material 3 navigation rail listing the app's top-level destinations.
+/// 当前顶层目标页，允许部署规则等运行时安全请求页面切换。
+final appDestinationProvider = StateProvider<AppDestination>(
+  (ref) => AppDestination.dashboard,
+);
+
+/// 列出应用顶层目标页的 Material 3 导航栏。
 ///
-/// [current] marks the active destination; selecting a different one calls
-/// [onSelect]. [extended] widens the rail to show labels; [onToggleExtended]
-/// flips it.
+/// [current] 标记当前目标页；选择其他目标页会调用 [onSelect]。
+/// [extended] 控制导航栏是否展开显示标签，[onToggleExtended] 用于切换该状态。
 class AppNavigationRail extends ConsumerWidget {
-  /// Creates an [AppNavigationRail].
+  /// 创建 [AppNavigationRail]。
   const AppNavigationRail({
     required this.current,
     required this.extended,
@@ -50,16 +52,16 @@ class AppNavigationRail extends ConsumerWidget {
     super.key,
   });
 
-  /// The destination currently shown.
+  /// 当前显示的目标页。
   final AppDestination current;
 
-  /// Whether the rail is expanded to show text labels.
+  /// 导航栏是否展开以显示文本标签。
   final bool extended;
 
-  /// Toggles [extended].
+  /// 切换 [extended]。
   final VoidCallback onToggleExtended;
 
-  /// Called with the chosen destination when the user picks a different one.
+  /// 用户选择不同目标页时调用，并传入被选中的目标页。
   final ValueChanged<AppDestination> onSelect;
 
   @override
@@ -68,14 +70,11 @@ class AppNavigationRail extends ConsumerWidget {
     final selectedId = ref.watch(selectedRobotIdProvider);
     final iconSize = context.iconSize(24);
 
-    // NavigationRail hard-codes the gap between destinations as a fixed 12px
-    // (`_verticalDestinationSpacingM3`), which is not exposed through any theme
-    // property and so never scales with the window. Add proportional vertical
-    // padding to each destination so the spacing grows in step with the icons.
-    // The 12px base is split 6/6 top+bottom; to reach a total gap of 12*scale
-    // each destination needs `6*(scale-1)` extra per side. Clamp at >=0 because
-    // the fixed 12px base cannot be shrunk via padding (only relevant below the
-    // reference resolution, where scale < 1).
+    // NavigationRail 将目标项间距硬编码为 12px（_verticalDestinationSpacingM3），
+    // 且没有主题属性可覆盖，因此不会随窗口缩放。这里给每个目标项补充等比垂直内边距，
+    // 让间距随图标大小一起增长。12px 基础间距等分为上下 6px；若要达到 12*scale，
+    // 每侧需额外 `6 * (scale - 1)`。小于参考分辨率时无法通过内边距缩小固定基础间距，
+    // 因此将额外值钳制为 >= 0。
     final destPadding = EdgeInsets.symmetric(
       vertical: (context.sp(6) - 6).clamp(0.0, double.infinity),
     );
@@ -152,7 +151,7 @@ class AppNavigationRail extends ConsumerWidget {
   }
 }
 
-/// Leading area of the rail: expand toggle + the logged-in robot's avatar.
+/// 导航栏前导区域：展开切换按钮和当前登录机器人的头像。
 class _RailHeader extends StatelessWidget {
   const _RailHeader({
     required this.robotId,
@@ -184,7 +183,7 @@ class _RailHeader extends StatelessWidget {
   }
 }
 
-/// The logged-in robot's icon, with an infantry number badge when needed.
+/// 当前登录机器人的图标；必要时叠加步兵编号徽标。
 class _RobotAvatar extends StatelessWidget {
   const _RobotAvatar({required this.robotId});
 
@@ -235,7 +234,7 @@ class _RobotAvatar extends StatelessWidget {
   );
 }
 
-/// A small circular digit badge overlaid on the infantry avatar.
+/// 叠加在步兵头像上的小圆形数字徽标。
 class _NumberBadge extends StatelessWidget {
   const _NumberBadge({required this.number, required this.color});
 
@@ -261,9 +260,8 @@ class _NumberBadge extends StatelessWidget {
         '$number',
         style: TextStyle(
           color: Theme.of(context).colorScheme.surface,
-          // Micro number badge: explicit size is intentional because the badge
-          // itself is a tiny circle; scale via context.sp() for proportional
-          // fullscreen layout.
+          // 微型数字徽标需要显式字号，因为它本身是很小的圆形；
+          // 通过 context.sp() 缩放以适配全屏布局。
           fontSize: context.sp(11),
           fontWeight: FontWeight.bold,
           height: 1,

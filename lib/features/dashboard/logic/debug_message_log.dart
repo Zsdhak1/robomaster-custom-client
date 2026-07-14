@@ -1,7 +1,6 @@
-/// Debug message log for tracking all MQTT topic messages.
+/// 用于追踪所有 MQTT 主题消息的调试日志。
 ///
-/// Maintains a rolling buffer of recent ProtobufEnvelope records,
-/// with a max capacity to avoid unbounded memory growth.
+/// 维护最近 ProtobufEnvelope 记录的滚动缓冲区，并设置容量上限以避免内存无界增长。
 library;
 
 import 'dart:typed_data';
@@ -13,21 +12,21 @@ import 'package:protobuf/protobuf.dart';
 import '../../../core/protobuf/protobuf_parser.dart';
 import 'stream_providers.dart';
 
-/// A single parsed Protobuf field (name → formatted value).
+/// 单个已解析 Protobuf 字段，包含名称和格式化后的值。
 class DebugField {
-  /// Creates a [DebugField].
+  /// 创建 [DebugField]。
   const DebugField({required this.name, required this.value});
 
-  /// Field name from the Protobuf definition.
+  /// 来自 Protobuf 定义的字段名称。
   final String name;
 
-  /// Human-readable formatted field value.
+  /// 格式化后的可读字段值。
   final String value;
 }
 
-/// Single debug log entry for an MQTT message.
+/// 单条 MQTT 消息对应的调试日志条目。
 class DebugLogEntry {
-  /// Creates a [DebugLogEntry].
+  /// 创建 [DebugLogEntry]。
   DebugLogEntry({
     required this.topic,
     required this.messageType,
@@ -38,28 +37,28 @@ class DebugLogEntry {
     this.parseError,
   });
 
-  /// MQTT topic name.
+  /// MQTT 主题名称。
   final String topic;
 
-  /// Protobuf message type identifier.
+  /// Protobuf 消息类型标识符。
   final String messageType;
 
-  /// Raw Protobuf bytes.
+  /// 原始 Protobuf 字节。
   final Uint8List rawBytes;
 
-  /// Reception timestamp.
+  /// 接收时间戳。
   final DateTime timestamp;
 
-  /// Whether the envelope type was recognized.
+  /// 信封类型是否已识别。
   final bool isRecognized;
 
-  /// Parsed Protobuf fields (empty when unrecognized or parse failed).
+  /// 已解析的 Protobuf 字段；未识别或解析失败时为空。
   final List<DebugField> fields;
 
-  /// Parse error message if deserialization failed.
+  /// 反序列化失败时的解析错误消息。
   final String? parseError;
 
-  /// Formatted hex string of [rawBytes].
+  /// [rawBytes] 的格式化十六进制字符串。
   String get hexSummary {
     const max = 32;
     final slice = rawBytes.length > max
@@ -74,31 +73,31 @@ class DebugLogEntry {
   }
 }
 
-/// Maximum raw bytes to store per entry for display.
+/// 每条记录最多保存用于显示的原始字节数。
 const int _maxRawBytes = 128;
 
-/// Total maximum entries across all topics.
+/// 所有主题合计最多保存的条目数。
 const int _maxTotalEntries = 500;
 
-/// State holder for debug message logs.
+/// 调试消息日志的状态持有者。
 class DebugMessageLog {
-  /// Creates an empty [DebugMessageLog].
+  /// 创建空的 [DebugMessageLog]。
   const DebugMessageLog({
     this.entries = const [],
     this.topicSet = const {},
   });
 
-  /// All log entries in chronological order.
+  /// 按时间顺序排列的所有日志条目。
   final List<DebugLogEntry> entries;
 
-  /// Set of all topics that have been seen.
+  /// 已见过的所有主题集合。
   final Set<String> topicSet;
 
-  /// Returns entries filtered by [topic].
+  /// 返回按 [topic] 过滤后的条目。
   List<DebugLogEntry> forTopic(String topic) =>
       entries.where((e) => e.topic == topic).toList();
 
-  /// Creates a copy with a new [entry] appended.
+  /// 创建追加 [entry] 后的副本。
   DebugMessageLog withEntry(DebugLogEntry entry) {
     var newEntries = [...entries, entry];
     if (newEntries.length > _maxTotalEntries) {
@@ -113,16 +112,16 @@ class DebugMessageLog {
     );
   }
 
-  /// Creates an empty log.
+  /// 创建空日志。
   DebugMessageLog clear() => const DebugMessageLog();
 }
 
-/// Notifier that accumulates MQTT debug messages.
+/// 累积 MQTT 调试消息的通知器。
 class DebugMessageLogNotifier extends StateNotifier<DebugMessageLog> {
-  /// Creates a [DebugMessageLogNotifier].
+  /// 创建 [DebugMessageLogNotifier]。
   DebugMessageLogNotifier() : super(const DebugMessageLog());
 
-  /// Adds a [ProtobufEnvelope] to the log.
+  /// 将 [ProtobufEnvelope] 添加到日志。
   void add(ProtobufEnvelope envelope) {
     final entry = DebugLogEntry(
       topic: envelope.topic,
@@ -137,7 +136,7 @@ class DebugMessageLogNotifier extends StateNotifier<DebugMessageLog> {
     state = state.withEntry(entry);
   }
 
-  /// Extracts parsed fields from [message] into a flat field list.
+  /// 从 [message] 提取已解析字段，并展平为字段列表。
   static List<DebugField> _extractFields(GeneratedMessage? message) {
     if (message == null) return const [];
     try {
@@ -156,7 +155,7 @@ class DebugMessageLogNotifier extends StateNotifier<DebugMessageLog> {
     }
   }
 
-  /// Formats a Protobuf JSON value for compact display.
+  /// 将 Protobuf JSON 值格式化为紧凑显示文本。
   static String _formatValue(Object? value) {
     if (value == null) return 'null';
     if (value is List) {
@@ -171,13 +170,13 @@ class DebugMessageLogNotifier extends StateNotifier<DebugMessageLog> {
     return '$value';
   }
 
-  /// Clears all log entries.
+  /// 清空所有日志条目。
   void clear() {
     state = state.clear();
   }
 }
 
-/// Provider for the debug message log notifier.
+/// 调试消息日志通知器使用的 Provider。
 final debugMessageLogProvider =
     StateNotifierProvider<DebugMessageLogNotifier, DebugMessageLog>((ref) {
   final notifier = DebugMessageLogNotifier();

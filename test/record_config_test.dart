@@ -1,4 +1,4 @@
-/// Unit tests for the topic registry and record configuration.
+/// topic 注册表和记录配置的单元测试。
 library;
 
 import 'package:flutter_test/flutter_test.dart';

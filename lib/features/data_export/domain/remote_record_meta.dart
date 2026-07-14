@@ -1,43 +1,42 @@
-/// Parses remote recording file names into displayable metadata.
+/// 将远程记录文件名解析为可展示的元数据。
 ///
-/// Remote files follow the export/merge naming conventions:
+/// 远程文件遵循导出和合并记录的命名约定：
 /// - `rm_export_{robotId}_{yyyyMMdd_HHmmss}.json`
 /// - `rm_merged_{red|blue}_{yyyyMMdd_HHmmss}.json`
 ///
-/// Parsing the name (rather than downloading each file) keeps the remote list
-/// lightweight while still letting the UI show date / side / robot id and
-/// filter on them.
+/// 只解析文件名而不下载每个文件，使远程列表保持轻量，同时让 UI 能展示日期、
+/// 阵营、机器人 ID，并按这些字段筛选。
 library;
 
 import '../../connection/domain/robot_identity.dart';
 
-/// Which side a recording belongs to.
+/// 记录所属阵营。
 enum RecordSide {
-  /// Red side (protocol robot id < 100).
+  /// 红方阵营（协议机器人 ID < 100）。
   red,
 
-  /// Blue side (protocol robot id >= 100).
+  /// 蓝方阵营（协议机器人 ID >= 100）。
   blue,
 
-  /// Side could not be determined from the file name.
+  /// 无法从文件名判断阵营。
   unknown,
 }
 
-/// What kind of recording a file represents.
+/// 文件对应的记录类型。
 enum RecordKind {
-  /// A single-robot export (`rm_export_...`).
+  /// 单机器人导出记录（`rm_export_...`）。
   export,
 
-  /// A multi-source merged record (`rm_merged_...`).
+  /// 多来源合并记录（`rm_merged_...`）。
   merged,
 
-  /// File name did not match a known pattern.
+  /// 文件名不匹配任何已知模式。
   unknown,
 }
 
-/// Metadata decoded from a remote recording file name.
+/// 从远程记录文件名解码出的元数据。
 class RemoteRecordMeta {
-  /// Creates a [RemoteRecordMeta].
+  /// 创建 [RemoteRecordMeta]。
   const RemoteRecordMeta({
     required this.fileName,
     this.date,
@@ -46,19 +45,19 @@ class RemoteRecordMeta {
     this.kind = RecordKind.unknown,
   });
 
-  /// Original file name (kept for download + as a fallback label).
+  /// 原始文件名，用于下载请求和降级展示标签。
   final String fileName;
 
-  /// Local capture time decoded from the name, null when unparseable.
+  /// 从文件名解码出的本地采集时间；无法解析时为 null。
   final DateTime? date;
 
-  /// Side inferred from the robot id or merged side token.
+  /// 从机器人 ID 或合并记录阵营标记推断出的阵营。
   final RecordSide side;
 
-  /// Robot id for export records, null for merged/unknown.
+  /// 导出记录对应的机器人 ID；合并记录或未知记录为 null。
   final int? robotId;
 
-  /// Recording kind.
+  /// 记录类型。
   final RecordKind kind;
 
   static final RegExp _exportPattern =
@@ -66,7 +65,7 @@ class RemoteRecordMeta {
   static final RegExp _mergedPattern =
       RegExp(r'^rm_merged_(red|blue)_(\d{8})_(\d{6})$');
 
-  /// Decodes [fileName] into [RemoteRecordMeta].
+  /// 将 [fileName] 解码为 [RemoteRecordMeta]。
   factory RemoteRecordMeta.parse(String fileName) {
     final base = fileName.endsWith('.json')
         ? fileName.substring(0, fileName.length - 5)

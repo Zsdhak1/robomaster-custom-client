@@ -1,25 +1,25 @@
-/// Shared right-side panel for the video pages.
+/// 视频页面共用的右侧面板。
 ///
-/// Lays out, top to bottom:
-///  1. Basic connection info ([basicInfo]) — always shown.
-///  2. Debug section ([debugSection]) — only when developer mode is on.
-///  3. The dashboard's enemy 血量 list — fills the remaining ~3/5 of the height.
-///     It is the exact dashboard [RobotStatusList] in enemy-focus mode, only
-///     scaled down to fit the narrower video-page panel; no other change.
+/// 自上而下布局：
+/// 1. 基础连接信息（[basicInfo]），始终显示。
+/// 2. 调试区段（[debugSection]），仅开发者模式开启时显示。
+/// 3. 仪表盘敌方血量列表，占据剩余约 3/5 高度。这里复用 enemy-focus 模式下的
+///    [RobotStatusList]，只缩小尺寸以适配更窄的视频页侧边面板，不改变内容。
 ///
-/// Both the UDP 3334 line and the custom 0x0310 line use this so their side
-/// panels are visually and behaviourally identical.
+/// UDP 3334 链路和自定义 0x0310 链路都使用该组件，确保两个侧边面板视觉和行为一致。
 library;
 
 import 'package:flutter/material.dart';
 
 import '../../features/dashboard/presentation/widgets/robot_status_list.dart';
+import '../responsive/desktop_design_canvas.dart';
+import '../responsive/desktop_design_scope.dart';
 import '../responsive/responsive_ext.dart';
 import '../state/session_providers.dart';
 
-/// Right-hand information + health panel beside a video feed.
+/// 位于视频流右侧的信息和血量面板。
 class VideoSidePanel extends StatelessWidget {
-  /// Creates a [VideoSidePanel].
+  /// 创建 [VideoSidePanel]。
   const VideoSidePanel({
     required this.title,
     required this.basicInfo,
@@ -28,16 +28,16 @@ class VideoSidePanel extends StatelessWidget {
     super.key,
   });
 
-  /// Panel title (e.g. '视频流状态').
+  /// 面板标题，例如“视频流状态”。
   final String title;
 
-  /// Always-visible basic connection info widget.
+  /// 始终可见的基础连接信息组件。
   final Widget basicInfo;
 
-  /// Whether developer mode is enabled (gates [debugSection] visibility).
+  /// 开发者模式是否已启用，用于控制 [debugSection] 可见性。
   final bool developerMode;
 
-  /// Full debug content, shown only when [developerMode] is true.
+  /// 完整调试内容，仅在 [developerMode] 为 true 时显示。
   final Widget? debugSection;
 
   @override
@@ -47,7 +47,7 @@ class VideoSidePanel extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Top: basic info + (dev) debug inside a card.
+        // 顶部：基础信息 + 开发者调试，放在同一卡片内。
         Expanded(
           flex: showDebug ? 2 : 1,
           child: Card(
@@ -82,19 +82,19 @@ class VideoSidePanel extends StatelessWidget {
             ),
           ),
         ),
-        // Bottom ~3/5: the dashboard enemy 血量 list, scaled to fit.
+        // 底部约 3/5：缩小后的仪表盘敌方血量列表。
         const Expanded(flex: 3, child: _ScaledEnemyHealth()),
       ],
     );
   }
 }
 
-/// Decorated debug section shared by video side panels.
+/// 视频侧边面板共用的装饰化调试区段。
 class VideoDebugSection extends StatelessWidget {
-  /// Creates a decorated debug section.
+  /// 创建装饰化调试区段。
   const VideoDebugSection({required this.child, super.key});
 
-  /// Debug content.
+  /// 调试内容。
   final Widget child;
 
   @override
@@ -111,9 +111,9 @@ class VideoDebugSection extends StatelessWidget {
   }
 }
 
-/// Shared status row for video side panels.
+/// 视频侧边面板共用的状态行。
 class VideoStatusRow extends StatelessWidget {
-  /// Creates a status row with a coloured dot.
+  /// 创建带彩色圆点的状态行。
   const VideoStatusRow({
     required this.isRunning,
     required this.runningLabel,
@@ -121,13 +121,13 @@ class VideoStatusRow extends StatelessWidget {
     super.key,
   });
 
-  /// Whether the stream is running.
+  /// 视频流是否正在运行。
   final bool isRunning;
 
-  /// Label shown while running.
+  /// 运行中状态显示的标签。
   final String runningLabel;
 
-  /// Label shown while stopped.
+  /// 已停止状态显示的标签。
   final String stoppedLabel;
 
   @override
@@ -154,15 +154,15 @@ class VideoStatusRow extends StatelessWidget {
   }
 }
 
-/// Shared label/value row for video side panels.
+/// 视频侧边面板共用的标签/值行。
 class VideoInfoRow extends StatelessWidget {
-  /// Creates an info row.
+  /// 创建信息行。
   const VideoInfoRow({required this.label, required this.value, super.key});
 
-  /// Left label.
+  /// 左侧标签。
   final String label;
 
-  /// Right value.
+  /// 右侧值。
   final String value;
 
   @override
@@ -194,29 +194,30 @@ class VideoInfoRow extends StatelessWidget {
   }
 }
 
-/// The dashboard [RobotStatusList] in enemy-focus mode, scaled down to fit the
-/// narrower side panel.
+/// 将 enemy-focus 模式下的仪表盘 [RobotStatusList] 缩小到适合较窄侧边面板的尺寸。
 ///
-/// The list authors every dimension against the window size via
-/// `context.scale`; on the video page it shares only ~1/3 of the width, so we
-/// shrink the [MediaQuery] size reported to it. That uniformly scales fonts,
-/// icons, bars and padding — a pure size adjustment that keeps all of the
-/// dashboard's information (icon, label pill, health bar, value, header) intact.
+/// 该列表会通过 `context.scale` 按窗口大小计算尺寸；视频页只给它约 1/3 宽度，
+/// 因此这里缩小传入的 [MediaQuery] 尺寸。这样字体、图标、条形和内边距会统一缩放，
+/// 保留仪表盘中的全部信息（图标、标签胶囊、血量条、数值和头部）。
 class _ScaledEnemyHealth extends StatelessWidget {
   const _ScaledEnemyHealth();
 
-  /// Fraction of the real window size reported to the embedded list so it
-  /// renders at a smaller scale suited to the side panel.
+  /// 报告给内嵌列表的真实窗口大小比例，用于获得适合侧边面板的较小缩放。
   static const double _scaleFraction = 0.62;
 
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
-    return MediaQuery(
+    final healthList = MediaQuery(
       data: media.copyWith(size: media.size * _scaleFraction),
       child: const RobotStatusList(
         modeOverride: DashboardDisplayMode.enemyFocus,
       ),
+    );
+    if (!DesktopDesignCanvas.isSupported) return healthList;
+    return DesktopDesignScope(
+      componentScale: context.scale * _scaleFraction,
+      child: healthList,
     );
   }
 }

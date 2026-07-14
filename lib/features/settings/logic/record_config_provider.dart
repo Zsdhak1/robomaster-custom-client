@@ -1,7 +1,7 @@
-/// Record configuration: which protocol topics the client subscribes to and
-/// records. Persisted locally via SharedPreferences, with JSON
-/// (de)serialization that matches the shared `record_config.json` schema so a
-/// future GitHub sync can swap in without changing this notifier's API.
+/// 记录配置：声明客户端需要订阅并保存哪些协议 topic。
+///
+/// 配置通过 SharedPreferences 本地持久化，JSON 序列化结构与共享的
+/// `record_config.json` Schema 保持一致，后续 GitHub 同步可以直接接入而不改变通知器 API。
 library;
 
 import 'dart:convert';
@@ -12,28 +12,28 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants/topic_registry.dart';
 import '../../../core/sync/remote_sync_service.dart';
 
-/// SharedPreferences key holding the JSON-encoded enabled-topic set.
+/// SharedPreferences 中保存已启用 topic 集合 JSON 的键。
 const _keyRecordConfig = 'record_config_enabled_topics';
 
-/// Schema version of the `record_config.json` payload, for forward-compat.
+/// `record_config.json` 载荷的 Schema 版本，用于向前兼容。
 const int recordConfigSchemaVersion = 1;
 
-/// Immutable set of topics the client should subscribe to and record.
+/// 客户端应该订阅并记录的不可变 topic 集合。
 class RecordConfig {
-  /// Creates a [RecordConfig] from an explicit [enabledTopics] set.
+  /// 使用显式的 [enabledTopics] 集合创建 [RecordConfig]。
   const RecordConfig({required this.enabledTopics});
 
-  /// Default config: every recordable (server→client) topic enabled.
+  /// 默认配置：启用每个可记录的服务器到客户端 topic。
   RecordConfig.allEnabled()
       : enabledTopics = Set.unmodifiable(TopicRegistry.recordableTopicNames);
 
-  /// The set of enabled topic names. Always a subset of recordable topics.
+  /// 已启用的 topic 名称集合；始终是可记录 topic 的子集。
   final Set<String> enabledTopics;
 
-  /// Whether [topic] is enabled for recording.
+  /// 判断 [topic] 是否已启用记录。
   bool isEnabled(String topic) => enabledTopics.contains(topic);
 
-  /// Returns a copy with [topic] toggled to [enabled].
+  /// 返回将 [topic] 切换为 [enabled] 后的新配置。
   RecordConfig withTopic(String topic, {required bool enabled}) {
     final next = Set<String>.from(enabledTopics);
     if (enabled) {
@@ -44,7 +44,7 @@ class RecordConfig {
     return RecordConfig(enabledTopics: next);
   }
 
-  /// Returns a copy with all recordable topics enabled or disabled.
+  /// 返回启用或禁用所有可记录 topic 后的新配置。
   RecordConfig withAll({required bool enabled}) {
     return RecordConfig(
       enabledTopics:
@@ -52,10 +52,10 @@ class RecordConfig {
     );
   }
 
-  /// Parses a [RecordConfig] from the shared JSON schema.
-  ///
-  /// Unknown topic names are dropped (forward-compat); missing/invalid input
-  /// falls back to [RecordConfig.allEnabled].
+  /// 从共享 JSON Schema 解析 [RecordConfig]。
+///
+  /// 未知 topic 名称会被丢弃以保持向前兼容；缺失或无效输入会回退到
+  /// [RecordConfig.allEnabled]。
   factory RecordConfig.fromJson(Map<String, dynamic> json) {
     final raw = json['enabled_topics'];
     if (raw is! List) return RecordConfig.allEnabled();
@@ -67,18 +67,16 @@ class RecordConfig {
     return RecordConfig(enabledTopics: valid);
   }
 
-  /// Serializes to the shared JSON schema (used for local persistence and the
-  /// future `record_config.json` push/pull).
+  /// 序列化为共享 JSON Schema，供本地持久化和后续 `record_config.json` push/pull 使用。
   Map<String, dynamic> toJson() => {
         'schema_version': recordConfigSchemaVersion,
         'enabled_topics': enabledTopics.toList()..sort(),
       };
 }
 
-/// Notifier managing [RecordConfig] with local persistence and a hook for
-/// pulling a shared config from a [RemoteSyncService].
+/// 管理 [RecordConfig]，负责本地持久化，并通过 [RemoteSyncService] 拉取共享配置。
 class RecordConfigNotifier extends StateNotifier<RecordConfig> {
-  /// Creates the notifier and loads the persisted config.
+  /// 创建通知器并加载已持久化的配置。
   RecordConfigNotifier({RemoteSyncService? remote})
       : _remote = remote ?? const NoopRemoteSyncService(),
         super(RecordConfig.allEnabled()) {
@@ -87,29 +85,28 @@ class RecordConfigNotifier extends StateNotifier<RecordConfig> {
 
   final RemoteSyncService _remote;
 
-  /// Enables or disables a single [topic] and persists.
+  /// 启用或禁用单个 [topic]，并立即持久化。
   Future<void> setTopic(String topic, {required bool enabled}) async {
     state = state.withTopic(topic, enabled: enabled);
     await _persist();
   }
 
-  /// Enables or disables every recordable topic and persists.
+  /// 启用或禁用每个可记录 topic，并立即持久化。
   Future<void> setAll({required bool enabled}) async {
     state = state.withAll(enabled: enabled);
     await _persist();
   }
 
-  /// Replaces the whole config and persists (used by remote sync / import).
+  /// 替换整个配置并持久化，供远程同步或导入流程使用。
   Future<void> replace(RecordConfig config) async {
     state = config;
     await _persist();
   }
 
-  /// Pulls the shared config from the remote store and applies it.
-  ///
-  /// Returns a [SyncResult]. With the current no-op remote this always reports
-  /// "not configured"; the GitHub implementation will make it functional with
-  /// no change to callers.
+  /// 从远程存储拉取共享配置并应用到本地状态。
+///
+  /// 返回 [SyncResult]。当前空操作远程服务会报告“未配置”；接入 GitHub 实现后，
+  /// 调用方无需修改即可获得实际同步能力。
   Future<SyncResult> pullFromRemote() async {
     final json = await _remote.pullRecordConfig();
     if (json == null) {
@@ -119,7 +116,7 @@ class RecordConfigNotifier extends StateNotifier<RecordConfig> {
     return SyncResult.success('已从远程同步记录配置');
   }
 
-  /// Pushes the current config to the remote shared location.
+  /// 将当前配置推送到远程共享位置。
   Future<SyncResult> pushToRemote() => _remote.pushRecordConfig(state.toJson());
 
   Future<void> _persist() async {
@@ -137,18 +134,17 @@ class RecordConfigNotifier extends StateNotifier<RecordConfig> {
         state = RecordConfig.fromJson(decoded);
       }
     } on FormatException {
-      // Corrupt persisted value: keep the default all-enabled config.
+      // 持久化值已损坏：保留默认的全启用配置。
     }
   }
 }
 
-/// Injectable remote sync service. Overridden in tests or when the GitHub
-/// backend is wired; defaults to the local no-op.
+/// 可注入的远程同步服务；测试或接入 GitHub 后端时可覆盖，默认使用本地空操作实现。
 final remoteSyncServiceProvider = Provider<RemoteSyncService>(
   (ref) => const NoopRemoteSyncService(),
 );
 
-/// The active record configuration (which topics to subscribe/record).
+/// 当前记录配置，即需要订阅并保存的 topic 集合。
 final recordConfigProvider =
     StateNotifierProvider<RecordConfigNotifier, RecordConfig>(
   (ref) => RecordConfigNotifier(remote: ref.watch(remoteSyncServiceProvider)),

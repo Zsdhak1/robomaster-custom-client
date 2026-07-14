@@ -1,10 +1,10 @@
-//{{NO_DEPENDENCIES}}
-// Microsoft Visual C++ generated include file.
-// Used by Runner.rc
+// {{无依赖项}}
+// Microsoft Visual C++ 生成的 include 文件。
+// 由 Runner.rc 使用。
 //
 #define IDI_APP_ICON                    101
 
-// Next default values for new objects
+// 新对象使用的下一个默认值。
 //
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS

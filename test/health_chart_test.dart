@@ -1,9 +1,8 @@
-/// Tests for [HealthChart.buildSpots] downsampling.
+/// [HealthChart.buildSpots] 降采样逻辑的测试。
 ///
-/// `GlobalUnitStatus` can arrive at tens of Hz; over the 120-second window the
-/// raw history would push thousands of points into the curve renderer. These
-/// tests pin the per-second downsampling contract: at most one point per whole
-/// second, keeping the freshest sample in each bucket, sorted left→right.
+/// `GlobalUnitStatus` 可能以几十 Hz 到达；120 秒窗口内原始历史会向曲线渲染器推入数千点。
+/// 这些测试固定按秒降采样约定：每个整秒最多一个点，并保留每个桶中最新的样本，
+/// 最终按从左到右排序。
 library;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -25,33 +24,33 @@ void main() {
     });
 
     test('collapses many samples within one second to a single spot', () {
-      // 30 samples spread across the same whole-second bucket (0..0.9s ago).
+      // 30 个样本分布在同一个整秒桶内（0..0.9s 前）。
       final history = [
         for (var i = 0; i < 30; i++)
           _snap(now.subtract(Duration(milliseconds: i * 30)),
               [100, 0, 0, 0, 0]),
       ];
       final spots = HealthChart.buildSpots(history, now: now);
-      // All within <0.5s ago → round() == 0 → one bucket.
+      // 所有样本都在 0.5s 内 → floor() == 0 → 同一个桶。
       expect(spots.length, 1);
     });
 
     test('caps a high-frequency 120s window at ~120 points', () {
-      // 20 Hz for 120 seconds = 2400 raw samples.
+      // 20 Hz 用于 120 秒 = 2400 原始 samples。
       final history = [
         for (var i = 0; i < 2400; i++)
           _snap(now.subtract(Duration(milliseconds: i * 50)),
               [500, 0, 0, 0, 0]),
       ];
       final spots = HealthChart.buildSpots(history, now: now);
-      // One point per second over 120s → at most 121 buckets (0..120).
+      // 120s 内每秒一个点 → 最多 121 个桶（0..120）。
       expect(spots.length, lessThanOrEqualTo(121));
       expect(spots.length, greaterThan(100));
     });
 
     test('keeps the freshest sample per second bucket', () {
-      // Two samples in the same second: older total 200, newer total 100.
-      // Iterating oldest→newest, the newer one must win the bucket.
+      // 两个样本位于同一秒：较旧样本总血量 200，较新样本总血量 100。
+      // 从旧到新迭代时，较新样本必须覆盖该桶。
       final history = [
         _snap(now.subtract(const Duration(milliseconds: 900)),
             [200, 0, 0, 0, 0]),
@@ -81,7 +80,7 @@ void main() {
       for (var i = 1; i < spots.length; i++) {
         expect(spots[i].x, greaterThan(spots[i - 1].x));
       }
-      // Most negative x (oldest) first.
+      // 最多 negative x (最旧) 第一个。
       expect(spots.first.x, lessThan(spots.last.x));
     });
   });

@@ -1,45 +1,45 @@
-/// MD3 type scale definitions and responsive scaling helpers.
+/// MD3 字体层级定义与响应式缩放辅助函数。
 ///
-/// This file is intentionally dependency-free (no Riverpod, no custom
-/// extensions) so both [app_theme.dart] and [responsive_ext.dart] can
-/// import it without creating circular dependencies.
+/// 该文件刻意不依赖 Riverpod 或自定义扩展，方便 [app_theme.dart] 与
+/// [responsive_ext.dart] 同时导入，避免形成循环依赖。
 library;
 
 import 'package:flutter/material.dart';
 
+/// 应用全局使用的 MiSans 字体族名称。
+const String appFontFamily = 'MiSans';
+
 // ============================================================
-// MD3 Type Scale constants
+// MD3 字体层级常量
 // ============================================================
 
-/// Standard MD3 type scale sizes (unscaled).
+/// 标准 MD3 字体层级大小，未经过响应式缩放。
 ///
-/// These match the Material 3 specification. Use [scaledTextTheme] or
-/// [scaledTextThemeByFactor] to obtain a version scaled by the current
-/// window's responsive factor.
+/// 这些数值匹配 Material 3 规范。使用 [scaledTextTheme] 或
+/// [scaledTextThemeByFactor] 可获得按当前窗口响应式因子缩放后的版本。
 const _TextScaleEntry _tsDisplay = _TextScaleEntry(57, 36, 45);
 const _TextScaleEntry _tsHeadline = _TextScaleEntry(32, 24, 28);
 const _TextScaleEntry _tsTitle = _TextScaleEntry(22, 16, 14);
 const _TextScaleEntry _tsBody = _TextScaleEntry(16, 14, 12);
 const _TextScaleEntry _tsLabel = _TextScaleEntry(14, 12, 11);
 
-/// Internal helper to hold the three granularities of a type scale tier.
+/// 保存一个字体层级中 large、small、medium 三个粒度的内部辅助类型。
 class _TextScaleEntry {
   const _TextScaleEntry(this.large, this.small, this.medium);
   final double large, small, medium;
 }
 
 // ============================================================
-// Public API
+// 公开 API
 // ============================================================
 
-/// Builds an MD3 [TextTheme] with every size multiplied by [factor].
+/// 构建所有字号都乘以 [factor] 的 MD3 [TextTheme]。
 ///
-/// When [factor] == 1.0 the result matches the standard MD3 specification.
-/// Pass a responsive scale factor (e.g. from [ResponsiveContext.scale]) to
-/// make the theme follow the window size.
+/// 当 [factor] == 1.0 时，结果匹配标准 MD3 规范。传入响应式缩放因子
+/// （例如来自 [ResponsiveContext.scale]）可让主题跟随窗口大小变化。
 TextTheme scaledTextThemeByFactor(double factor) {
   return TextTheme(
-    // Display
+    // 显示
     displayLarge: TextStyle(
       fontSize: _tsDisplay.large * factor,
       fontWeight: FontWeight.w400,
@@ -55,7 +55,7 @@ TextTheme scaledTextThemeByFactor(double factor) {
       fontWeight: FontWeight.w400,
       letterSpacing: 0,
     ),
-    // Headline
+    // 标题
     headlineLarge: TextStyle(
       fontSize: _tsHeadline.large * factor,
       fontWeight: FontWeight.w400,
@@ -71,7 +71,7 @@ TextTheme scaledTextThemeByFactor(double factor) {
       fontWeight: FontWeight.w400,
       letterSpacing: 0,
     ),
-    // Title
+    // 标题
     titleLarge: TextStyle(
       fontSize: _tsTitle.large * factor,
       fontWeight: FontWeight.w500,
@@ -87,7 +87,7 @@ TextTheme scaledTextThemeByFactor(double factor) {
       fontWeight: FontWeight.w500,
       letterSpacing: 0.1,
     ),
-    // Body
+    // 主体
     bodyLarge: TextStyle(
       fontSize: _tsBody.large * factor,
       fontWeight: FontWeight.w400,
@@ -103,7 +103,7 @@ TextTheme scaledTextThemeByFactor(double factor) {
       fontWeight: FontWeight.w400,
       letterSpacing: 0.4,
     ),
-    // Label
+    // 标签
     labelLarge: TextStyle(
       fontSize: _tsLabel.large * factor,
       fontWeight: FontWeight.w500,
@@ -119,16 +119,13 @@ TextTheme scaledTextThemeByFactor(double factor) {
       fontWeight: FontWeight.w500,
       letterSpacing: 0.5,
     ),
-  );
+  ).apply(fontFamily: appFontFamily);
 }
 
-/// Returns the MD3 [TextTheme] scaled by the user's accessibility text scale.
+/// 返回按系统无障碍文本缩放因子处理后的 MD3 [TextTheme]。
 ///
-/// **Note:** This uses the OS-level text scaling factor, not the window
-/// responsive scale. For responsive window scaling, use
-/// `scaledTextThemeByFactor(context.scale)` or `context.textTheme` (from
-/// [ResponsiveContext]).
+/// **注意：** 这里使用系统级文本缩放因子，不使用窗口响应式缩放。窗口响应式缩放请使用
+/// `scaledTextThemeByFactor(context.scale)` 或来自 [ResponsiveContext] 的
+/// `context.textTheme`。
 TextTheme scaledTextTheme(BuildContext context) =>
-    scaledTextThemeByFactor(
-      MediaQuery.textScalerOf(context).scale(1.0),
-    );
+    scaledTextThemeByFactor(MediaQuery.textScalerOf(context).scale(1.0));

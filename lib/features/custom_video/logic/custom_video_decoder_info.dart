@@ -1,51 +1,50 @@
-﻿/// Decoder-reported diagnostics for the custom H.264 line (0x0310).
+/// 自定义 H.264 链路（0x0310）的解码器诊断信息。
 ///
-/// The TCP-bridge counters in [CustomVideoStats] tell you what the pipeline
-/// PRODUCED; this model tells you what the in-app decoder actually MADE OF it -
-/// the negotiated resolution, codec, frame rate, buffering and any error the
-/// player surfaced. Together they pinpoint whether a black screen is an
-/// upstream (no bytes / no keyframe) or a downstream (demux / decode) problem.
+/// [CustomVideoStats] 的 TCP 桥接计数器用于判断流水线产出了什么；
+/// 该模型用于判断应用内解码器实际解析出了什么，包括协商分辨率、编解码器、
+/// 帧率、缓冲状态以及播放器暴露的错误。两者结合可以快速定位黑屏来自上游
+/// （无字节或无关键帧）还是下游（解复用或解码）问题。
 ///
-/// Players (fvp / media_kit) push updates here via
-/// [CustomVideoDecoderInfoNotifier]; the debug panel reads the snapshot.
+/// 播放器（fvp / media_kit）通过 [CustomVideoDecoderInfoNotifier] 写入更新，
+/// 调试面板读取该快照。
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Severity of a [DecoderLogEntry], driving its colour in the debug log.
+/// [DecoderLogEntry] 的严重级别，用于驱动调试日志颜色。
 enum DecoderLogLevel {
-  /// Routine lifecycle event (open, state change, resolution known).
+  /// 常规生命周期事件，例如打开、状态变化、分辨率已知。
   info,
 
-  /// Recoverable hiccup (buffering, reconnect).
+  /// 可恢复的小故障，例如缓冲或重连。
   warn,
 
-  /// Decode/demux failure surfaced by the player.
+  /// 播放器暴露的解码或解复用失败。
   error,
 }
 
-/// One timestamped line in the rolling decoder log.
+/// 带时间戳的滚动解码器日志条目。
 class DecoderLogEntry {
-  /// Creates an entry stamped [time] with [level] and [message].
+  /// 使用 [time]、[level] 和 [message] 创建日志条目。
   const DecoderLogEntry({
     required this.time,
     required this.level,
     required this.message,
   });
 
-  /// When the event was recorded.
+  /// 事件被记录的时间。
   final DateTime time;
 
-  /// Severity bucket.
+  /// 严重级别。
   final DecoderLogLevel level;
 
-  /// Human-readable description.
+  /// 可读描述。
   final String message;
 }
 
-/// Immutable snapshot of what the active decoder reports about the stream.
+/// 当前解码器对视频流报告信息的不可变快照。
 class CustomVideoDecoderInfo {
-  /// Creates a decoder-info snapshot.
+  /// 创建解码器信息快照。
   const CustomVideoDecoderInfo({
     this.backend,
     this.playing = false,
@@ -63,55 +62,55 @@ class CustomVideoDecoderInfo {
     this.logs = const [],
   });
 
-  /// The decoder backend label (fvp / media_kit / ffplay).
+  /// 解码器后端标签（fvp / media_kit / ffplay）。
   final String? backend;
 
-  /// Whether the decoder reports it is actively playing frames.
+  /// 解码器是否报告正在主动播放帧。
   final bool playing;
 
-  /// Whether the decoder is currently (re)buffering.
+  /// 解码器当前是否正在缓冲或重新缓冲。
   final bool buffering;
 
-  /// Buffering progress 0-100 (media_kit reports this; null if unknown).
+  /// 缓冲进度 0-100；media_kit 会报告该值，未知时为 null。
   final double? bufferingPercent;
 
-  /// Negotiated picture width in pixels, or null before the SPS is parsed.
+  /// 解码器协商出的图像宽度，单位像素；SPS 解析前为 null。
   final int? width;
 
-  /// Negotiated picture height in pixels, or null before the SPS is parsed.
+  /// 解码器协商出的图像高度，单位像素；SPS 解析前为 null。
   final int? height;
 
-  /// Codec string the decoder locked onto (e.g. `h264`).
+  /// 解码器锁定的编解码器字符串，例如 `h264`。
   final String? codec;
 
-  /// Pixel format name (e.g. `yuv420p`), when the decoder exposes it.
+  /// 解码器暴露的像素格式名称，例如 `yuv420p`。
   final String? pixelFormat;
 
-  /// Frame rate the decoder parsed from the stream, or null if unknown.
+  /// 解码器从流中解析出的帧率；未知时为 null。
   final double? decoderFps;
 
-  /// Stream bit rate in bits/s, when the decoder exposes it.
+  /// 解码器暴露的流码率，单位 bit/s。
   final int? bitRate;
 
-  /// H.264 profile id, when the decoder exposes it.
+  /// 解码器暴露的 H.264 profile ID。
   final int? profile;
 
-  /// How many times the player has (re)opened the stream this session.
+  /// 本次会话中播放器打开或重新打开该流的次数。
   final int attempt;
 
-  /// The most recent error the player surfaced, or null.
+  /// 播放器最近暴露的错误；没有时为 null。
   final String? lastError;
 
-  /// Rolling log of the most recent decoder events (newest last).
+  /// 最近的解码器滚动日志，最新条目在末尾。
   final List<DecoderLogEntry> logs;
 
-  /// Whether the decoder has resolved a picture size yet.
+  /// 解码器是否已经解析出图像尺寸。
   bool get hasResolution => (width ?? 0) > 0 && (height ?? 0) > 0;
 
-  /// Returns a copy with the supplied fields overridden.
+  /// 返回覆盖指定字段后的副本。
   ///
-  /// [clearError] forces [lastError] back to null (since a null argument is
-  /// indistinguishable from "leave unchanged" in the normal copy pattern).
+  /// [clearError] 会强制 [lastError] 置为 null；普通 copyWith 模式无法区分
+  /// “传入 null” 与“保持不变”。
   CustomVideoDecoderInfo copyWith({
     String? backend,
     bool? playing,
@@ -148,23 +147,22 @@ class CustomVideoDecoderInfo {
   }
 }
 
-/// Maximum decoder-log lines retained (bounds memory; oldest dropped first).
+/// 最多保留的解码器日志条数，用于限制内存；超出时先丢弃最早条目。
 const int _maxDecoderLogs = 60;
 
-/// Mutable holder the active player pushes its diagnostics into.
+/// 当前播放器写入诊断信息的可变持有者。
 ///
-/// All update methods append a matching [DecoderLogEntry] where useful, so the
-/// debug panel shows both the current snapshot and a scrollback of how it got
-/// there (e.g. "resolution 1280x720", "decode error: ...").
+/// 各更新方法会在有价值时追加对应的 [DecoderLogEntry]，让调试面板既能显示当前快照，
+/// 也能回看状态是如何变化到当前结果的，例如“分辨率 1280x720”或“解码错误: ...”。
 class CustomVideoDecoderInfoNotifier
     extends StateNotifier<CustomVideoDecoderInfo> {
-  /// Creates the notifier in the empty (no-decoder) state.
+  /// 以空解码器状态创建通知器。
   CustomVideoDecoderInfoNotifier() : super(const CustomVideoDecoderInfo());
 
-  /// Clears all decoder diagnostics (call on stream start/stop).
+  /// 清空所有解码器诊断，通常在流启动或停止时调用。
   void reset() => state = const CustomVideoDecoderInfo();
 
-  /// Records which backend is decoding and bumps the open attempt counter.
+  /// 记录当前解码后端，并更新打开尝试次数。
   void beginSession(String backend, {required int attempt}) {
     state = state.copyWith(
       backend: backend,
@@ -176,19 +174,19 @@ class CustomVideoDecoderInfoNotifier
     _log(DecoderLogLevel.info, '打开流 ($backend, 第 $attempt 次)');
   }
 
-  /// Updates the play/pause state.
+  /// 更新播放或暂停状态。
   void setPlaying({required bool playing}) {
     if (state.playing == playing) return;
     state = state.copyWith(playing: playing);
     _log(DecoderLogLevel.info, playing ? '开始播放' : '暂停/停止');
   }
 
-  /// Updates the buffering state and optional progress percentage.
+  /// 更新缓冲状态和可选进度百分比。
   void setBuffering({required bool buffering, double? percent}) {
     state = state.copyWith(buffering: buffering, bufferingPercent: percent);
   }
 
-  /// Records the decoder-negotiated picture size.
+  /// 记录解码器协商出的图像尺寸。
   void setResolution(int? width, int? height) {
     if (width == null || height == null || width <= 0 || height <= 0) return;
     if (state.width == width && state.height == height) return;
@@ -196,7 +194,7 @@ class CustomVideoDecoderInfoNotifier
     _log(DecoderLogLevel.info, '分辨率 ${width}x$height');
   }
 
-  /// Records codec details parsed from the stream.
+  /// 记录从流中解析出的编解码器详情。
   void setCodec({
     String? codec,
     String? pixelFormat,
@@ -219,13 +217,13 @@ class CustomVideoDecoderInfoNotifier
     }
   }
 
-  /// Records the most recent decoder error.
+  /// 记录最近的解码器错误。
   void setError(String message) {
     state = state.copyWith(lastError: message, playing: false);
     _log(DecoderLogLevel.error, message);
   }
 
-  /// Appends a free-form diagnostic line at [level].
+  /// 追加一条 [level] 级别的自由格式诊断日志。
   void log(DecoderLogLevel level, String message) => _log(level, message);
 
   void _log(DecoderLogLevel level, String message) {
@@ -242,9 +240,9 @@ class CustomVideoDecoderInfoNotifier
   }
 }
 
-/// Live decoder diagnostics for the custom video line.
+/// 自定义图传链路的实时解码器诊断。
 ///
-/// A singleton the active player writes to and the debug panel reads.
+/// 当前播放器写入该单例，调试面板从中读取。
 final customVideoDecoderInfoProvider = StateNotifierProvider<
     CustomVideoDecoderInfoNotifier, CustomVideoDecoderInfo>(
   (ref) => CustomVideoDecoderInfoNotifier(),

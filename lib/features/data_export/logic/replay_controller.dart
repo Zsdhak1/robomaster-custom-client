@@ -1,5 +1,5 @@
-/// Replay controller: turns a saved match file into a seekable timeline of
-/// [GameState] snapshots, fully isolated from the live dashboard state.
+/// 回放控制器：将已保存比赛文件转换为可 seek 的 [GameState] 快照时间线，
+/// 并与实时仪表盘状态完全隔离。
 library;
 
 import 'dart:async';
@@ -13,17 +13,18 @@ import '../../dashboard/logic/game_state_notifier.dart';
 import '../data/json_importer.dart';
 import 'data_import_provider.dart';
 
-/// Keyframe interval: cache a [GameState] snapshot every N envelopes so seeking
-/// only replays from the nearest earlier keyframe, not from the start.
+/// 关键帧间隔：每 N 个信封缓存一个 [GameState] 快照。
+///
+/// seek 时只需从最近的早期关键帧重放，而不用从开头重放。
 const int _keyframeInterval = 200;
 
-/// Available replay playback speeds.
+/// 可用的回放速度。
 const List<double> replaySpeeds = [0.5, 1, 2, 4];
 
-/// Immutable view of the replay state for the UI.
+/// UI 使用的不可变回放状态视图。
 @immutable
 class ReplayState {
-  /// Creates a [ReplayState].
+  /// 创建 [ReplayState]。
   const ReplayState({
     this.isLoading = true,
     this.error,
@@ -36,41 +37,41 @@ class ReplayState {
     this.eventCount = 0,
   });
 
-  /// Whether the file is still being loaded/parsed.
+  /// 文件是否仍在加载或解析。
   final bool isLoading;
 
-  /// Error message if loading failed, null otherwise.
+  /// 加载失败时的错误消息；成功时为 null。
   final String? error;
 
-  /// The reconstructed game state at the current [position].
+  /// 当前 [position] 对应的重建比赛状态。
   final GameState gameState;
 
-  /// Whether playback is currently advancing.
+  /// 回放当前是否正在推进。
   final bool isPlaying;
 
-  /// Current playback speed multiplier.
+  /// 当前回放速度倍率。
   final double speed;
 
-  /// Current playback position from match start.
+  /// 相对于比赛开始的当前回放位置。
   final Duration position;
 
-  /// Total replay duration (last envelope minus first).
+  /// 总回放时长，即最后一个信封时间减去第一个信封时间。
   final Duration total;
 
-  /// Wall-clock match start anchor for relative event times.
+  /// 比赛开始的墙钟时间锚点，用于相对事件计时。
   final DateTime? matchStart;
 
-  /// Number of events visible at the current position.
+  /// 当前回放位置可见的事件数量。
   final int eventCount;
 
-  /// Progress in 0..1 for the slider.
+  /// 滑块使用的 0..1 进度值。
   double get progress {
     final t = total.inMilliseconds;
     if (t <= 0) return 0;
     return (position.inMilliseconds / t).clamp(0.0, 1.0);
   }
 
-  /// Creates a copy with selected fields updated.
+  /// 创建更新部分字段后的副本。
   ReplayState copyWith({
     bool? isLoading,
     String? error,
@@ -96,31 +97,31 @@ class ReplayState {
   }
 }
 
-/// Drives playback of a saved match file as seekable [GameState] snapshots.
+/// 将已保存比赛文件驱动为可 seek 的 [GameState] 快照回放。
 class ReplayController extends StateNotifier<ReplayState> {
-  /// Creates a [ReplayController] and begins loading [filePath].
+  /// 创建 [ReplayController] 并开始加载 [filePath]。
   ReplayController({required this.filePath, required JsonImporter importer})
       : _importer = importer, // ignore: prefer_initializing_formals
         super(const ReplayState()) {
     unawaited(_load());
   }
 
-  /// Path of the match file being replayed.
+  /// 正在回放的比赛文件路径。
   final String filePath;
 
   final JsonImporter _importer;
 
-  /// Envelopes sorted by timestamp (oldest first).
+  /// 按时间戳排序的信封列表，最旧在前。
   List<ProtobufEnvelope> _envelopes = [];
 
-  /// Keyframe snapshots: envelope index -> aggregated state up to that index.
+  /// 关键帧快照：信封索引 -> 聚合到该索引的状态。
   final Map<int, GameState> _keyframes = {};
 
   DateTime? _t0;
   Duration _total = Duration.zero;
   Timer? _ticker;
 
-  /// Playback tick interval; position advances by interval * speed.
+  /// 回放 tick 间隔；位置每次推进 `间隔 * speed`。
   static const Duration _tickInterval = Duration(milliseconds: 100);
 
   Future<void> _load() async {
@@ -140,7 +141,7 @@ class ReplayController extends StateNotifier<ReplayState> {
 
       _buildKeyframes();
 
-      // Start positioned at the very beginning.
+      // 初始位置放在时间线开头。
       final initial = _stateAtIndex(0);
       state = state.copyWith(
         isLoading: false,
@@ -155,7 +156,7 @@ class ReplayController extends StateNotifier<ReplayState> {
     }
   }
 
-  /// Precomputes keyframe snapshots at fixed envelope intervals.
+  /// 按固定信封间隔预计算关键帧快照。
   void _buildKeyframes() {
     _keyframes.clear();
     final notifier = GameStateNotifier()..replaying = true;
@@ -167,12 +168,11 @@ class ReplayController extends StateNotifier<ReplayState> {
     }
   }
 
-  /// Builds the aggregated state covering envelopes `[0..index]` inclusive,
-  /// resuming from the nearest earlier keyframe.
+  /// 构建覆盖信封 `[0..index]`（含）的聚合状态，并从最近的早期关键帧恢复。
   ({GameState state, int index}) _stateAtIndex(int index) {
     final target = index.clamp(0, _envelopes.length - 1);
 
-    // Find nearest keyframe at or before target.
+    // 查找目标索引之前或等于目标索引的最近关键帧。
     var kfIndex = 0;
     for (final k in _keyframes.keys) {
       if (k <= target && k > kfIndex) kfIndex = k;
@@ -183,7 +183,7 @@ class ReplayController extends StateNotifier<ReplayState> {
     var startFrom = 0;
     if (seed != null) {
       notifier.seedReplayState(seed);
-      // Keyframe at kfIndex already includes envelope kfIndex.
+      // kfIndex 处的关键帧已经包含该索引对应的信封。
       startFrom = kfIndex + 1;
     }
     for (var i = startFrom; i <= target; i++) {
@@ -193,11 +193,11 @@ class ReplayController extends StateNotifier<ReplayState> {
     return (state: result, index: target);
   }
 
-  /// Returns the envelope index whose timestamp is closest to [position].
+  /// 返回时间戳最接近 [position] 的信封索引。
   int _indexForPosition(Duration position) {
     if (_t0 == null || _envelopes.isEmpty) return 0;
     final targetTime = _t0!.add(position);
-    // Linear scan is fine: positions move monotonically and lists are bounded.
+    // 线性扫描足够：位置单调推进且列表有界。
     var idx = 0;
     for (var i = 0; i < _envelopes.length; i++) {
       if (!_envelopes[i].timestamp.isAfter(targetTime)) {
@@ -209,7 +209,7 @@ class ReplayController extends StateNotifier<ReplayState> {
     return idx;
   }
 
-  /// Seeks to [progress] in 0..1 and rebuilds the snapshot.
+  /// seek 到 0..1 范围内的 [progress]，并重建快照。
   void seekToProgress(double progress) {
     final clamped = progress.clamp(0.0, 1.0);
     final position = Duration(
@@ -228,28 +228,28 @@ class ReplayController extends StateNotifier<ReplayState> {
     );
   }
 
-  /// Starts or resumes playback.
+  /// 启动或继续回放。
   void play() {
     if (state.isPlaying || _envelopes.isEmpty) return;
     if (state.position >= _total) {
-      // At the end: restart from the beginning.
+      // 如果已经在末尾，则从开头重新开始。
       _seekTo(Duration.zero);
     }
     state = state.copyWith(isPlaying: true);
     _ticker = Timer.periodic(_tickInterval, (_) => _onTick());
   }
 
-  /// Pauses playback.
+  /// 暂停回放。
   void pause() {
     _ticker?.cancel();
     _ticker = null;
     if (state.isPlaying) state = state.copyWith(isPlaying: false);
   }
 
-  /// Toggles play/pause.
+  /// 切换播放或暂停。
   void togglePlay() => state.isPlaying ? pause() : play();
 
-  /// Sets the playback [speed] multiplier.
+  /// 设置回放速度倍率 [speed]。
   void setSpeed(double speed) => state = state.copyWith(speed: speed);
 
   void _onTick() {
@@ -270,11 +270,10 @@ class ReplayController extends StateNotifier<ReplayState> {
   }
 }
 
-/// Provides a [ReplayController] for a given file path.
+/// 为给定文件路径提供 [ReplayController]。
 ///
-/// `autoDispose` so the controller (and its keyframe cache) is released when
-/// the replay screen is popped. `family` keyed by file path so each record
-/// gets its own isolated controller.
+/// 使用 `autoDispose`，回放页面退出后会释放控制器和关键帧缓存。`family` 以文件路径
+/// 为 key，使每条记录拥有独立控制器。
 final replayControllerProvider = StateNotifierProvider.autoDispose
     .family<ReplayController, ReplayState, String>((ref, filePath) {
   final importer = ref.watch(jsonImporterProvider);

@@ -9,13 +9,13 @@ import '../../../core/state/session_providers.dart';
 import '../../connection/domain/robot_identity.dart';
 import '../logic/settings_providers.dart';
 
-/// Sub-screen for general preferences: side banner and theme mode.
+/// 常规偏好子页面，用于设置阵营提示和主题模式。
 class GeneralSettingsScreen extends ConsumerWidget {
-  /// Creates a [GeneralSettingsScreen].
+  /// 创建 [GeneralSettingsScreen]。
   const GeneralSettingsScreen({super.key, this.embedded = false});
 
-  /// When true, renders only the body content without its own Scaffold/AppBar
-  /// (used by the settings master-detail panel).
+  /// 为 true 时只渲染主体内容，不包含自己的 [Scaffold] 或 [AppBar]，
+  /// 供设置页主从面板嵌入使用。
   final bool embedded;
 
   @override
@@ -86,7 +86,7 @@ class GeneralSettingsScreen extends ConsumerWidget {
       };
 }
 
-/// Banner showing which side the client logged in as.
+/// 显示当前客户端登录阵营的提示横幅。
 class _SideBanner extends StatelessWidget {
   const _SideBanner({required this.ownIsBlue});
 

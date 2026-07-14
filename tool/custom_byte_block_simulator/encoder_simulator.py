@@ -1,10 +1,10 @@
 # Doorlock Sniper Windows 编码模拟器
 # 复刻原 ROS2/GStreamer 编码端核心逻辑，用于本地测试 Flutter 自定义图传线。
 #
-# 输入：本地视频文件 / DirectShow 摄像头
-# 输出：MQTT CustomByteBlock（300B H.264 Annex-B 包，50Hz）
+# 输入:本地视频文件 / 直接Show 摄像头
+# 输出:MQTT CustomByteBlock（300B H.264 Annex-B 包，50Hz）
 #
-# 依赖：Python 3.10+, opencv-python, av, paho-mqtt, protobuf
+# 依赖:Python 3.10+，opencv-python，av，paho-mqtt，protobuf
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ import numpy as np
 # Protobuf 生成文件在首次运行时由 protoc 生成（见 README）。
 try:
     import robomaster_custom_client_pb2 as rm_pb
-except ImportError as e:  # pragma: no cover
+except ImportError as e:  # pragma:no 覆盖
     print(
         "ERROR: robomaster_custom_client_pb2.py not found.\n"
         "Run: python -m grpc_tools.protoc "
@@ -37,7 +37,7 @@ except ImportError as e:  # pragma: no cover
 
 try:
     import paho.mqtt.client as mqtt
-except ImportError as e:  # pragma: no cover
+except ImportError as e:  # pragma:no 覆盖
     print("ERROR: paho-mqtt not installed. Run: pip install paho-mqtt", file=sys.stderr)
     raise e
 
@@ -69,7 +69,7 @@ class EncoderConfig:
     target_bitrate_kbps: int = 80  # 10 kB/s * 8
     x264_preset: str = "veryslow"
     output_fps: int = 60
-    key_int_frames: int = 480  # 默认低码率模式：8 秒 GOP
+    key_int_frames: int = 480  # 默认低码率模式:8 秒 GOP
     low_bitrate_mode: bool = True
     bframes: int = 4
 
@@ -142,7 +142,7 @@ class VideoReader:
             return None
         ok, frame = self._cap.read()
         if not ok:
-            # 文件循环：回到首帧重读（摄像头不会走到这里）。
+            # 文件循环:回到首帧重读（摄像头不会走到这里）。
             if self._loop:
                 self._cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 ok, frame = self._cap.read()
@@ -215,7 +215,7 @@ class ImagePreprocessor:
             static_base = self._to_gray_bgr(static_base)
         blurred = cv2.GaussianBlur(static_base, (0, 0), self._cfg.bg_blur_sigma)
 
-        # cv2 (Python) 没有 Mat.copyTo(dst, mask)：用布尔掩码做就地拷贝。
+        # cv2 (Python) 没有 Mat.copyTo(dst，mask):用布尔掩码做就地拷贝。
         focused = blurred.copy()
         mask_bool = motion_mask > 0
         focused[mask_bool] = working[mask_bool]
@@ -579,7 +579,7 @@ def _run_loop(
         roi, static_removed, final = preprocessor.process(raw)
         raw_preview = cv2.resize(
             raw,
-            (raw.shape[1] // 2, raw.shape[0] // 2),
+            (raw.shape[1] // 2，原始.shape[0] // 2),
             interpolation=cv2.INTER_AREA,
         )
         display.push(raw_preview, roi, static_removed, final)

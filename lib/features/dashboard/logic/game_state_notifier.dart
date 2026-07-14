@@ -1,4 +1,4 @@
-/// StateNotifier that aggregates MQTT messages into [GameState].
+/// 将 MQTT 消息聚合进 [GameState] 的 StateNotifier。
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,21 +8,21 @@ import '../../../core/protobuf/protobuf_parser.dart';
 import '../../../generated/robomaster_custom_client.pb.dart';
 import 'game_state.dart';
 
-/// Notifier that incrementally builds [GameState] from MQTT envelopes.
+/// 根据 MQTT 信封增量构建 [GameState] 的通知器。
 class GameStateNotifier extends StateNotifier<GameState> {
-  /// Creates an empty [GameStateNotifier].
+  /// 创建空的 [GameStateNotifier]。
   GameStateNotifier() : super(const GameState());
 
   static const int _maxEventHistory = 50;
   static const Duration _maxHistoryDuration = Duration(seconds: 120);
 
-  /// Whether currently replaying imported envelopes.
-  ///
-  /// When true, history caps are disabled so the full imported match is kept
-  /// for post-match analysis; live data still respects the rolling limits.
+  /// 当前是否正在回放导入的信封。
+///
+  /// 为 true 时禁用历史上限，以便保留完整导入比赛用于赛后分析；
+  /// 实时数据仍遵守滚动历史限制。
   bool _isReplaying = false;
 
-  /// Processes a single [ProtobufEnvelope] and updates state.
+  /// 处理单个 [ProtobufEnvelope] 并更新状态。
   void handleEnvelope(ProtobufEnvelope envelope) {
     final msg = envelope.protobufMessage;
     if (msg == null) return;
@@ -41,21 +41,18 @@ class GameStateNotifier extends StateNotifier<GameState> {
       case final Event e:
         _addEvent(e, envelope.timestamp);
       default:
-        // Other message types are not part of game state aggregation.
+        // 其他消息类型不参与比赛状态聚合。
         break;
     }
   }
 
   void _updateGameStatus(GameStatus status) {
-    // Anchor the wall-clock match start the first time the stage enters
-    // "比赛中" (4). The protocol carries no absolute start timestamp, so we
-    // anchor relative event times to this transition.
+    // 首次进入“比赛中”（阶段 4）时，用墙钟时间锚定比赛开始。
+    // 协议不携带绝对开始时间戳，因此相对事件时间都基于该阶段转换。
     //
-    // Reset the anchor whenever the stage falls back to a pre-match phase
-    // (0未开始/1准备/2自检/3倒计时) so that each match is distinguishable and
-    // the next "比赛中" transition re-anchors. Without this, a single anchor
-    // from the first match would leak across every subsequent match and break
-    // both event timelines and the auto-export fallback timer.
+    // 当阶段回退到赛前阶段（0 未开始 / 1 准备 / 2 自检 / 3 倒计时）时重置锚点，
+    // 让每场比赛都能被区分，并在下一次进入“比赛中”时重新锚定。
+    // 否则第一场比赛的锚点会泄漏到后续比赛，破坏事件时间线和自动导出兜底定时器。
     var startTime = state.matchStartTime;
     if (status.currentStage == stageInMatch) {
       startTime ??= DateTime.now();
@@ -81,7 +78,7 @@ class GameStateNotifier extends StateNotifier<GameState> {
       StatusSnapshot(status: status, timestamp: timestamp),
     ];
     if (!_isReplaying) {
-      // Remove entries older than _maxHistoryDuration.
+      // 移除早于 _maxHistoryDuration 的历史条目。
       final cutoff = timestamp.subtract(_maxHistoryDuration);
       newHistory = newHistory.where((s) => s.timestamp.isAfter(cutoff)).toList();
     }
@@ -101,20 +98,19 @@ class GameStateNotifier extends StateNotifier<GameState> {
     state = state.copyWith(eventList: newList);
   }
 
-  /// Updates the MQTT connection state.
+  /// 更新 MQTT 连接状态。
   void setConnected({required bool connected}) {
     state = state.copyWith(isConnected: connected);
   }
 
-  /// Clears all aggregated state.
+  /// 清空所有聚合状态。
   void clear() {
     state = const GameState();
   }
 
-  /// Replays a list of imported envelopes to rebuild state and history.
-  ///
-  /// History limits are disabled during replay so the full imported match is
-  /// retained for post-match analysis.
+  /// 回放一组导入信封，用于重建状态和历史。
+///
+  /// 回放期间禁用历史限制，以便保留完整导入比赛用于赛后分析。
   void replayEnvelopes(List<ProtobufEnvelope> envelopes) {
     _isReplaying = true;
     for (final envelope in envelopes) {
@@ -123,17 +119,15 @@ class GameStateNotifier extends StateNotifier<GameState> {
     _isReplaying = false;
   }
 
-  /// Seeds the notifier to a known [snapshot] for replay seeking.
-  ///
-  /// Because all aggregated history lives in [GameState], restoring a keyframe
-  /// snapshot fully restores the notifier; subsequent [handleEnvelope] calls
-  /// (with [replaying] true) continue accumulating from there. Used by the
-  /// replay controller's keyframe cache to avoid replaying from the start on
-  /// every seek.
+  /// 将通知器置为已知 [snapshot]，用于回放 seek。
+///
+  /// 所有聚合历史都位于 [GameState] 中，因此恢复一个关键帧快照即可完整恢复通知器。
+  /// 后续以 [replaying] 为 true 调用 [handleEnvelope] 时，会从该快照继续累积。
+  /// 回放控制器的关键帧缓存依赖该能力，避免每次拖动进度都从开头重放。
   void seedReplayState(GameState snapshot) {
     state = snapshot;
   }
 
-  /// Enables or disables replay mode (disables rolling history caps).
+  /// 启用或关闭回放模式；回放模式会禁用滚动历史上限。
   set replaying(bool value) => _isReplaying = value;
 }

@@ -1,4 +1,4 @@
-/// Unit tests for the custom-video packet slicer.
+/// 自定义图传包切片器的单元测试。
 library;
 
 import 'dart:typed_data';
@@ -36,7 +36,7 @@ void main() {
     test('clamps to available bytes when declared length is too large', () {
       final r = stripVarintPrefix(u([0x0A, 0x0A, 1, 2, 3]));
       expect(r.declaredLength, 10);
-      expect(r.bytes, [1, 2, 3]); // only 3 present
+      expect(r.bytes, [1, 2, 3]); // 仅 3 存在
     });
 
     test('falls back to verbatim when no 0x0A prefix', () {

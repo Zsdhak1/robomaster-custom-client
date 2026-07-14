@@ -1,62 +1,51 @@
-/// Minimal MPEG-TS muxer that wraps a raw H.264 or H.265 Annex‑B byte stream
-/// into a single-program transport stream, on the fly, for live playback.
+/// 最小 MPEG-TS 封装器，用于将原始 H.264 或 H.265 AnnexB 字节流实时包装为
+/// 单节目传输流。
 ///
-/// WHY: media_kit's bundled libmpv ships WITHOUT the raw-H.264 lavf demuxer
-/// (it fails with "Unknown lavf format h264"), but ALWAYS has the `mpegts`
-/// demuxer (HLS depends on it).  The same is largely true for raw HEVC — mpv
-/// ships the `hevc` raw demuxer, but wrapping in TS gives a single codec-
-/// agnostic fallback.  Wrapping the custom 0x0310 line in MPEG-TS therefore
-/// makes it playable by media_kit regardless of H.264 or H.265 codec.  The
-/// container only fixes DEMUXING; rendering is unchanged.
+/// 原因：media_kit 捆绑的 libmpv 通常没有内置原始 H.264 的 lavf 解复用器
+/// （会报“未知 lavf 格式 h264”），但基本都会包含 `mpegts` 解复用器（HLS 依赖它）。
+/// 原始 HEVC 的情况也类似；即使 mpv 内置 `hevc` 原始解复用器，包装成 TS 也能提供
+/// 与具体编码格式无关的降级路径。因此，将自定义 0x0310 链路包装成 MPEG-TS 后，
+/// 无论内容是 H.264 还是 H.265，media_kit 都能播放。容器只解决解复用问题，不改变渲染。
 ///
-/// Design notes:
-/// - Splits the byte stream into NAL units (Annex-B start codes preserved, as
-///   both H.264-in-TS and H.265-in-TS use the byte-stream format), groups NALs
-///   into access units, and emits one PES packet per access unit with a 90 kHz
-///   PTS.
-/// - Access-unit boundaries are detected without full slice-header parsing:
-///   For H.264, first_mb_in_slice == 0 is detected via the top bit of the first
-///   RBSP byte.  For HEVC, a new AU starts when a VCL NAL follows the previous
-///   VCL NAL (or a leading non-VCL that belongs to the next AU), using the
-///   nuh_layer_id continuity heuristic.
-/// - PAT/PMT are emitted before every keyframe AU so a decoder can join the
-///   stream at any IDR (mirrors standard broadcast TS).
-/// - Baseline profile / main tier (the encoder's low-bitrate mode) has no
-///   B-frames, so DTS is omitted (PTS only).
+/// 设计说明：
+/// - 将字节流拆分为 NAL 单元，并保留 AnnexB 起始码。H.264-in-TS 与 H.265-in-TS
+///   都使用 byte-stream 格式；多个 NAL 会聚合为访问单元，每个访问单元输出一个
+///   带 90 kHz PTS 的 PES 包。
+/// - 访问单元边界不做完整 slice-header 解析。H.264 通过首个 RBSP 字节的高位识别
+///   `first_mb_in_slice == 0`；HEVC 在一个 VCL NAL 跟随前一个 VCL NAL，或属于下一帧
+///   的前导非 VCL NAL 出现时开启新 AU。
+/// - 每个关键帧 AU 前都会重新发出 PAT/PMT，让解码器可以从任意 IDR 加入流。
+/// - 低码率模式没有 B 帧，因此只写 PTS，不写 DTS。
 library;
 
 import 'dart:typed_data';
 
 import '../../features/settings/logic/settings_providers.dart';
 
-/// PID carrying the video elementary stream.
+/// 承载视频基本流的 PID。
 const int _videoPid = 0x100;
 
-/// PID carrying the Program Map Table.
+/// 承载 Program Map Table 的 PID。
 const int _pmtPid = 0x1000;
 
-/// H.264 stream_type in the PMT.
+/// PMT 中表示 H.264 的 stream_type。
 const int _streamTypeH264 = 0x1B;
 
-/// H.265 (HEVC) stream_type in the PMT.
+/// PMT 中表示 H.265（HEVC）的 stream_type。
 const int _streamTypeHevc = 0x24;
 
-/// Wraps a continuous Annex-B H.264 or H.265 stream into MPEG-TS packets.
+/// 将连续 AnnexB H.264 或 H.265 流包装为 MPEG-TS 包。
 class MpegTsMuxer {
-  /// Creates a muxer whose PTS/PCR derive from arrival wall-clock.
+  /// 创建 PTS/PCR 基于到达时间派生的封装器。
   ///
-  /// PTS is sampled from a monotonic [Stopwatch] at each access unit, so the
-  /// media timeline advances at the rate frames actually arrive — not at an
-  /// assumed constant rate. A previous fixed `90000/fps` increment made PTS a
-  /// function of AU count, so on a slower/variable live source the media clock
-  /// raced ahead of real arrival and the player rebuffered periodically.
+  /// 每个访问单元完成时都会从单调 [Stopwatch] 采样 PTS，因此媒体时间线按照帧的
+  /// 实际到达速度推进，而不是假设恒定帧率。旧版固定使用 `90000 / 帧率` 递增 PTS，
+  /// 会让慢速或抖动的实时源里媒体时钟跑在真实到达时间前面，导致播放器周期性缓冲。
   ///
-  /// [fps] is retained only as a fallback: it sets the minimum PTS spacing (so
-  /// two AUs completing in the same tick still get strictly increasing PTS).
-  /// [codec] selects the elementary stream type signalled in the PMT and the
-  /// NAL‑unit‑type parsing rules.
-  /// [elapsedMicros] is injectable for tests; defaults to a real Stopwatch so
-  /// no wall-clock (`DateTime.now`) is used — the clock must be monotonic.
+  /// [frameRate] 仅作为降级参数使用：它决定最小 PTS 间距，确保同一时钟 tick 完成的
+  /// 两个 AU 仍能获得严格递增的 PTS。[codec] 决定 PMT 中声明的基本流类型以及
+  /// NAL 单元类型解析规则。[elapsedMicros] 可在测试中注入；默认使用真实 [Stopwatch]，
+  /// 不依赖墙钟时间，保证时钟单调。
   MpegTsMuxer({
     int fps = 60,
     this.codec = CustomVideoCodec.h264,
@@ -64,48 +53,49 @@ class MpegTsMuxer {
   })  : _fpsFallback = (fps <= 0 ? 60 : fps),
         _elapsedMicros = elapsedMicros ?? _defaultClock();
 
-  /// The video codec being muxed.
+  /// 当前封装的视频编码格式。
   final CustomVideoCodec codec;
 
-  /// Assumed fps, used only to derive [_minSpacing] and bound absurd jumps.
+  /// 假定帧率，仅用于派生 [_minSpacing] 并限制异常跳变。
   final int _fpsFallback;
 
-  /// Monotonic elapsed-microseconds source (injectable for tests).
+  /// 单调递增的微秒时钟源，可在测试中注入。
   final int Function() _elapsedMicros;
 
-  /// Minimum PTS spacing in 90 kHz ticks, so same-tick AUs still increase.
+  /// 90 kHz tick 下的最小 PTS 间距，确保同 tick AU 仍然递增。
   late final int _minSpacing = (90000 ~/ (_fpsFallback * 2)).clamp(1, 90000);
 
-  /// Cap on a single inter-AU PTS delta (stalled-then-resumed source): 5 s.
+  /// 单个 AU 间 PTS 增量上限，用于限制暂停后恢复的异常跳变：5 秒。
   static const int _maxDelta = 5 * 90000;
 
-  /// Stopwatch reading of the FIRST emitted AU; PTS 0 anchors there.
+  /// 第一个已发出 AU 的 Stopwatch 读数，作为 PTS 0 锚点。
   int? _t0Micros;
 
-  /// Builds a monotonic microsecond clock backed by a started [Stopwatch].
+  /// 构建由已启动 [Stopwatch] 驱动的单调微秒时钟。
   static int Function() _defaultClock() {
     final sw = Stopwatch()..start();
     return () => sw.elapsedMicroseconds;
   }
 
-  // Continuity counters (4-bit, per PID).
+  // 连续性计数器（4 位，每个 PID 独立）。
   int _ccPat = 0;
   int _ccPmt = 0;
   int _ccVideo = 0;
 
-  /// The last PTS emitted (90 kHz), for monotonicity and minimum spacing.
+  /// 最后一次发出的 PTS（90 kHz），用于保证单调递增和最小间距。
   int _pts = 0;
 
-  /// Bytes received but not yet split into complete NAL units.
+  /// 已接收但尚未拆分为完整 NAL 单元的字节。
   final List<int> _pending = [];
 
-  /// NAL units accumulated for the access unit currently being assembled.
+  /// 当前正在组装的访问单元累积的 NAL 单元。
   final List<Uint8List> _au = [];
   bool _auHasVcl = false;
   bool _auHasKeyframe = false;
 
-  /// Feeds raw Annex-B [data] and returns the TS bytes for any access units
-  /// that completed as a result (may be empty).
+  /// 送入原始 AnnexB [data]，返回因此完成的访问单元对应的 TS 字节。
+  ///
+  /// 返回值可能为空，表示当前数据还不足以形成完整访问单元。
   Uint8List addAnnexB(Uint8List data) {
     _pending.addAll(data);
     final out = BytesBuilder();
@@ -115,14 +105,14 @@ class MpegTsMuxer {
     return out.toBytes();
   }
 
-  /// Emits the final in-progress access unit. Call when the stream ends.
+  /// 发出最后一个进行中的访问单元；应在流结束时调用。
   Uint8List flush() {
     final out = BytesBuilder();
     if (_au.isNotEmpty) _emitAccessUnit(out);
     return out.toBytes();
   }
 
-  // --- NAL splitting (streaming, start codes preserved) ---
+  // --- NAL 流式拆分（保留起始码）---
 
   List<Uint8List> _extractNals() {
     final p = _pending;
@@ -159,7 +149,7 @@ class MpegTsMuxer {
 
   void _processNal(Uint8List nal, BytesBuilder out) {
     final scLen = (nal[2] == 1) ? 3 : 4;
-    if (nal.length <= scLen) return; // start code only — skip
+    if (nal.length <= scLen) return; // 只有起始码，直接跳过。
 
     if (codec == CustomVideoCodec.h265) {
       _processNalHevc(nal, scLen, out);
@@ -168,21 +158,21 @@ class MpegTsMuxer {
     }
   }
 
-  // ---- H.264 NAL processing ----
+  // ---- H.264 NAL 处理 ----
 
-  /// H.264 nal_unit_type for an IDR picture.
+  /// H.264 IDR 图像的 `nal_unit_type`。
   static const int _h264NalIdr = 5;
 
-  /// H.264 nal_unit_type for a Sequence Parameter Set.
+  /// H.264 序列参数集的 `nal_unit_type`。
   static const int _h264NalSps = 7;
 
-  /// H.264 nal_unit_type for a Picture Parameter Set.
+  /// H.264 图像参数集的 `nal_unit_type`。
   static const int _h264NalPps = 8;
 
-  /// H.264 nal_unit_type for an Access Unit Delimiter.
+  /// H.264 访问单元分隔符的 `nal_unit_type`。
   static const int _h264NalAud = 9;
 
-  /// H.264 nal_unit_type for SEI.
+  /// H.264 SEI 的 `nal_unit_type`。
   static const int _h264NalSei = 6;
 
   void _processNalH264(Uint8List nal, int scLen, BytesBuilder out) {
@@ -192,10 +182,10 @@ class MpegTsMuxer {
         isVcl && nal.length > scLen + 1 && (nal[scLen + 1] & 0x80) != 0;
     final leadingNonVcl =
         !isVcl && (type == _h264NalAud || type == _h264NalSps || type == _h264NalPps || type == _h264NalSei);
-    // A new access unit begins only once the current AU already carries a
-    // picture (a VCL NAL): either a first-slice VCL of the NEXT picture, or a
-    // leading non-VCL (AUD/SPS/PPS/SEI) of the next AU. This keeps an AU's own
-    // leading SPS/PPS and its multi-slice IDR together as ONE access unit.
+    // 只有当前 AU 已经携带图像（VCL NAL）后，才允许开启新访问单元：
+    // 触发条件要么是下一帧的 first-slice VCL，要么是下一 AU 的前导非 VCL
+    // （AUD/SPS/PPS/SEI）。这样可以把当前 AU 自己的前导 SPS/PPS 与多 slice IDR
+    // 保持在同一个访问单元内。
     final startsNewAu =
         _au.isNotEmpty && _auHasVcl && (firstSlice || leadingNonVcl);
     if (startsNewAu) _emitAccessUnit(out);
@@ -205,41 +195,40 @@ class MpegTsMuxer {
     if (type == _h264NalIdr || type == _h264NalSps) _auHasKeyframe = true;
   }
 
-  // ---- HEVC NAL processing ----
+  // ---- HEVC NAL 处理 ----
 
-  /// HEVC nal_unit_type for IDR_W_RADL.
+  /// HEVC IDR_W_RADL 的 `nal_unit_type`。
   static const int _hevcNalIdrWRadl = 19;
 
-  /// HEVC nal_unit_type for IDR_N_LP.
+  /// HEVC IDR_N_LP 的 `nal_unit_type`。
   static const int _hevcNalIdrNLp = 20;
 
-  /// HEVC nal_unit_type for CRA_NUT (clean random access).
+  /// HEVC CRA_NUT（干净随机访问）的 `nal_unit_type`。
   static const int _hevcNalCra = 21;
 
-  /// HEVC nal_unit_type for VPS.
+  /// HEVC VPS 的 `nal_unit_type`。
   static const int _hevcNalVps = 32;
 
-  /// HEVC nal_unit_type for SPS.
+  /// HEVC SPS 的 `nal_unit_type`。
   static const int _hevcNalSps = 33;
 
-  /// HEVC nal_unit_type for PPS.
+  /// HEVC PPS 的 `nal_unit_type`。
   static const int _hevcNalPps = 34;
 
-  /// HEVC nal_unit_type for AUD.
+  /// HEVC AUD 的 `nal_unit_type`。
   static const int _hevcNalAud = 35;
 
-  /// Minimum VCL NAL type in HEVC (TRAIL_N … RSV_VCL31 / IDR / CRA).
+  /// HEVC 中最小的 VCL NAL 类型（TRAIL_N 到 RSV_VCL31 / IDR / CRA）。
   static const int _hevcVclMin = 0;
 
-  /// Maximum VCL NAL type in HEVC.
+  /// HEVC 中最大的 VCL NAL 类型。
   static const int _hevcVclMax = 21;
 
   void _processNalHevc(Uint8List nal, int scLen, BytesBuilder out) {
     final type = (nal[scLen] >> 1) & 0x3F;
     final isVcl = type >= _hevcVclMin && type <= _hevcVclMax;
-    // In HEVC, a new access unit starts when the next VCL NAL arrives after a
-    // previous VCL NAL (the previous picture is complete). Leading non-VCL
-    // (VPS/SPS/PPS/AUD) of the next picture also start a new AU.
+    // 在 HEVC 中，一个 VCL NAL 出现在前一个 VCL NAL 之后表示前一帧完成，
+    // 可以开启新的访问单元。下一帧的前导非 VCL（VPS/SPS/PPS/AUD）也会开启新 AU。
     final leadingNonVcl = !isVcl &&
         (type == _hevcNalAud ||
             type == _hevcNalVps ||
@@ -260,7 +249,7 @@ class MpegTsMuxer {
     }
   }
 
-  // --- Access unit -> PES -> TS ---
+  // --- 访问单元 -> PES -> TS ---
 
   void _emitAccessUnit(BytesBuilder out) {
     final payload = BytesBuilder();
@@ -269,14 +258,11 @@ class MpegTsMuxer {
     }
     final isKey = _auHasKeyframe;
 
-    // Wall-clock PTS: sample the monotonic clock ONCE, here, at the instant the
-    // access unit is complete (one AU = one presentation instant). Convert
-    // µs → 90 kHz doing multiply-before-divide in 64-bit to avoid drift
-    // (micros * 90000 / 1000000 == micros * 9 ~/ 100). The FIRST AU anchors the
-    // timeline at PTS 0 (exempt from spacing/clamp). Later AUs guard
-    // monotonicity + minimum spacing (same-tick AUs must still increase) and
-    // clamp an absurd forward jump from a stalled-then-resumed source; the
-    // value is kept in the 33-bit PTS space.
+    // 到达时间 PTS：访问单元完成时采样一次单调时钟（一个 AU 对应一个呈现时刻）。
+    // 微秒到 90 kHz 的换算先乘后除，避免漂移：
+    // micros * 90000 / 1000000 == micros * 9 ~/ 100。
+    // 第一个 AU 将时间线锚定在 PTS 0，不参与间距和钳制；后续 AU 保证单调递增、
+    // 最小间距，并限制暂停后恢复导致的异常前跳。最终值保留在 33 位 PTS 空间内。
     final now = _elapsedMicros();
     final isFirst = _t0Micros == null;
     _t0Micros ??= now;
@@ -288,7 +274,7 @@ class MpegTsMuxer {
     pts &= 0x1FFFFFFFF;
     _pts = pts;
 
-    // Make the stream joinable at every keyframe.
+    // 每个关键帧前补发 PAT/PMT，使播放器可以从关键帧加入流。
     if (isKey) {
       out
         ..add(_buildPat())
@@ -304,13 +290,13 @@ class MpegTsMuxer {
 
   Uint8List _buildPes(Uint8List esData, int pts) {
     final optional = <int>[
-      0x80, // '10' marker bits, no scrambling/priority/etc.
-      0x80, // PTS_DTS_flags = '10' (PTS only)
-      5, // PES_header_data_length
+      0x80, // `10` 标记位，无加扰、优先级等附加标志。
+      0x80, // PTS_DTS_flags = `10`，仅携带 PTS。
+      5, // PES 可选头部数据长度。
       ..._encodePts(pts),
     ];
     final bodyLen = optional.length + esData.length;
-    // PES_packet_length may be 0 (unbounded) for video; set it when it fits.
+    // 视频 PES_packet_length 可为 0（无界）；能装入 16 位时才写入实际长度。
     final pesLen = bodyLen <= 0xFFFF ? bodyLen : 0;
     final out = BytesBuilder()
       ..add([0x00, 0x00, 0x01, 0xE0, (pesLen >> 8) & 0xFF, pesLen & 0xFF])
@@ -340,24 +326,24 @@ class MpegTsMuxer {
     while (offset < pes.length) {
       final remaining = pes.length - offset;
       final pcrLen = (first && withPcr) ? 6 : 0;
-      // Bytes available for payload if the only adaptation content is the PCR
-      // (length byte + flags byte + PCR).
+      // adaptation field 仅携带 PCR 时，剩余可用于负载的字节数
+      // （长度字节 + 标志字节 + PCR）。
       final maxPayloadWithAf = 184 - (pcrLen > 0 ? (2 + pcrLen) : 0);
 
       int payloadBytes;
       var hasAf = pcrLen > 0;
       List<int> afContent = const [];
       if (remaining >= (hasAf ? maxPayloadWithAf : 184)) {
-        // Packet fills with payload; adaptation field only if PCR is present.
+        // 包由负载填满；只有需要 PCR 时才保留 adaptation field。
         payloadBytes = hasAf ? maxPayloadWithAf : 184;
-        if (hasAf) afContent = [0x10, ..._encodePcr(pts)]; // PCR_flag set
+        if (hasAf) afContent = [0x10, ..._encodePcr(pts)]; // 设置 PCR_flag。
       } else {
-        // Final packet: pad with adaptation-field stuffing to reach 188.
+        // 最后一个包：用 adaptation field 填充到 188 字节。
         hasAf = true;
         payloadBytes = remaining;
-        final afLen = 184 - remaining - 1; // excludes the length byte itself
+        final afLen = 184 - remaining - 1; // 不包含长度字节本身。
         final flags = pcrLen > 0 ? 0x10 : 0x00;
-        final stuffing = afLen - 1 - pcrLen; // minus flags byte and PCR
+        final stuffing = afLen - 1 - pcrLen; // 扣除标志字节和 PCR。
         afContent = [
           flags,
           if (pcrLen > 0) ..._encodePcr(pts),
@@ -387,7 +373,7 @@ class MpegTsMuxer {
   }
 
   static List<int> _encodePcr(int base) {
-    // 33-bit base, 6 reserved bits (all 1), 9-bit extension (0 here).
+    // 33 位基准值，6 位保留位（全 1），9 位扩展值（这里为 0）。
     return [
       (base >> 25) & 0xFF,
       (base >> 17) & 0xFF,
@@ -398,17 +384,17 @@ class MpegTsMuxer {
     ];
   }
 
-  // --- PSI tables (each fits in one TS packet) ---
+  // --- PSI 表（每个表都能放入一个 TS 包）---
 
   Uint8List _buildPat() {
     final section = <int>[
-      0x00, // table_id = program_association_section
-      0xB0, 0x0D, // section_syntax_indicator + section_length (13)
-      0x00, 0x01, // transport_stream_id
-      0xC1, // version 0, current_next_indicator = 1
-      0x00, 0x00, // section_number, last_section_number
-      0x00, 0x01, // program_number 1
-      0xE0 | ((_pmtPid >> 8) & 0x1F), _pmtPid & 0xFF, // program_map_PID
+      0x00, // PAT 表 ID。
+      0xB0, 0x0D, // 段语法标志 + 段长度（13）。
+      0x00, 0x01, // 传输流 ID。
+      0xC1, // 版本 0，current_next_indicator = 1
+      0x00, 0x00, // 段号与最后段号。
+      0x00, 0x01, // 节目号 1。
+      0xE0 | ((_pmtPid >> 8) & 0x1F), _pmtPid & 0xFF, // PMT PID。
     ];
     return _buildPsiPacket(0x0000, section);
   }
@@ -417,16 +403,16 @@ class MpegTsMuxer {
     final streamType =
         codec == CustomVideoCodec.h265 ? _streamTypeHevc : _streamTypeH264;
     final section = <int>[
-      0x02, // table_id = TS_program_map_section
-      0xB0, 0x12, // section_syntax_indicator + section_length (18)
-      0x00, 0x01, // program_number
-      0xC1, // version 0, current_next_indicator = 1
-      0x00, 0x00, // section_number, last_section_number
-      0xE0 | ((_videoPid >> 8) & 0x1F), _videoPid & 0xFF, // PCR_PID
-      0xF0, 0x00, // program_info_length = 0
+      0x02, // PMT 表 ID。
+      0xB0, 0x12, // 段语法标志 + 段长度（18）。
+      0x00, 0x01, // 节目号。
+      0xC1, // 版本 0，current_next_indicator = 1
+      0x00, 0x00, // 段号与最后段号。
+      0xE0 | ((_videoPid >> 8) & 0x1F), _videoPid & 0xFF, // PCR PID。
+      0xF0, 0x00, // 节目信息长度为 0。
       streamType,
-      0xE0 | ((_videoPid >> 8) & 0x1F), _videoPid & 0xFF, // elementary_PID
-      0xF0, 0x00, // ES_info_length = 0
+      0xE0 | ((_videoPid >> 8) & 0x1F), _videoPid & 0xFF, // 基本流 PID。
+      0xF0, 0x00, // 基本流信息长度为 0。
     ];
     return _buildPsiPacket(_pmtPid, section);
   }
@@ -434,7 +420,7 @@ class MpegTsMuxer {
   Uint8List _buildPsiPacket(int pid, List<int> sectionWithoutCrc) {
     final crc = _crc32Mpeg(sectionWithoutCrc);
     final payload = <int>[
-      0x00, // pointer_field
+      0x00, // 指针字段。
       ...sectionWithoutCrc,
       (crc >> 24) & 0xFF,
       (crc >> 16) & 0xFF,
@@ -444,9 +430,9 @@ class MpegTsMuxer {
     final cc = pid == 0x0000 ? _ccPat : _ccPmt;
     final pkt = Uint8List(188)..fillRange(4, 188, 0xFF);
     pkt[0] = 0x47;
-    pkt[1] = 0x40 | ((pid >> 8) & 0x1F); // payload-unit-start indicator set
+    pkt[1] = 0x40 | ((pid >> 8) & 0x1F); // 设置 payload_unit_start_indicator。
     pkt[2] = pid & 0xFF;
-    pkt[3] = 0x10 | cc; // payload only
+    pkt[3] = 0x10 | cc; // 仅负载。
     pkt.setRange(4, 4 + payload.length, payload);
     if (pid == 0x0000) {
       _ccPat = (_ccPat + 1) & 0x0F;
@@ -472,11 +458,11 @@ class MpegTsMuxer {
   }
 }
 
-/// Returns true if [data] contains an MPEG-TS Program Association Table packet
-/// (PID 0 with the payload-unit-start indicator set).
+/// 当 [data] 包含 MPEG-TS Program Association Table 包时返回 true。
 ///
-/// Used as the custom line's keyframe gate when the bridge serves TS: the muxer
-/// emits a PAT before every keyframe, so a PAT marks a clean join point.
+/// 这里检查 PID 0 且设置了 payload_unit_start_indicator 的包。桥接输出 TS 时，
+/// 该函数作为自定义链路的关键帧闸门使用：封装器会在每个关键帧前发出 PAT，
+/// 因此 PAT 可视为干净的加入点。
 bool tsHasPat(Uint8List data) {
   for (var i = 0; i + 3 < data.length; i++) {
     if (data[i] != 0x47) continue;

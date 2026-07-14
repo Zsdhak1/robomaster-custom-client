@@ -1,16 +1,16 @@
-/// Shared overlay controls for video players.
+/// 视频播放器共享覆盖层控件。
 library;
 
 import 'package:flutter/material.dart';
 
 import '../responsive/responsive_ext.dart';
 
-/// Translucent rounded overlay container used on top of video players.
+/// 视频播放器顶部使用的半透明圆角覆盖层容器。
 class VideoOverlayPill extends StatelessWidget {
-  /// Creates a translucent overlay pill.
+  /// 创建半透明覆盖层胶囊。
   const VideoOverlayPill({required this.child, super.key});
 
-  /// Pill content.
+  /// 胶囊内容。
   final Widget child;
 
   @override
@@ -25,9 +25,9 @@ class VideoOverlayPill extends StatelessWidget {
   }
 }
 
-/// Compact reconnect chip shared by video decoders.
+/// 视频解码器共享的紧凑重连 chip。
 class VideoReconnectChip extends StatelessWidget {
-  /// Creates a reconnect chip.
+  /// 创建重连 chip。
   const VideoReconnectChip({
     required this.onReconnect,
     this.attempt,
@@ -36,16 +36,16 @@ class VideoReconnectChip extends StatelessWidget {
     super.key,
   });
 
-  /// Optional backend label, such as `media_kit`.
+  /// 可选后端标签，例如 `media_kit`。
   final String? backendLabel;
 
-  /// Optional reconnect/open attempt number.
+  /// 可选重连或打开尝试次数。
   final int? attempt;
 
-  /// Whether to include [attempt] in the label.
+  /// 是否在标签中包含 [attempt]。
   final bool showAttempt;
 
-  /// Reconnect callback.
+  /// 重连回调。
   final Future<void> Function() onReconnect;
 
   @override

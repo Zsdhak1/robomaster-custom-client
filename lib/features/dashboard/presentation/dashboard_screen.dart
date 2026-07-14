@@ -1,10 +1,11 @@
-/// Main dashboard screen displaying game status, robot health, and events.
+/// 主仪表盘页面，用于显示比赛状态、机器人血量和事件。
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/navigation/page_fab_menu.dart';
+import '../../../core/responsive/desktop_design_canvas.dart';
 import '../../../core/responsive/responsive_ext.dart';
 import '../../../core/state/session_providers.dart';
 import '../../../core/theme/app_theme.dart';
@@ -14,19 +15,26 @@ import '../../connection/presentation/connection_screen.dart';
 import '../../settings/logic/settings_providers.dart';
 import '../logic/dashboard_notification_models.dart';
 import '../logic/game_state.dart';
+import '../logic/notification_providers.dart';
+import '../logic/notification_runtime_strings.dart';
 import '../logic/stream_providers.dart';
 import 'widgets/connection_quality_panel.dart';
-import 'widgets/dashboard_notification_overlay.dart';
 import 'widgets/debug_panel.dart';
 import 'widgets/event_timeline_panel.dart';
 import 'widgets/game_status_card.dart';
 import 'widgets/health_chart.dart';
+import 'widgets/notification_history_sheet.dart';
 import 'widgets/operation_panel.dart';
+import 'widgets/recording_status_panel.dart';
 import 'widgets/robot_status_list.dart';
 
-/// Main monitoring dashboard.
+const double _bottomPanelHeight = 228;
+const double _panelGap = 8;
+const double _panelOuterInset = 12;
+
+/// 主监控仪表盘。
 class DashboardScreen extends ConsumerStatefulWidget {
-  /// Creates a [DashboardScreen].
+  /// 创建 [DashboardScreen]。
   const DashboardScreen({super.key});
 
   @override
@@ -41,9 +49,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget build(BuildContext context) {
     final gameState = ref.watch(gameStateProvider);
     final devMode = ref.watch(developerModeProvider);
-    final notificationState = ref.watch(dashboardNotificationProvider);
     final notificationStyle = ref.watch(dashboardNotificationStyleProvider);
-    final visibleNotifications = notificationState.visible;
 
     return Scaffold(
       body: Stack(
@@ -53,7 +59,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             children: [
               _TopStatusBar(gameState: gameState),
               const Expanded(child: _MainContent()),
-              SizedBox(height: context.sp(200), child: const _BottomBar()),
+              SizedBox(
+                height: context.sp(_bottomPanelHeight),
+                child: const _BottomBar(),
+              ),
             ],
           ),
           if (devMode && _isDebugOpen)
@@ -73,15 +82,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     .set(style),
                 onTriggerPreview: (content) => ref
                     .read(dashboardNotificationProvider.notifier)
-                    .show(content),
+                    .show(content, style: notificationStyle),
               ),
-            ),
-          if (visibleNotifications.isNotEmpty)
-            DashboardNotificationOverlay(
-              items: visibleNotifications,
-              style: notificationStyle,
-              onDismiss: (id) =>
-                  ref.read(dashboardNotificationProvider.notifier).dismiss(id),
             ),
         ],
       ),
@@ -93,11 +95,29 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         onToggleNotificationLab: () =>
             setState(() => _isNotificationLabOpen = !_isNotificationLabOpen),
       ),
+      floatingActionButtonLocation: DesktopDesignCanvas.isSupported
+          ? const _DesktopDashboardFabLocation()
+          : FloatingActionButtonLocation.endFloat,
     );
   }
 }
 
-/// Page-level FAB menu for the dashboard: connection toggle + debug panel.
+class _DesktopDashboardFabLocation extends FloatingActionButtonLocation {
+  const _DesktopDashboardFabLocation();
+
+  static const double _margin = 16;
+  @override
+  Offset getOffset(ScaffoldPrelayoutGeometry scaffoldGeometry) {
+    final fabSize = scaffoldGeometry.floatingActionButtonSize;
+    final scaffoldSize = scaffoldGeometry.scaffoldSize;
+    final x = scaffoldSize.width - fabSize.width - _margin;
+    final y =
+        scaffoldSize.height - _bottomPanelHeight - fabSize.height - _margin;
+    return Offset(x, y);
+  }
+}
+
+/// 仪表盘页面级 FAB 菜单：连接切换、调试面板和通知实验入口。
 class _DashboardFab extends ConsumerWidget {
   const _DashboardFab({
     required this.devMode,
@@ -139,6 +159,11 @@ class _DashboardFab extends ConsumerWidget {
           label: isNotificationLabOpen ? '隐藏通知实验台' : '通知样式实验台',
           onSelected: onToggleNotificationLab,
         ),
+        FabAction(
+          icon: Icons.history_rounded,
+          label: notificationHistoryFabLabel,
+          onSelected: () => showNotificationHistory(context, ref),
+        ),
         if (devMode)
           FabAction(
             icon: isDebugOpen ? Icons.bug_report : Icons.bug_report_outlined,
@@ -150,7 +175,7 @@ class _DashboardFab extends ConsumerWidget {
   }
 }
 
-/// Middle area: robot status list (2/3) + event timeline (1/3).
+/// 中部区域：机器人状态列表占 2/3，事件时间线占 1/3。
 class _MainContent extends StatelessWidget {
   const _MainContent();
 
@@ -165,7 +190,7 @@ class _MainContent extends StatelessWidget {
   }
 }
 
-/// Bottom strip: game status, health trend chart (optional) / operation + connection panels.
+/// 底部条带：比赛状态、可选血量趋势图、操作面板和连接面板。
 class _BottomBar extends ConsumerWidget {
   const _BottomBar();
 
@@ -173,28 +198,35 @@ class _BottomBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final showHealth = ref.watch(showHealthTrendProvider);
 
-    return Row(
-      children: [
-        SizedBox(width: context.sp(200), child: const GameStatusCard()),
-        Expanded(
-          child: showHealth
-              ? const HealthChart()
-              : Row(
-                  children: [
-                    const Expanded(child: OperationPanel()),
-                    SizedBox(width: context.sp(8)),
-                    const Expanded(child: ConnectionQualityPanel()),
-                  ],
-                ),
-        ),
-      ],
+    return Padding(
+      padding: context.insetOnly(
+        l: _panelOuterInset,
+        t: _panelGap,
+        r: _panelOuterInset,
+        b: _panelOuterInset,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Expanded(flex: 2, child: GameStatusCard()),
+          context.sizedBox(w: _panelGap),
+          Expanded(
+            flex: 6,
+            child: showHealth ? const HealthChart() : const OperationPanel(),
+          ),
+          context.sizedBox(w: _panelGap),
+          const Expanded(flex: 2, child: RecordingStatusPanel()),
+          context.sizedBox(w: _panelGap),
+          const Expanded(flex: 3, child: ConnectionQualityPanel()),
+        ],
+      ),
     );
   }
 }
 
-/// Top bar showing connection state, own side badge and settings access.
+/// 顶部栏显示连接状态、己方阵营徽标和设置入口。
 class _TopStatusBar extends ConsumerWidget {
-  /// Creates a [_TopStatusBar].
+  /// 创建 [_TopStatusBar]。
   const _TopStatusBar({required this.gameState});
 
   final GameState gameState;
@@ -226,13 +258,14 @@ class _TopStatusBar extends ConsumerWidget {
           _SideBadge(ownIsBlue: ownIsBlue),
           context.sizedBox(w: 12),
           _StatusDot(isConnected: isConnected),
+          if (DesktopDesignCanvas.isSupported) context.sizedBox(w: 148),
         ],
       ),
     );
   }
 }
 
-/// White pill badge showing the own side (己方 红/蓝).
+/// 显示己方红/蓝阵营的白底胶囊徽标。
 class _SideBadge extends StatelessWidget {
   const _SideBadge({required this.ownIsBlue});
 
@@ -257,7 +290,7 @@ class _SideBadge extends StatelessWidget {
   }
 }
 
-/// Small connection indicator dot with spring-animated color transition.
+/// 带弹性动画颜色过渡的小型连接状态圆点。
 class _StatusDot extends StatelessWidget {
   const _StatusDot({required this.isConnected});
 

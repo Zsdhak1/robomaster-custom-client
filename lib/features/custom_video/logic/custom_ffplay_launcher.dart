@@ -1,16 +1,14 @@
-/// Launches an external `ffplay` process to verify the custom video line.
+/// 启动外部 `ffplay` 进程，用于验证自定义图传链路。
 ///
-/// Unlike the official line's [FfplayDecoder] (which pipes HEVC frames into
-/// ffplay's stdin), the custom line already exposes its reassembled Annex-B
-/// stream over a loopback TCP server ([AnnexbTcpServer]). So ffplay can connect
-/// to that URL directly — exactly the proven manual command:
+/// 与官方链路的 [FfplayDecoder] 不同，自定义链路已经通过回环 TCP 服务器
+/// [AnnexbTcpServer] 暴露重组后的 AnnexB 流，因此 ffplay 可以直接连接 URL。
+/// 已验证的手动命令如下：
 ///
-///   ffplay -f h264 tcp://127.0.0.1:PORT        (H.264)
-///   ffplay -f hevc tcp://127.0.0.1:PORT        (HEVC / H.265)
+///   ffplay -f h264 tcp://127.0.0.1:端口        (H.264)
+///   ffplay -f hevc tcp://127.0.0.1:端口        (HEVC / H.265)
 ///
-/// This is a Windows-oriented verification aid: if ffplay's own window shows the
-/// picture while the in-app fvp/media_kit backend stays white, the bug is in the
-/// in-app decoder config, not in the byte stream the bridge serves.
+/// 这是偏 Windows 的验证工具：如果 ffplay 独立窗口能显示画面，而应用内
+/// fvp/media_kit 后端仍是白屏，问题通常在应用内解码器配置，而不是桥接服务的字节流。
 library;
 
 import 'dart:async';
@@ -18,26 +16,26 @@ import 'dart:io';
 
 import '../../settings/logic/settings_providers.dart';
 
-/// Spawns and tears down an `ffplay` subprocess pointed at the bridge URL.
+/// 启动并停止指向桥接 URL 的 `ffplay` 子进程。
 class CustomFfplayLauncher {
   Process? _proc;
 
-  /// Resolved ffplay executable, or null until [start] runs.
+  /// 解析后的 ffplay 可执行文件路径；[start] 运行前为 null。
   String? resolvedPath;
 
-  /// Last error message, if launch failed or ffplay exited abnormally.
+  /// 最近一次启动失败或 ffplay 异常退出的错误消息。
   String? lastError;
 
-  /// Whether an ffplay process is currently running.
+  /// 当前是否有 ffplay 进程正在运行。
   bool get isRunning => _proc != null;
 
-  /// Candidate executable names, resolved against PATH by [Process.start].
+  /// 候选可执行文件名，由 [Process.start] 通过 PATH 解析。
   static const List<String> _candidates = ['ffplay.exe', 'ffplay'];
 
-  /// Launches `ffplay -f <fmt> -i <streamUrl>`. Idempotent while running.
+  /// 启动 `ffplay -f <fmt> -i <streamUrl>`；运行中重复调用无效。
   ///
-  /// [tsWrap] selects the input format: `mpegts` when the bridge serves TS,
-  /// else raw `h264` or `hevc` depending on [codec].
+  /// [tsWrap] 选择输入格式：桥接输出 TS 时为 `mpegts`，否则根据 [codec]
+  /// 使用原始 `h264` 或 `hevc`。
   Future<void> start(
     String streamUrl, {
     required bool tsWrap,
@@ -52,9 +50,8 @@ class CustomFfplayLauncher {
         : codec == CustomVideoCodec.h265
             ? 'hevc'
             : 'h264';
-    // Minimal low-latency flags, mirroring the proven manual command. ffplay
-    // connects to the TCP bridge as just another decoder client; the bridge
-    // primes it with the cached keyframe so it can start without an 8 s wait.
+    // 最小低延迟参数，匹配已验证的手动命令。ffplay 只是另一个 TCP 桥接客户端；
+    // 桥接会用已缓存的关键帧预热它，避免等待一个完整 GOP。
     final args = <String>[
       '-fflags', 'nobuffer',
       '-flags', 'low_delay',
@@ -78,14 +75,14 @@ class CustomFfplayLauncher {
     }
   }
 
-  /// Terminates the ffplay process, if any.
+  /// 终止 ffplay 进程（如果存在）。
   void stop() {
     final proc = _proc;
     _proc = null;
     proc?.kill();
   }
 
-  /// Releases all resources.
+  /// 释放所有资源。
   void dispose() => stop();
 
   String _findFfplay() {

@@ -1,4 +1,4 @@
-/// About screen with version info, repository link and manual update check.
+/// 关于页面，展示版本信息、仓库链接和手动更新检查入口。
 library;
 
 import 'package:flutter/material.dart';
@@ -12,12 +12,12 @@ import '../../../core/update/domain/github_release.dart';
 import '../../../core/update/logic/update_providers.dart';
 import '../../../core/update/presentation/update_dialog.dart';
 
-/// Shows application metadata and lets the user manually check for updates.
+/// 显示应用元数据，并允许用户手动检查更新。
 class AboutScreen extends StatelessWidget {
-  /// Creates an [AboutScreen].
+  /// 创建 [AboutScreen]。
   const AboutScreen({super.key, this.embedded = false});
 
-  /// When true, renders only the body without its own Scaffold/AppBar.
+  /// 为 true 时只渲染主体，不包含自己的 [Scaffold] 或 [AppBar]。
   final bool embedded;
 
   static const String _repoUrl =

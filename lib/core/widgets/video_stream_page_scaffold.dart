@@ -1,7 +1,7 @@
-/// Shared Scaffold shell for the two video-stream pages.
+/// 两个视频流页面共用的 Scaffold 外壳。
 ///
-/// Keeps AppBar, MQTT badge placement and stream FAB behaviour visually
-/// identical while each page still owns its stream controller and actions.
+/// 在每个页面保留各自流控制器和操作的同时，让 AppBar、MQTT 徽标位置和流 FAB 行为
+/// 在视觉上保持一致。
 library;
 
 import 'package:flutter/material.dart';
@@ -10,9 +10,9 @@ import '../responsive/responsive_ext.dart';
 import 'mqtt_login_badge.dart';
 import 'stream_connection_fab.dart';
 
-/// Common page shell for UDP and custom video streams.
+/// UDP 和自定义图传流共用的页面外壳。
 class VideoStreamPageScaffold extends StatelessWidget {
-  /// Creates a shared video-stream page scaffold.
+  /// 创建共享视频流页面 scaffold。
   const VideoStreamPageScaffold({
     required this.title,
     required this.body,
@@ -23,22 +23,22 @@ class VideoStreamPageScaffold extends StatelessWidget {
     super.key,
   });
 
-  /// AppBar title.
+  /// AppBar 标题。
   final String title;
 
-  /// Full-screen page body, usually a video two-pane layout.
+  /// 全屏页面主体，通常是视频双栏布局。
   final Widget body;
 
-  /// Whether the backing stream is currently running.
+  /// 背后的视频流当前是否正在运行。
   final bool isRunning;
 
-  /// Starts or stops the backing stream.
+  /// 启动或停止背后的视频流。
   final Future<void> Function() onToggle;
 
-  /// Optional compact controls in the AppBar.
+  /// AppBar 中的可选紧凑控件。
   final List<Widget> appBarActions;
 
-  /// Optional secondary FAB actions.
+  /// 可选的次级 FAB 操作。
   final List<StreamFabAction> secondaryActions;
 
   @override

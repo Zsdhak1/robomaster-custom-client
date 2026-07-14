@@ -1,13 +1,13 @@
-/// Shared empty/loading/error cards for video-stream pages.
+/// 视频流页面共用的空状态、加载和错误卡片。
 library;
 
 import 'package:flutter/material.dart';
 
 import '../responsive/responsive_ext.dart';
 
-/// Placeholder card shown before a video stream is ready.
+/// 视频流就绪前显示的占位卡片。
 class VideoPlaceholderCard extends StatelessWidget {
-  /// Creates an empty or waiting placeholder.
+  /// 创建空状态或等待占位。
   const VideoPlaceholderCard({
     required this.title,
     required this.subtitle,
@@ -16,16 +16,16 @@ class VideoPlaceholderCard extends StatelessWidget {
     super.key,
   });
 
-  /// Main message.
+  /// 主消息。
   final String title;
 
-  /// Secondary explanatory message.
+  /// 次级说明消息。
   final String subtitle;
 
-  /// Icon used when [loading] is false.
+  /// [loading] 为 false 时显示的图标。
   final IconData icon;
 
-  /// Whether to show a progress indicator instead of [icon].
+  /// 是否显示进度指示器而不是 [icon]。
   final bool loading;
 
   @override
@@ -80,9 +80,9 @@ class VideoPlaceholderCard extends StatelessWidget {
   }
 }
 
-/// Error card shown when a decoder fails to initialise or render.
+/// 解码器初始化或渲染失败时显示的错误卡片。
 class VideoErrorCard extends StatelessWidget {
-  /// Creates a shared video error card.
+  /// 创建共享视频错误卡片。
   const VideoErrorCard({
     required this.message,
     this.hint,
@@ -91,16 +91,16 @@ class VideoErrorCard extends StatelessWidget {
     super.key,
   });
 
-  /// Error message to surface.
+  /// 要展示的错误消息。
   final String message;
 
-  /// Optional human-readable recovery hint.
+  /// 可选的可读恢复提示。
   final String? hint;
 
-  /// Optional retry callback.
+  /// 可选重试回调。
   final Future<void> Function()? onRetry;
 
-  /// Retry button label.
+  /// 重试按钮标签。
   final String retryLabel;
 
   @override

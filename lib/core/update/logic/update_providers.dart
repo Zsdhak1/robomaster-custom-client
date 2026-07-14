@@ -1,4 +1,4 @@
-/// Riverpod providers for the update checker.
+/// 更新检查器使用的 Riverpod Provider。
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,20 +11,20 @@ import '../data/version_comparator.dart';
 import '../domain/github_release.dart';
 
 // ============================================================
-// Current app version
+// 当前应用版本
 // ============================================================
 
-/// Provides the current app version string (`version+build`).
+/// 提供当前应用版本字符串（`version+build`）。
 final appVersionProvider = FutureProvider<String>((ref) async {
   final info = await PackageInfo.fromPlatform();
   return '${info.version}+${info.buildNumber}';
 });
 
 // ============================================================
-// Update checker service
+// 更新检查器服务
 // ============================================================
 
-/// Service instance for checking GitHub releases.
+/// 用于检查 GitHub Release 的服务实例。
 final updateCheckerServiceProvider = Provider<UpdateCheckerService>((ref) {
   final service = UpdateCheckerService();
   ref.onDispose(service.dispose);
@@ -32,19 +32,19 @@ final updateCheckerServiceProvider = Provider<UpdateCheckerService>((ref) {
 });
 
 // ============================================================
-// Auto-check enabled setting
+// 自动检查开关设置
 // ============================================================
 
 const _keyAutoCheckEnabled = 'update_auto_check_enabled';
 
-/// Notifier persisting whether update auto-check on startup is enabled.
+/// 持久化启动时是否自动检查更新的通知器。
 class AutoCheckEnabledNotifier extends StateNotifier<bool> {
-  /// Creates the notifier and loads the persisted value.
+  /// 创建通知器并加载已持久化的值。
   AutoCheckEnabledNotifier() : super(true) {
     _load();
   }
 
-  /// Persists [enabled] and updates state.
+  /// 持久化 [enabled] 并更新状态。
   Future<void> set({required bool enabled}) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyAutoCheckEnabled, enabled);
@@ -57,23 +57,23 @@ class AutoCheckEnabledNotifier extends StateNotifier<bool> {
   }
 }
 
-/// Whether the app should automatically check for updates on startup.
+/// 应用启动时是否自动检查更新。
 final autoCheckEnabledProvider =
     StateNotifierProvider<AutoCheckEnabledNotifier, bool>(
   (ref) => AutoCheckEnabledNotifier(),
 );
 
 // ============================================================
-// Update check result
+// 更新检查结果
 // ============================================================
 
-/// Result of the latest update check.
+/// 最近一次更新检查的结果。
 final updateCheckResultProvider = FutureProvider<UpdateCheckResult>((ref) async {
   final current = await ref.watch(appVersionProvider.future);
   final service = ref.watch(updateCheckerServiceProvider);
   final result = await service.checkForUpdate();
 
-  // Override the current version because the service may not have received it.
+  // 覆盖当前版本，因为服务本身可能没有拿到该值。
   if (result.currentVersion.isEmpty || result.currentVersion != current) {
     if (result.hasUpdate && result.release != null) {
       final hasUpdate = isNewerVersion(current, result.latestVersion);
@@ -99,16 +99,16 @@ final updateCheckResultProvider = FutureProvider<UpdateCheckResult>((ref) async 
   return result;
 });
 
-/// Allows the UI to force a fresh update check.
+/// 允许 UI 强制发起一次新的更新检查。
 final manualUpdateCheckProvider = Provider<void Function()>((ref) {
   return () => ref.invalidate(updateCheckResultProvider);
 });
 
 // ============================================================
-// Best asset for current platform
+// 当前平台的最佳资源
 // ============================================================
 
-/// The best installer asset for the current platform, or null.
+/// 当前平台最合适的安装包资源；没有时为 null。
 final selectedAssetProvider = Provider<GitHubAsset?>((ref) {
   final result = ref.watch(updateCheckResultProvider);
   return result.whenOrNull(
@@ -117,18 +117,18 @@ final selectedAssetProvider = Provider<GitHubAsset?>((ref) {
 });
 
 // ============================================================
-// Last check timestamp
+// 最后一次检查时间戳
 // ============================================================
 
 const _keyLastCheckTimestamp = 'update_last_check_timestamp';
 
-/// Persists the timestamp of the last successful or attempted update check.
+/// 持久化最近一次成功或尝试过的更新检查时间戳。
 Future<void> persistLastCheckTimestamp(DateTime timestamp) async {
   final prefs = await SharedPreferences.getInstance();
   await prefs.setString(_keyLastCheckTimestamp, timestamp.toIso8601String());
 }
 
-/// Reads the persisted last-check timestamp, or null.
+/// 读取已持久化的最近检查时间戳；没有时返回 null。
 Future<DateTime?> readLastCheckTimestamp() async {
   final prefs = await SharedPreferences.getInstance();
   final raw = prefs.getString(_keyLastCheckTimestamp);

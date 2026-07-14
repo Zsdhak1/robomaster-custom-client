@@ -2,43 +2,55 @@
 
 #include <dwmapi.h>
 #include <flutter_windows.h>
+#include <windowsx.h>
 
 #include "resource.h"
 
 namespace {
 
-/// Window attribute that enables dark mode window decorations.
+/// 启用深色模式窗口装饰的窗口属性。
 ///
-/// Redefined in case the developer's machine has a Windows SDK older than
-/// version 10.0.22000.0.
-/// See: https://docs.microsoft.com/windows/win32/api/dwmapi/ne-dwmapi-dwmwindowattribute
+/// 若开发者机器上的 Windows SDK 版本低于 10.0.22000.0，则在此重新定义。
+/// 见：https://docs.microsoft.com/windows/win32/api/dwmapi/ne-dwmapi-dwmwindowattribute
 #ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
 #define DWMWA_USE_IMMERSIVE_DARK_MODE 20
 #endif
 
-constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
+#ifndef DWMWA_BORDER_COLOR
+#define DWMWA_BORDER_COLOR 34
+#endif
 
-/// Registry key for app theme preference.
+#ifndef DWMWA_WINDOW_CORNER_PREFERENCE
+#define DWMWA_WINDOW_CORNER_PREFERENCE 33
+#endif
+
+constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
+constexpr double kMinWindowAspectRatio = 3.0 / 2.0;
+constexpr double kMaxWindowAspectRatio = 16.0 / 9.0;
+constexpr DWORD kWindowStyle =
+    WS_POPUP | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU;
+constexpr COLORREF kNoDwmBorderColor = 0xFFFFFFFE;
+constexpr DWORD kRoundWindowCorners = 2;
+
+/// 应用主题偏好使用的注册表键。
 ///
-/// A value of 0 indicates apps should use dark mode. A non-zero or missing
-/// value indicates apps should use light mode.
+/// 值为 0 表示应用应使用深色模式；非零或缺失表示应用应使用浅色模式。
 constexpr const wchar_t kGetPreferredBrightnessRegKey[] =
   L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
 constexpr const wchar_t kGetPreferredBrightnessRegValue[] = L"AppsUseLightTheme";
 
-// The number of Win32Window objects that currently exist.
+// 当前存在的 Win32Window 对象数量。
 static int g_active_window_count = 0;
 
 using EnableNonClientDpiScaling = BOOL __stdcall(HWND hwnd);
 
-// Scale helper to convert logical scaler values to physical using passed in
-// scale factor
+// 使用传入的缩放因子将逻辑缩放值转换为物理值。
 int Scale(int source, double scale_factor) {
   return static_cast<int>(source * scale_factor);
 }
 
-// Dynamically loads the |EnableNonClientDpiScaling| from the User32 module.
-// This API is only needed for PerMonitor V1 awareness mode.
+// 从 User32 模块动态加载 |EnableNonClientDpiScaling|。
+// 此 API 仅在 PerMonitor V1 awareness 模式下需要。
 void EnableFullDpiSupportIfAvailable(HWND hwnd) {
   HMODULE user32_module = LoadLibraryA("User32.dll");
   if (!user32_module) {
@@ -53,14 +65,95 @@ void EnableFullDpiSupportIfAvailable(HWND hwnd) {
   FreeLibrary(user32_module);
 }
 
-}  // namespace
+bool IsLeftSizingEdge(WPARAM edge) {
+  return edge == WMSZ_LEFT || edge == WMSZ_TOPLEFT ||
+         edge == WMSZ_BOTTOMLEFT;
+}
 
-// Manages the Win32Window's window class registration.
+bool IsTopSizingEdge(WPARAM edge) {
+  return edge == WMSZ_TOP || edge == WMSZ_TOPLEFT || edge == WMSZ_TOPRIGHT;
+}
+
+void SetSizingWidth(RECT* rect, WPARAM edge, LONG width) {
+  if (IsLeftSizingEdge(edge)) {
+    rect->left = rect->right - width;
+  } else {
+    rect->right = rect->left + width;
+  }
+}
+
+void SetSizingHeight(RECT* rect, WPARAM edge, LONG height) {
+  if (IsTopSizingEdge(edge)) {
+    rect->top = rect->bottom - height;
+  } else {
+    rect->bottom = rect->top + height;
+  }
+}
+
+void ConstrainSizingAspectRatio(WPARAM edge, RECT* rect) {
+  const LONG width = rect->right - rect->left;
+  const LONG height = rect->bottom - rect->top;
+  if (width <= 0 || height <= 0) {
+    return;
+  }
+  const double aspect_ratio = static_cast<double>(width) / height;
+  if (aspect_ratio > kMaxWindowAspectRatio) {
+    SetSizingWidth(rect, edge,
+                   static_cast<LONG>(height * kMaxWindowAspectRatio));
+  } else if (aspect_ratio < kMinWindowAspectRatio) {
+    SetSizingHeight(rect, edge,
+                    static_cast<LONG>(width / kMinWindowAspectRatio));
+  }
+}
+
+int ResizeBorderThickness(HWND window) {
+  const UINT dpi = GetDpiForWindow(window);
+  return GetSystemMetricsForDpi(SM_CXSIZEFRAME, dpi) +
+         GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
+}
+
+LRESULT HitTestResizeBorder(HWND window, LPARAM position) {
+  if (IsZoomed(window)) {
+    return HTCLIENT;
+  }
+  RECT rect{};
+  GetWindowRect(window, &rect);
+  const POINT point = {GET_X_LPARAM(position), GET_Y_LPARAM(position)};
+  const int border = ResizeBorderThickness(window);
+  const bool left = point.x < rect.left + border;
+  const bool right = point.x >= rect.right - border;
+  const bool top = point.y < rect.top + border;
+  const bool bottom = point.y >= rect.bottom - border;
+  if (top && left) return HTTOPLEFT;
+  if (top && right) return HTTOPRIGHT;
+  if (bottom && left) return HTBOTTOMLEFT;
+  if (bottom && right) return HTBOTTOMRIGHT;
+  if (left) return HTLEFT;
+  if (right) return HTRIGHT;
+  if (top) return HTTOP;
+  if (bottom) return HTBOTTOM;
+  return HTCLIENT;
+}
+
+void FitMaximizedClientToWorkArea(HWND window, LPARAM parameters) {
+  if (!IsZoomed(window)) return;
+  auto* size_params = reinterpret_cast<NCCALCSIZE_PARAMS*>(parameters);
+  MONITORINFO monitor_info{sizeof(MONITORINFO)};
+  const HMONITOR monitor =
+      MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
+  if (GetMonitorInfo(monitor, &monitor_info)) {
+    size_params->rgrc[0] = monitor_info.rcWork;
+  }
+}
+
+}  // 匿名命名空间
+
+// 管理 Win32Window 窗口类注册。
 class WindowClassRegistrar {
  public:
   ~WindowClassRegistrar() = default;
 
-  // Returns the singleton registrar instance.
+  // 返回单例 registrar 实例。
   static WindowClassRegistrar* GetInstance() {
     if (!instance_) {
       instance_ = new WindowClassRegistrar();
@@ -68,12 +161,10 @@ class WindowClassRegistrar {
     return instance_;
   }
 
-  // Returns the name of the window class, registering the class if it hasn't
-  // previously been registered.
+  // 返回窗口类名称；如果尚未注册，则先注册该类。
   const wchar_t* GetWindowClass();
 
-  // Unregisters the window class. Should only be called if there are no
-  // instances of the window.
+  // 注销窗口类；仅当不存在该窗口实例时调用。
   void UnregisterWindowClass();
 
  private:
@@ -135,7 +226,7 @@ bool Win32Window::Create(const std::wstring& title,
   double scale_factor = dpi / 96.0;
 
   HWND window = CreateWindow(
-      window_class, title.c_str(), WS_OVERLAPPEDWINDOW,
+      window_class, title.c_str(), kWindowStyle,
       Scale(origin.x, scale_factor), Scale(origin.y, scale_factor),
       Scale(size.width, scale_factor), Scale(size.height, scale_factor),
       nullptr, nullptr, GetModuleHandle(nullptr), this);
@@ -153,7 +244,7 @@ bool Win32Window::Show() {
   return ShowWindow(window_handle_, SW_SHOWNORMAL);
 }
 
-// static
+// 静态
 LRESULT CALLBACK Win32Window::WndProc(HWND const window,
                                       UINT const message,
                                       WPARAM const wparam,
@@ -179,6 +270,16 @@ Win32Window::MessageHandler(HWND hwnd,
                             WPARAM const wparam,
                             LPARAM const lparam) noexcept {
   switch (message) {
+    case WM_NCCALCSIZE:
+      if (wparam == TRUE) {
+        FitMaximizedClientToWorkArea(hwnd, lparam);
+        return 0;
+      }
+      break;
+
+    case WM_NCHITTEST:
+      return HitTestResizeBorder(hwnd, lparam);
+
     case WM_DESTROY:
       window_handle_ = nullptr;
       Destroy();
@@ -200,12 +301,16 @@ Win32Window::MessageHandler(HWND hwnd,
     case WM_SIZE: {
       RECT rect = GetClientArea();
       if (child_content_ != nullptr) {
-        // Size and position the child window.
+        // 调整子窗口的大小和位置。
         MoveWindow(child_content_, rect.left, rect.top, rect.right - rect.left,
                    rect.bottom - rect.top, TRUE);
       }
       return 0;
     }
+
+    case WM_SIZING:
+      ConstrainSizingAspectRatio(wparam, reinterpret_cast<RECT*>(lparam));
+      return TRUE;
 
     case WM_ACTIVATE:
       if (child_content_ != nullptr) {
@@ -264,15 +369,19 @@ void Win32Window::SetQuitOnClose(bool quit_on_close) {
 }
 
 bool Win32Window::OnCreate() {
-  // No-op; provided for subclasses.
+  // 空操作，供子类覆盖。
   return true;
 }
 
 void Win32Window::OnDestroy() {
-  // No-op; provided for subclasses.
+  // 空操作，供子类覆盖。
 }
 
 void Win32Window::UpdateTheme(HWND const window) {
+  DwmSetWindowAttribute(window, DWMWA_WINDOW_CORNER_PREFERENCE,
+                        &kRoundWindowCorners, sizeof(kRoundWindowCorners));
+  DwmSetWindowAttribute(window, DWMWA_BORDER_COLOR, &kNoDwmBorderColor,
+                        sizeof(kNoDwmBorderColor));
   DWORD light_mode;
   DWORD light_mode_size = sizeof(light_mode);
   LSTATUS result = RegGetValue(HKEY_CURRENT_USER, kGetPreferredBrightnessRegKey,

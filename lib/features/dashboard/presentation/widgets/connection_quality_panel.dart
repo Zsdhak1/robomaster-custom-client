@@ -1,13 +1,12 @@
-/// Connection quality panel showing real-time MQTT and UDP video stream
-/// connection quality parameters.
+/// 连接质量面板，显示实时 MQTT 和 UDP 视频流连接参数。
 ///
-/// ## M3 Compliance
-/// - `titleSmall`/`bodyMedium`/`labelLarge` type roles throughout
-/// - Tonal surface backgrounds (`surfaceContainerHigher`) for section headers
-/// - Protocol-semantic colors preserved (health-green/red for states)
-/// - Adequate 48sp touch targets for interactive elements
-/// - `FontFeature.tabularFigures` on all numeric values
-/// - Semantics labels on status indicators
+/// ## M3 合规性
+/// - 全面使用 `titleSmall`/`bodyMedium`/`labelLarge` 文本角色。
+/// - 区段标题使用色调表面背景（`surfaceContainerHigher`）。
+/// - 保留协议语义颜色，例如健康绿色和红方状态色。
+/// - 交互元素保持足够的 48sp 触控目标。
+/// - 所有数字值使用 `FontFeature.tabularFigures`。
+/// - 状态指示器提供语义标签。
 library;
 
 import 'dart:async';
@@ -20,9 +19,9 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../services/mqtt_service.dart';
 import '../../logic/stream_providers.dart';
 
-/// Displays MQTT and UDP video stream connection quality metrics.
+/// 显示 MQTT 和 UDP 视频流连接质量指标。
 class ConnectionQualityPanel extends StatefulWidget {
-  /// Creates a [ConnectionQualityPanel].
+  /// 创建 [ConnectionQualityPanel]。
   const ConnectionQualityPanel({super.key});
 
   @override
@@ -70,7 +69,7 @@ class _PanelBody extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- Header ---
+            // --- 头部 ---
             Row(
               children: [
                 Icon(
@@ -88,96 +87,35 @@ class _PanelBody extends ConsumerWidget {
               ],
             ),
             SizedBox(height: context.sp(10)),
-            // --- Metrics body ---
             Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _SectionHeader(label: 'MQTT 3333', active: isMqttConnected),
-                    SizedBox(height: context.sp(4)),
-                    _MetricRow(
-                      label: '连接状态',
-                      value: isMqttConnected ? '已连接' : '未连接',
-                      valueColor: isMqttConnected
-                          ? rmHealthHighColor
-                          : rmHealthLowColor,
-                    ),
-                    SizedBox(height: context.sp(3)),
-                    _StatusDotRow(isConnected: isMqttConnected),
-
-                    SizedBox(height: context.sp(8)),
-                    _SectionHeader(label: 'UDP 3334', active: isVideoListening),
-                    SizedBox(height: context.sp(4)),
-                    _MetricRow(
-                      label: '接收状态',
-                      value: isVideoListening ? '监听中' : '已停止',
-                      valueColor: isVideoListening
-                          ? rmHealthHighColor
-                          : scheme.onSurfaceVariant,
-                    ),
-                    SizedBox(height: context.sp(3)),
-                    _MetricRow(
-                      label: '完成帧数',
-                      value: '${videoService.framesCompleted}',
-                    ),
-                    SizedBox(height: context.sp(3)),
-                    _MetricRow(
-                      label: '丢弃帧数',
-                      value: '${videoService.framesDropped}',
-                      valueColor: videoService.framesDropped > 0
-                          ? rmHealthLowColor
-                          : null,
-                    ),
-                    SizedBox(height: context.sp(3)),
-                    _MetricRow(
-                      label: '待重组',
-                      value: '${videoService.pendingFrameCount}',
-                    ),
-                    SizedBox(height: context.sp(3)),
-                    _MetricRow(
-                      label: '收包总数',
-                      value: '${videoService.packetsReceived}',
-                    ),
-                    SizedBox(height: context.sp(3)),
-                    _MetricRow(
-                      label: '丢包数',
-                      value: '${videoService.packetsDropped}',
-                      valueColor: videoService.packetsDropped > 0
-                          ? rmHealthLowColor
-                          : null,
-                    ),
-
-                    SizedBox(height: context.sp(8)),
-                    _SectionHeader(
-                      label: '解码桥',
-                      active: videoService.bridgeStarted,
-                    ),
-                    SizedBox(height: context.sp(4)),
-                    _MetricRow(
-                      label: '桥状态',
-                      value: videoService.bridgeStarted ? '已启动' : '等待中',
-                      valueColor: videoService.bridgeStarted
-                          ? rmHealthHighColor
-                          : rmHealthMidColor,
-                    ),
-                    SizedBox(height: context.sp(3)),
-                    _MetricRow(
-                      label: '解码客户端',
-                      value: '${videoService.decoderClients}',
-                    ),
-                    SizedBox(height: context.sp(3)),
-                    _MetricRow(
-                      label: '转发帧数',
-                      value: '${videoService.tcpFramesForwarded}',
-                    ),
-                    SizedBox(height: context.sp(3)),
-                    _MetricRow(
-                      label: '最大分片数',
-                      value: '${videoService.maxFragmentsSeen}',
-                    ),
-                  ],
-                ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _ConnectionSummaryRow(
+                    label: 'MQTT 3333',
+                    value: isMqttConnected ? '已连接' : '未连接',
+                    active: isMqttConnected,
+                  ),
+                  _ConnectionSummaryRow(
+                    label: 'UDP 3334',
+                    value: isVideoListening ? '监听中' : '已停止',
+                    active: isVideoListening,
+                  ),
+                  _ConnectionSummaryRow(
+                    label: '视频帧',
+                    value:
+                        '完成 ${videoService.framesCompleted} · 丢弃 ${videoService.framesDropped}',
+                    active: videoService.framesDropped == 0,
+                  ),
+                  _ConnectionSummaryRow(
+                    label: '解码桥',
+                    value: videoService.bridgeStarted
+                        ? '已启动 · ${videoService.decoderClients} 客户端'
+                        : '等待中 · ${videoService.decoderClients} 客户端',
+                    active: videoService.bridgeStarted,
+                    waiting: !videoService.bridgeStarted,
+                  ),
+                ],
               ),
             ),
           ],
@@ -187,87 +125,49 @@ class _PanelBody extends ConsumerWidget {
   }
 }
 
-// ====================================================================
-// _SectionHeader — tonal pill with leading status dot
-// ====================================================================
+class _ConnectionSummaryRow extends StatelessWidget {
+  const _ConnectionSummaryRow({
+    required this.label,
+    required this.value,
+    required this.active,
+    this.waiting = false,
+  });
 
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.label, required this.active});
-  final String label;
-  final bool active;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: context.sp(8),
-        vertical: context.sp(5),
-      ),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(context.sp(6)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Semantics(
-            label: active ? '连接正常' : '连接异常',
-            child: Container(
-              width: context.sp(10),
-              height: context.sp(10),
-              decoration: BoxDecoration(
-                color: active ? rmHealthHighColor : rmHealthLowColor,
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-          SizedBox(width: context.sp(6)),
-          Text(
-            label,
-            style: context.textTheme.labelLarge!.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ====================================================================
-// _MetricRow — label | value pair
-// ====================================================================
-
-class _MetricRow extends StatelessWidget {
-  const _MetricRow({required this.label, required this.value, this.valueColor});
   final String label;
   final String value;
-  final Color? valueColor;
+  final bool active;
+  final bool waiting;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: context.sp(4),
-        vertical: context.sp(2),
+    final statusColor = waiting
+        ? rmHealthMidColor
+        : active
+        ? rmHealthHighColor
+        : rmHealthLowColor;
+    return Container(
+      padding: context.insetSym(h: 8, v: 6),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(context.sp(8)),
       ),
       child: Row(
         children: [
-          Text(
-            label,
-            style: context.textTheme.bodySmall!.copyWith(
-              color: scheme.onSurfaceVariant,
-            ),
-          ),
+          _SummaryDot(color: statusColor, label: '$label：$value'),
+          context.sizedBox(w: 7),
+          Text(label, style: context.textTheme.labelMedium),
           const Spacer(),
-          Text(
-            value,
-            style: context.textTheme.bodySmall!.copyWith(
-              fontWeight: FontWeight.w600,
-              color: valueColor ?? scheme.onSurface,
-              fontFeatures: const [FontFeature.tabularFigures()],
+          Flexible(
+            child: Text(
+              value,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: context.textTheme.labelMedium!.copyWith(
+                color: statusColor,
+                fontWeight: FontWeight.w700,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
             ),
           ),
         ],
@@ -276,41 +176,20 @@ class _MetricRow extends StatelessWidget {
   }
 }
 
-// ====================================================================
-// _StatusDotRow — visual dot + text description of MQTT state
-// ====================================================================
+class _SummaryDot extends StatelessWidget {
+  const _SummaryDot({required this.color, required this.label});
 
-class _StatusDotRow extends StatelessWidget {
-  const _StatusDotRow({required this.isConnected});
-  final bool isConnected;
+  final Color color;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: context.sp(4)),
-      child: Row(
-        children: [
-          Semantics(
-            label: isConnected ? 'MQTT 已连接' : 'MQTT 未连接',
-            child: Container(
-              width: context.sp(10),
-              height: context.sp(10),
-              decoration: BoxDecoration(
-                color: isConnected ? rmHealthHighColor : rmHealthLowColor,
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-          SizedBox(width: context.sp(6)),
-          Text(
-            isConnected ? 'MQTT 已连接' : 'MQTT 未连接',
-            style: context.textTheme.bodySmall!.copyWith(
-              color: scheme.onSurfaceVariant,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
+    return Semantics(
+      label: label,
+      child: Container(
+        width: context.sp(9),
+        height: context.sp(9),
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
       ),
     );
   }

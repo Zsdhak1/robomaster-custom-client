@@ -1,7 +1,7 @@
-/// MQTT 3333 service wrapper for RoboMaster custom client protocol.
+/// RoboMaster 自定义客户端 MQTT 3333 服务封装。
 ///
-/// Handles connection, subscription, Protobuf message publishing,
-/// auto-reconnect with exponential backoff, and heartbeat.
+/// 处理连接、订阅和 Protobuf 消息发布，
+/// 支持指数退避自动重连和心跳。
 library;
 
 import 'dart:async';
@@ -14,31 +14,31 @@ import 'package:typed_data/typed_data.dart' as typed;
 
 import '../core/constants/protocol_constants.dart';
 
-/// Connection state of the MQTT service.
+/// MQTT 服务连接状态。
 enum MqttConnectionState {
-  /// Not connected.
+  /// 未连接。
   disconnected,
 
-  /// Connection in progress.
+  /// 正在连接。
   connecting,
 
-  /// Connected and operational.
+  /// 已连接且可用。
   connected,
 
-  /// Connection failed.
+  /// 连接失败。
   error,
 }
 
-/// Callback type for connection state changes.
+/// 连接状态变化回调。
 typedef ConnectionStateCallback = void Function(MqttConnectionState state);
 
-/// Service encapsulating MQTT client operations.
+/// 封装 MQTT 客户端操作的服务。
 class MqttService {
-  /// Creates an [MqttService].
+  /// 创建 [MqttService]。
   ///
-  /// [brokerIp] defaults to [defaultMqttBrokerIp].
-  /// [port] defaults to [defaultMqttPort].
-  /// [clientId] identifies this client to the broker.
+  /// [brokerIp] 默认为 [defaultMqttBrokerIp]。
+  /// [port] 默认为 [defaultMqttPort]。
+  /// [clientId] 用于向代理服务器标识当前客户端。
   MqttService({
     required this.clientId,
     String? brokerIp,
@@ -46,46 +46,45 @@ class MqttService {
   })  : _brokerIp = brokerIp ?? defaultMqttBrokerIp,
         _port = port ?? defaultMqttPort;
 
-  final String _brokerIp;
-  final int _port;
+  String _brokerIp;
+  int _port;
 
-  /// Client identifier for MQTT broker.
+  /// MQTT 代理服务器使用的客户端标识符。
   String clientId;
 
-  /// Underlying MQTT client instance.
+  /// 底层 MQTT 客户端实例。
   MqttServerClient? _client;
 
-  /// Current connection state.
+  /// 当前连接状态。
   MqttConnectionState _state = MqttConnectionState.disconnected;
 
-  /// Public getter for connection state.
+  /// 当前连接状态。
   MqttConnectionState get state => _state;
 
-  /// Stream controller for connection state changes.
+  /// 连接状态变化流控制器。
   final _stateController =
       StreamController<MqttConnectionState>.broadcast();
 
-  /// Stream of connection state changes.
-  ///
-  /// New subscribers immediately receive the current state,
-  /// then all subsequent changes.
+  /// 连接状态变化流。
+///
+  /// 新订阅者会先收到当前状态，然后继续接收后续变化。
   Stream<MqttConnectionState> get stateStream async* {
     yield _state;
     yield* _stateController.stream;
   }
 
-  /// Stream controller for incoming Protobuf messages.
+  /// 传入 Protobuf 消息的流控制器。
   final _messageController =
       StreamController<({String topic, Uint8List payload})>.broadcast();
 
-  /// Recent messages cached for late subscribers (max 50).
+  /// 最近消息缓存，用于补发给后订阅者（最多 50 条）。
   final List<({String topic, Uint8List payload})> _messageCache = [];
 
   static const int _maxMessageCache = 50;
 
-  /// Stream of received (topic, payload) tuples.
-  ///
-  /// New subscribers receive cached messages first, then live updates.
+  /// 已接收的 (topic, payload) 元组流。
+///
+  /// 新订阅者会先收到缓存消息，然后继续接收实时消息。
   Stream<({String topic, Uint8List payload})> get messageStream async* {
     for (final msg in _messageCache) {
       yield msg;
@@ -93,16 +92,22 @@ class MqttService {
     yield* _messageController.stream;
   }
 
-  /// Whether auto-reconnect is enabled.
+  /// 是否启用自动重连。
   bool _autoReconnect = true;
 
-  /// Current reconnect delay.
+  /// 当前重连延迟。
   Duration _currentReconnectDelay = mqttReconnectDelay;
 
-  /// Timer for scheduled reconnection attempts.
+  /// 调度重连尝试的定时器。
   Timer? _reconnectTimer;
 
-  /// Set of subscribed topics.
+  /// 底层 MQTT 更新流订阅。
+  StreamSubscription<List<MqttReceivedMessage<MqttMessage>>>? _updatesSub;
+
+  /// 当前底层客户端代次，用于忽略旧客户端迟到回调。
+  int _clientGeneration = 0;
+
+  /// 已订阅主题集合。
   final Set<String> _subscribedTopics = {};
 
   void _setState(MqttConnectionState newState) {
@@ -111,32 +116,44 @@ class MqttService {
     _stateController.add(newState);
   }
 
-  /// Establishes connection to the MQTT broker.
-  ///
-  /// [brokerIp] and [port] override the constructor defaults
-  /// for this connection attempt.
+  /// 建立到 MQTT 代理服务器的连接。
+///
+/// [brokerIp] 和 [port] 覆盖构造函数默认值
+  /// 用于本次连接尝试。
   Future<void> connect({String? brokerIp, int? port}) async {
     if (_state == MqttConnectionState.connecting ||
         _state == MqttConnectionState.connected) {
       return;
     }
 
-    final targetIp = brokerIp ?? _brokerIp;
-    final targetPort = port ?? _port;
+    _autoReconnect = true;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    await _cancelUpdatesSubscription();
+
+    if (brokerIp != null) _brokerIp = brokerIp;
+    if (port != null) _port = port;
 
     _setState(MqttConnectionState.connecting);
 
     try {
       _client?.disconnect();
-      _client = MqttServerClient(targetIp, clientId)
-        ..port = targetPort
+      final generation = ++_clientGeneration;
+      final client = MqttServerClient(_brokerIp, clientId)
+        ..port = _port
         ..keepAlivePeriod = mqttKeepAliveInterval.inSeconds
-        ..autoReconnect = false // We handle reconnection manually.
-        ..onConnected = _onConnected
-        ..onDisconnected = _onDisconnected
-        ..onSubscribed = _onSubscribed
-        ..onSubscribeFail = _onSubscribeFail
-        ..pongCallback = _onPong;
+        ..autoReconnect = false; // 本类手动处理重连。
+      // ignore: cascade_invocations
+      client.onConnected = () => _onConnected(generation);
+      // ignore: cascade_invocations
+      client.onDisconnected = () => _onDisconnected(generation);
+      // ignore: cascade_invocations
+      client.onSubscribed = _onSubscribed;
+      // ignore: cascade_invocations
+      client.onSubscribeFail = _onSubscribeFail;
+      // ignore: cascade_invocations
+      client.pongCallback = _onPong;
+      _client = client;
 
       _client!.connectionMessage = MqttConnectMessage()
         ..withClientIdentifier(clientId)
@@ -144,11 +161,11 @@ class MqttService {
 
       await _client!.connect().timeout(mqttConnectionTimeout);
 
-      _client!.updates!.listen(_onMessage);
+      _updatesSub = _client!.updates!.listen(_onMessage);
       _setState(MqttConnectionState.connected);
       _currentReconnectDelay = mqttReconnectDelay;
 
-      // Re-subscribe to previously subscribed topics.
+      // 连接恢复后重新订阅之前保存的主题。
       for (final topic in _subscribedTopics) {
         _subscribe(topic);
       }
@@ -159,14 +176,19 @@ class MqttService {
     }
   }
 
-  /// Disconnects from the MQTT broker.
+  /// 断开 MQTT 代理服务器连接。
   void disconnect() {
     _autoReconnect = false;
     _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    unawaited(_cancelUpdatesSubscription());
+    _clientGeneration++;
     _client?.disconnect();
+    _client = null;
+    _setState(MqttConnectionState.disconnected);
   }
 
-  /// Subscribes to a topic with QoS 1.
+  /// 以 QoS 1 订阅主题。
   void subscribe(String topic) {
     _subscribedTopics.add(topic);
     if (_state == MqttConnectionState.connected) {
@@ -178,13 +200,13 @@ class MqttService {
     _client?.subscribe(topic, MqttQos.atLeastOnce);
   }
 
-  /// Unsubscribes from a topic.
+  /// 取消订阅主题。
   void unsubscribe(String topic) {
     _subscribedTopics.remove(topic);
     _client?.unsubscribe(topic);
   }
 
-  /// Publishes a Protobuf message to [topic].
+  /// 向 [topic] 发布 Protobuf 消息。
   void publish(String topic, GeneratedMessage message) {
     if (_state != MqttConnectionState.connected) {
       throw StateError('Cannot publish: not connected');
@@ -202,11 +224,14 @@ class MqttService {
     );
   }
 
-  void _onConnected() {
+  void _onConnected(int generation) {
+    if (generation != _clientGeneration) return;
     _setState(MqttConnectionState.connected);
   }
 
-  void _onDisconnected() {
+  void _onDisconnected(int generation) {
+    if (generation != _clientGeneration) return;
+    if (_state == MqttConnectionState.connecting) return;
     _setState(MqttConnectionState.disconnected);
     if (_autoReconnect) {
       _scheduleReconnect();
@@ -214,15 +239,15 @@ class MqttService {
   }
 
   void _onSubscribed(String topic) {
-    // Subscription confirmed by broker.
+    // 代理服务器已确认订阅。
   }
 
   void _onSubscribeFail(String topic) {
-    // Subscription failed; will retry on reconnect.
+    // 订阅失败；下次重连后会重试。
   }
 
   void _onPong() {
-    // Broker responded to PINGREQ.
+    // 代理服务器已响应 PINGREQ。
   }
 
   void _onMessage(List<MqttReceivedMessage<MqttMessage>>? messages) {
@@ -230,11 +255,10 @@ class MqttService {
 
     for (final msg in messages) {
       final payload = msg.payload as MqttPublishMessage;
-      // Copy by logical length: payload.message is a Uint8Buffer whose
-      // backing ByteBuffer may be larger than the actual message due to
-      // capacity-doubling growth. Uint8List.view(buffer) would include
-      // that trailing padding, which corrupts Protobuf deserialization
-      // (the parser reads padding zero-bytes as invalid field tags).
+      // 按逻辑长度复制：payload.message 是 Uint8Buffer，
+      // 其底层 ByteBuffer 可能因扩容大于真实消息长度。
+      // 直接用 Uint8List.view(buffer) 会带上尾部填充，
+      // 导致 Protobuf 解析器把填充的 0 字节读成非法字段标签。
       final data = Uint8List.fromList(payload.payload.message);
       final tuple = (topic: msg.topic, payload: data);
       _messageCache.add(tuple);
@@ -246,6 +270,7 @@ class MqttService {
   }
 
   void _scheduleReconnect() {
+    if (!_autoReconnect) return;
     _reconnectTimer?.cancel();
     _reconnectTimer = Timer(_currentReconnectDelay, () async {
       if (_state == MqttConnectionState.connected) return;
@@ -262,12 +287,18 @@ class MqttService {
       try {
         await connect();
       } on Exception {
-        // Reconnection failed; will retry with increased delay.
+        // 重连失败；下次按更长延迟继续重试。
       }
     });
   }
 
-  /// Releases all resources.
+  Future<void> _cancelUpdatesSubscription() async {
+    final sub = _updatesSub;
+    _updatesSub = null;
+    await sub?.cancel();
+  }
+
+  /// 释放所有资源。
   void dispose() {
     disconnect();
     _stateController.close();
@@ -275,12 +306,12 @@ class MqttService {
   }
 }
 
-/// Exception thrown when MQTT connection fails.
+/// MQTT 连接失败时抛出的异常。
 class MqttConnectionException implements Exception {
-  /// Creates an [MqttConnectionException] with [message].
+  /// 使用 [message] 创建 [MqttConnectionException]。
   MqttConnectionException(this.message);
 
-  /// Error description.
+  /// 错误描述。
   final String message;
 
   @override

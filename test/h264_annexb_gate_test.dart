@@ -1,8 +1,7 @@
-/// Unit tests for [h264HasParameterSet].
+/// [h264HasParameterSet] 的单元测试。
 ///
-/// Critical: an HEVC parameter-set frame must NOT trip the H.264 gate, and
-/// vice versa. This isolation is what keeps the two video lines from
-/// corrupting each other's keyframe detection.
+/// 关键点：HEVC 参数集帧不能误打开 H.264 闸门，反之亦然。
+/// 这种隔离保证两条视频链路不会互相破坏关键帧检测。
 library;
 
 import 'dart:typed_data';
@@ -10,16 +9,16 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:robomaster_custom_client_1/core/video/h264_annexb_gate.dart';
 
-/// Builds an AnnexB NAL unit: 4-byte start code + a first byte whose low 5
-/// bits encode the H.264 nal_unit_type, followed by [trailing] payload bytes.
+/// 构建 AnnexB NAL 单元：4 字节起始码 + 1 字节 H.264 头部 + [trailing] 载荷。
+/// H.264 头部低 5 位编码 `nal_unit_type`。
 Uint8List h264Nal(int nalType, {List<int> trailing = const [0x00]}) {
-  // forbidden_zero_bit=0, nal_ref_idc=3 (0b11), type in low 5 bits.
+  // forbidden_zero_bit=0，nal_ref_idc=3 (0b11)，类型位于低 5 位。
   final firstByte = 0x60 | (nalType & 0x1F);
   return Uint8List.fromList([0, 0, 0, 1, firstByte, ...trailing]);
 }
 
-/// Builds an AnnexB NAL unit with an HEVC-style first byte: the 6-bit
-/// nal_unit_type sits in bits 1..6 (`type << 1`).
+/// 构建带 HEVC 风格首字节的 AnnexB NAL 单元。
+/// 6 位 `nal_unit_type` 位于 bit 1..6（`type << 1`）。
 Uint8List hevcNal(int nalType, {List<int> trailing = const [0x00]}) {
   final firstByte = (nalType & 0x3F) << 1;
   return Uint8List.fromList([0, 0, 0, 1, firstByte, ...trailing]);

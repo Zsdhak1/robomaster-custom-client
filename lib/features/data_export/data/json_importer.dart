@@ -1,7 +1,6 @@
-/// JSON importer for recorded MQTT messages.
+/// 已记录 MQTT 消息的 JSON 导入器。
 ///
-/// Reads an export file, validates the schema version, and reconstructs
-/// [ProtobufEnvelope]s from the stored JSON payloads.
+/// 读取导出文件、校验 Schema 版本，并从已存储 JSON 载荷重建 [ProtobufEnvelope]。
 library;
 
 import 'dart:convert';
@@ -12,25 +11,24 @@ import 'package:protobuf/protobuf.dart';
 
 import '../../../core/protobuf/protobuf_parser.dart';
 
-/// Expected schema version for import compatibility.
+/// 导入兼容性要求的 Schema 版本。
 const String _schemaVersion = '2.0';
 
-/// Key used to detect raw-byte fallback payloads in exported JSON.
+/// 用于检测导出 JSON 中原始字节降级载荷的键。
 const String _rawBase64Key = 'raw_base64';
 
-/// Imports recorded MQTT data from a JSON export file.
+/// 从 JSON 导出文件导入已记录 MQTT 数据。
 class JsonImporter {
-  /// Creates a [JsonImporter] with the topic-to-factory [messageFactories]
-  /// used to reconstruct Protobuf messages.
+  /// 创建带主题到工厂映射 [messageFactories] 的 [JsonImporter]，用于重建 Protobuf 消息。
   JsonImporter({required this.messageFactories});
 
-  /// Topic name to Protobuf message factory mapping.
+  /// 主题名到 Protobuf 消息工厂的映射。
   final Map<String, GeneratedMessage Function()> messageFactories;
 
-  /// Reads [filePath] and returns a list of reconstructed envelopes.
+  /// 读取 [filePath]，并返回重建后的信封列表。
   ///
-  /// Throws [FormatException] if the schema version is unsupported.
-  /// Unrecognized or malformed message entries are skipped.
+  /// Schema 版本不支持时抛出 [FormatException]。
+  /// 未识别或格式错误的消息条目会被跳过。
   Future<List<ProtobufEnvelope>> import(String filePath) async {
     final file = File(filePath);
     final jsonString = await file.readAsString();

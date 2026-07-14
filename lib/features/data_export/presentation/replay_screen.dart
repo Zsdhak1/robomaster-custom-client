@@ -1,7 +1,7 @@
-/// Second-level replay screen: full match playback with a seekable timeline.
+/// 二级回放页面，提供完整比赛回放和可拖动时间线。
 ///
-/// Wide-screen (Pad/PC) layout. Renders reconstructed [GameState] snapshots
-/// from [ReplayController], fully isolated from the live dashboard providers.
+/// 面向 Pad/PC 的宽屏布局。页面渲染 [ReplayController] 重建的 [GameState] 快照，
+/// 与实时仪表盘 Provider 完全隔离。
 library;
 
 import 'package:fl_chart/fl_chart.dart';
@@ -18,12 +18,12 @@ import '../../dashboard/presentation/widgets/robot_status_list.dart';
 import '../domain/match_record.dart';
 import '../logic/replay_controller.dart';
 
-/// Full-screen replay page for a single saved match [record].
+/// 用于单个已保存比赛 [record] 的全屏回放页面。
 class ReplayScreen extends ConsumerWidget {
-  /// Creates a [ReplayScreen].
+  /// 创建 [ReplayScreen]。
   const ReplayScreen({required this.record, super.key});
 
-  /// The match record being replayed.
+  /// 正在回放的比赛记录。
   final MatchRecord record;
 
   @override
@@ -67,7 +67,7 @@ class _ReplayBody extends StatelessWidget {
 
     return Column(
       children: [
-        // Main wide-screen area: robots (left) + events (right).
+        // 主宽屏区域：左侧机器人状态，右侧事件时间线。
         Expanded(
           child: Row(
             children: [
@@ -89,7 +89,7 @@ class _ReplayBody extends StatelessWidget {
             ],
           ),
         ),
-        // Bottom: score card + health trend with playback cursor.
+        // 底部：得分卡片和带回放游标的血量趋势。
         SizedBox(
           height: context.sp(180),
           child: Row(
@@ -107,7 +107,7 @@ class _ReplayBody extends StatelessWidget {
             ],
           ),
         ),
-        // Playback controls: progress slider + play/pause + speed.
+        // 回放控件：进度滑块、播放/暂停和倍速选择。
         _PlaybackBar(replay: replay, controller: controller),
       ],
     );
@@ -168,7 +168,7 @@ class _EventColumn extends StatelessWidget {
   }
 }
 
-/// Playback control bar: scrubber, play/pause, speed and time labels.
+/// 回放控制栏：拖动条、播放/暂停、倍速和时间标签。
 class _PlaybackBar extends StatelessWidget {
   const _PlaybackBar({required this.replay, required this.controller});
 
@@ -253,8 +253,9 @@ class _SpeedSelector extends StatelessWidget {
       s == s.roundToDouble() ? s.toInt().toString() : s.toString();
 }
 
-/// Health trend showing the full match curve with a cursor at the current
-/// replay position. Distinct from the live [HealthChart] rolling-window view.
+/// 显示完整比赛血量曲线，并在当前回放位置绘制游标。
+///
+/// 与实时 [HealthChart] 的滚动窗口视图不同，这里展示整场比赛。
 class _ReplayHealthChart extends StatelessWidget {
   const _ReplayHealthChart({required this.gameState, required this.ownIsBlue});
 

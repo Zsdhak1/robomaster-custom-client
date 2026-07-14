@@ -1,51 +1,47 @@
-/// Crosshair overlay for the custom H.264 video line.
+/// 自定义 H.264 视频链路使用的准星覆盖层。
 ///
-/// Replicates the original Python `_draw_overlay`:
-/// - A movable lavender crosshair spanning the full frame.
-/// - A light-green circle dot at the crosshair center.
+/// 复刻原始 Python `_draw_overlay`：
+/// - 可移动的淡紫色准星，横竖线贯穿整帧。
+/// - 准星中心的浅绿色圆点。
 ///
-/// When [aimCenter] is `null` the crosshair stays at the canvas center
-/// (backward-compatible default). Callers can set [aimCenter] to the local
-/// coordinates of a mouse click / tap to move the entire sight there.
+/// [aimCenter] 为 `null` 时，准星保持在画布中心，兼容旧行为。
+/// 调用方可以把 [aimCenter] 设置为鼠标点击或触摸点的本地坐标来移动整套准星。
 library;
 
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
 
-/// BGR color from the original Python decoder, mapped to Flutter ARGB.
-/// Original: (230, 190, 235) -> 0xFFE6BEEA.
+/// 原始 Python 解码器使用的 BGR 颜色，映射为 Flutter ARGB。
+/// 原始:(230，190，235) -> 0xFFE6BEEA。
 const Color _crosshairColor = rmCrosshairColor;
 
-/// BGR color for the center dot.
-/// Original: (170, 255, 170) -> 0xFFAAFFAA.
+/// 中心圆点使用的 BGR 颜色。
+/// 原始:(170，255，170) -> 0xFFAAFFAA。
 const Color _centerColor = rmCrosshairCenterColor;
 
-/// Circle radius in logical pixels (original: 24 at 400x400).
+/// 圆半径，单位为逻辑像素；原始 400x400 画布中为 24。
 const double _centerCircleRadius = 24.0;
 
-/// Default crosshair line width.
+/// 默认准星线宽。
 const int _defaultLineWidth = 1;
 
-/// Paints the doorlock sniper crosshair overlay.
+/// 绘制 doorlock sniper 准星覆盖层。
 class CrosshairPainter extends CustomPainter {
-  /// Creates a [CrosshairPainter].
+  /// 创建 [CrosshairPainter]。
   ///
-  /// [aimCenter] is in the local coordinate space of the canvas. When `null`
-  /// the crosshair is drawn at the canvas center.
+  /// [aimCenter] 位于画布本地坐标系中；为 `null` 时准星绘制在画布中心。
   const CrosshairPainter({
     this.aimCenter,
     this.lineWidth = _defaultLineWidth,
   });
 
-  /// The pixel position (in canvas-local coordinates) where both the
-  /// crosshair lines and the circle should be drawn.
-  ///
-  /// When `null` (default) the canvas center is used, preserving the original
-  /// always-centered behaviour.
+  /// 准星横竖线和中心圆应绘制到的像素位置，使用画布本地坐标。
+///
+  /// 为 `null`（默认）时使用画布中心，保持原始居中行为。
   final Offset? aimCenter;
 
-  /// Width of the crosshair lines.
+  /// 准星线宽。
   final int lineWidth;
 
   @override
@@ -53,8 +49,7 @@ class CrosshairPainter extends CustomPainter {
     final w = size.width;
     final h = size.height;
 
-    // Resolve the crosshair centre: use the caller-provided point or fall
-    // back to the canvas centre.
+    // 解析准星中心：优先使用调用方提供的点，否则回退到画布中心。
     final center = aimCenter ?? Offset(w / 2, h / 2);
     final cx = center.dx.clamp(0.0, w - 1);
     final cy = center.dy.clamp(0.0, h - 1);

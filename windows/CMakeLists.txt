@@ -1,16 +1,14 @@
-# Project-level configuration.
+# 项目级配置。
 cmake_minimum_required(VERSION 3.14)
 project(robomaster_custom_client_1 LANGUAGES CXX)
 
-# The name of the executable created for the application. Change this to change
-# the on-disk name of your application.
+# 为应用创建的可执行文件名称。修改这里即可改变应用落盘名称。
 set(BINARY_NAME "robomaster_custom_client_1")
 
-# Explicitly opt in to modern CMake behaviors to avoid warnings with recent
-# versions of CMake.
+# 显式启用现代 CMake 行为，避免较新 CMake 版本产生警告。
 cmake_policy(VERSION 3.14...3.25)
 
-# Define build configuration option.
+# 定义构建配置选项。
 get_property(IS_MULTICONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
 if(IS_MULTICONFIG)
   set(CMAKE_CONFIGURATION_TYPES "Debug;Profile;Release"
@@ -23,20 +21,19 @@ else()
       "Debug" "Profile" "Release")
   endif()
 endif()
-# Define settings for the Profile build mode.
+# 定义 Profile 构建模式使用的设置。
 set(CMAKE_EXE_LINKER_FLAGS_PROFILE "${CMAKE_EXE_LINKER_FLAGS_RELEASE}")
 set(CMAKE_SHARED_LINKER_FLAGS_PROFILE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE}")
 set(CMAKE_C_FLAGS_PROFILE "${CMAKE_C_FLAGS_RELEASE}")
 set(CMAKE_CXX_FLAGS_PROFILE "${CMAKE_CXX_FLAGS_RELEASE}")
 
-# Use Unicode for all projects.
+# 所有 project 使用 Unicode。
 add_definitions(-DUNICODE -D_UNICODE)
 
-# Compilation settings that should be applied to most targets.
+# 大多数 target 应使用的编译设置。
 #
-# Be cautious about adding new options here, as plugins use this function by
-# default. In most cases, you should add new options to specific targets instead
-# of modifying this function.
+# 在这里添加新选项要谨慎，因为插件默认也会使用该函数。
+# 大多数情况下，应把新选项添加到专用 target，而不是修改此函数。
 function(APPLY_STANDARD_SETTINGS TARGET)
   target_compile_features(${TARGET} PUBLIC cxx_std_17)
   target_compile_options(${TARGET} PRIVATE /W4 /WX /wd"4100")
@@ -45,25 +42,23 @@ function(APPLY_STANDARD_SETTINGS TARGET)
   target_compile_definitions(${TARGET} PRIVATE "$<$<CONFIG:Debug>:_DEBUG>")
 endfunction()
 
-# Flutter library and tool build rules.
+# Flutter library 和工具构建规则。
 set(FLUTTER_MANAGED_DIR "${CMAKE_CURRENT_SOURCE_DIR}/flutter")
 add_subdirectory(${FLUTTER_MANAGED_DIR})
 
-# Application build; see runner/CMakeLists.txt.
+# 应用构建；见 runner/CMakeLists.txt。
 add_subdirectory("runner")
 
 
-# Generated plugin build rules, which manage building the plugins and adding
-# them to the application.
+# 生成插件构建规则，用于构建插件并把它们加入应用。
 include(flutter/generated_plugins.cmake)
 
 
-# === Installation ===
-# Support files are copied into place next to the executable, so that it can
-# run in place. This is done instead of making a separate bundle (as on Linux)
-# so that building and running from within Visual Studio will work.
+# === 安装 ===
+# 支持文件会复制到可执行文件旁边，因此可以就地运行。
+# 这里不像 Linux 那样制作独立 bundle，以便在 Visual Studio 中构建和运行。
 set(BUILD_BUNDLE_DIR "$<TARGET_FILE_DIR:${BINARY_NAME}>")
-# Make the "install" step default, as it's required to run.
+# 默认包含 "install" 步骤，因为运行应用需要它。
 set(CMAKE_VS_INCLUDE_INSTALL_TO_DEFAULT_BUILD 1)
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX "${BUILD_BUNDLE_DIR}" CACHE PATH "..." FORCE)
@@ -87,14 +82,13 @@ if(PLUGIN_BUNDLED_LIBRARIES)
     COMPONENT Runtime)
 endif()
 
-# Copy the native assets provided by the build.dart from all packages.
+# 复制 build.dart 从所有 package 提供的 native 资源。
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/windows/")
 install(DIRECTORY "${NATIVE_ASSETS_DIR}"
    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
    COMPONENT Runtime)
 
-# Fully re-copy the assets directory on each build to avoid having stale files
-# from a previous install.
+# 每次构建都完整重新复制资源目录，避免保留上一次安装中的过期文件。
 set(FLUTTER_ASSET_DIR_NAME "flutter_assets")
 install(CODE "
   file(REMOVE_RECURSE \"${INSTALL_BUNDLE_DATA_DIR}/${FLUTTER_ASSET_DIR_NAME}\")
@@ -102,7 +96,7 @@ install(CODE "
 install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
   DESTINATION "${INSTALL_BUNDLE_DATA_DIR}" COMPONENT Runtime)
 
-# Install the AOT library on non-Debug builds only.
+# 仅在非 Debug 构建中安装 AOT library。
 install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   CONFIGURATIONS Profile;Release
   COMPONENT Runtime)

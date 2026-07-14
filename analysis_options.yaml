@@ -12,7 +12,7 @@ analyzer:
     unused_import: warning
     unused_local_variable: warning
     dead_code: warning
-    # 将某些 warning 提升为 error，强制零警告
+    # 将部分 warning 提升为错误，强制零警告。
     avoid_print: warning
     prefer_const_constructors: warning
     prefer_const_literals_to_create_immutables: warning
@@ -22,12 +22,12 @@ analyzer:
     - "**/*.freezed.dart"
     - "**/generated/**"
 
-# 排版约定（v0.1.1 Phase 1）
+# 排版约定（v0.1.1 阶段 1）
 # 业务代码应使用 context.textTheme.* 角色而非裸 fontSize。以下情况允许保留裸字号：
-# 1. 微型数字徽标（如 _NumberBadge）—— 尺寸由徽章容器硬限制，主题角色会溢出；
-# 2. 第三方库回调不提供 BuildContext（如 fl_chart 的 getTitlesWidget）；
-# 3. lib/core/theme/text_theme.dart 中 MD3 type scale 的定义本身。
-# 新增裸 fontSize 必须加注释说明理由，否则在 Code Review 中驳回。
+# 1. 微型数字徽标（如 _NumberBadge）：尺寸由徽章容器硬限制，主题角色会溢出。
+# 2. 第三方库回调不提供 BuildContext（如 fl_chart 的 getTitlesWidget）。
+# 3. lib/core/theme/text_theme.dart 中 MD3 字体层级缩放的定义本身。
+# 新增裸 fontSize 必须加注释说明理由，否则在代码 Review 中驳回。
 
 linter:
   rules:
@@ -49,7 +49,7 @@ linter:
     # 代码风格
     always_declare_return_types: true
     always_put_required_named_parameters_first: true
-    # always_require_non_null_named_parameters: true  # Removed in Dart 3.3.0
+    # always_require_non_null_named_parameters: true  # Dart 3.3.0 已移除。
     annotate_overrides: true
     avoid_bool_literals_in_conditional_expressions: true
     avoid_catching_errors: false
@@ -59,7 +59,7 @@ linter:
     avoid_function_literals_in_foreach_calls: true
     avoid_implementing_value_types: true
     avoid_init_to_null: true
-    # avoid_null_checks_in_equality_operators: true  # Deprecated
+    # avoid_null_checks_in_equality_operators: true  # 已弃用。
     avoid_positional_boolean_parameters: true
     avoid_redundant_argument_values: true
     avoid_renaming_method_parameters: true
@@ -95,14 +95,14 @@ linter:
     null_check_on_nullable_type_parameter: true
     only_throw_errors: true
     overridden_fields: true
-    # package_api_docs: false  # Removed in Dart 3.7.0
+    # package_api_docs: false  # Dart 3.7.0 已移除。
     package_prefixed_library_names: true
     prefer_adjacent_string_concatenation: true
     prefer_asserts_in_initializer_lists: true
     prefer_collection_literals: true
     prefer_conditional_assignment: true
     prefer_contains: true
-    # prefer_equal_for_default_values: true  # Removed in Dart 3.0.0
+    # prefer_equal_for_default_values: true  # Dart 3.0.0 已移除。
     prefer_final_fields: true
     prefer_final_in_for_each: true
     prefer_final_locals: true
@@ -154,7 +154,7 @@ linter:
     use_colored_box: true
     use_decorated_box: true
     use_function_type_syntax_for_parameters: true
-    # use_if_null_to_convert_nulls_to_bools: true  # Deprecated
+    # use_if_null_to_convert_nulls_to_bools: true  # 已弃用。
     use_is_even_rather_than_modulo: true
     use_named_constants: true
     use_rethrow_when_possible: true

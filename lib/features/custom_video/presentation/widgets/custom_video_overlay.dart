@@ -1,7 +1,7 @@
-/// Debug overlay for the custom H.264 video line.
+/// 自定义 H.264 视频链路使用的调试覆盖层。
 ///
-/// Shows live statistics: received chunks, decoder state, bridge throughput,
-/// and the last decoder error. Only visible when developer mode is on.
+/// 显示实时统计：已接收块、解码器状态、桥接吞吐量和最近的解码器错误。
+/// 仅在开发者模式开启时可见。
 library;
 
 import 'package:flutter/material.dart';
@@ -10,9 +10,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/responsive/responsive_ext.dart';
 import '../../logic/custom_video_providers.dart';
 
-/// Compact debug overlay positioned over the custom video panel.
+/// 由自定义图传面板定位的紧凑调试覆盖层。
 class CustomVideoOverlay extends ConsumerWidget {
-  /// Creates a [CustomVideoOverlay].
+  /// 创建 [CustomVideoOverlay]。
   const CustomVideoOverlay({super.key});
 
   @override

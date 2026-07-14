@@ -1,4 +1,4 @@
-/// Riverpod provider for the MQTT data recorder.
+/// MQTT 数据记录器使用的 Riverpod Provider。
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,20 +9,19 @@ import '../../dashboard/logic/stream_providers.dart';
 import '../../settings/logic/record_config_provider.dart';
 import '../domain/data_recorder.dart';
 
-/// Records MQTT [ProtobufEnvelope]s into memory-bucketed history.
+/// 将 MQTT [ProtobufEnvelope] 记录到按类型分桶的内存历史中。
 ///
-/// Messages are kept in chronological order and grouped by message type.
-/// When the total count exceeds [DataRecorderState.maxMessages] the oldest
-/// message is evicted.
+/// 消息按时间顺序保留，并按消息类型分组。
+/// 当总数超过 [DataRecorderState.maxMessages] 时，最早的消息会被淘汰。
 class DataRecorderNotifier extends StateNotifier<DataRecorderState> {
-  /// Creates a [DataRecorderNotifier] with an optional [maxMessages] cap.
+  /// 创建带可选 [maxMessages] 上限的 [DataRecorderNotifier]。
   DataRecorderNotifier({int maxMessages = defaultMaxRecordedMessages})
       : super(DataRecorderState(maxMessages: maxMessages));
 
   final List<RecordedMessage> _timeline = [];
   final Map<String, List<RecordedMessage>> _buckets = {};
 
-  /// Starts recording incoming envelopes.
+  /// 开始记录传入的信封。
   void startRecording() {
     if (state.isRecording) return;
     state = state.copyWith(
@@ -31,15 +30,15 @@ class DataRecorderNotifier extends StateNotifier<DataRecorderState> {
     );
   }
 
-  /// Stops recording incoming envelopes.
+  /// 停止记录传入的信封。
   void stopRecording() {
     if (!state.isRecording) return;
     state = state.copyWith(isRecording: false, stopTime: DateTime.now());
   }
 
-  /// Records [envelope] if currently recording.
-  ///
-  /// Automatically evicts the oldest message when the cap is exceeded.
+  /// 如果当前处于记录状态，则保存 [envelope]。
+///
+  /// 超过上限时自动淘汰最早的消息。
   void recordEnvelope(ProtobufEnvelope envelope) {
     if (!state.isRecording) return;
 
@@ -59,7 +58,7 @@ class DataRecorderNotifier extends StateNotifier<DataRecorderState> {
     );
   }
 
-  /// Clears all recorded messages and resets timing.
+  /// 清空所有已记录消息，并重置计时信息。
   void clear() {
     _timeline.clear();
     _buckets.clear();
@@ -77,11 +76,11 @@ class DataRecorderNotifier extends StateNotifier<DataRecorderState> {
   }
 }
 
-/// Global provider for the [DataRecorderNotifier].
+/// 提供 [DataRecorderNotifier] 的全局 Provider。
 ///
-/// - Starts recording automatically when MQTT connects.
-/// - Stops recording when MQTT disconnects.
-/// - Appends every parsed envelope while [DataRecorderState.isRecording] is true.
+/// - MQTT 连接后自动开始记录。
+/// - MQTT 断开后自动停止记录。
+/// - [DataRecorderState.isRecording] 为 true 时追加每个已解析信封。
 final dataRecorderProvider =
     StateNotifierProvider<DataRecorderNotifier, DataRecorderState>((ref) {
   final notifier = DataRecorderNotifier();
@@ -91,9 +90,8 @@ final dataRecorderProvider =
       mqttMessageProvider,
       (_, next) {
         next.whenData((envelope) {
-          // Subscription is already filtered by the record config, but guard
-          // here too: this is the single source of truth for what gets stored,
-          // so config changes mid-session take effect without re-subscribing.
+          // 订阅层已经按记录配置过滤；这里再做一次防护，作为“什么会被存储”的单一判断点。
+          // 这样配置在会话中变更时，不需要重新订阅也能立即生效。
           if (ref.read(recordConfigProvider).isEnabled(envelope.topic)) {
             notifier.recordEnvelope(envelope);
           }

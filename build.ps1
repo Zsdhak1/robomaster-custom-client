@@ -1,5 +1,5 @@
-# RoboMaster 2026 Custom Client Protocol - Protobuf Compiler (PowerShell)
-# Requires: protoc + protoc-gen-dart
+# RoboMaster 2026 自定义客户端协议 - Protobuf 编译脚本（PowerShell）
+# 需要：protoc + protoc-gen-dart
 
 $PROTO_DIR = "protos"
 $OUT_DIR = "lib/generated"

@@ -16,30 +16,61 @@ bool FlutterWindow::OnCreate() {
 
   RECT frame = GetClientArea();
 
-  // The size here must match the window dimensions to avoid unnecessary surface
-  // creation / destruction in the startup path.
+  // 这里的大小必须匹配窗口尺寸，避免启动路径中产生不必要的 surface 创建和销毁。
   flutter_controller_ = std::make_unique<flutter::FlutterViewController>(
       frame.right - frame.left, frame.bottom - frame.top, project_);
-  // Ensure that basic setup of the controller was successful.
+  // 确认控制器的基础设置已成功。
   if (!flutter_controller_->engine() || !flutter_controller_->view()) {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+  RegisterWindowChannel();
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     this->Show();
   });
 
-  // Flutter can complete the first frame before the "show window" callback is
-  // registered. The following call ensures a frame is pending to ensure the
-  // window is shown. It is a no-op if the first frame hasn't completed yet.
+  // Flutter 可能在“显示窗口”回调注册前完成第一帧。
+  // 下面的调用会确保有一帧等待绘制，从而触发窗口显示；如果第一帧尚未完成则为空操作。
   flutter_controller_->ForceRedraw();
 
   return true;
 }
 
+void FlutterWindow::RegisterWindowChannel() {
+  window_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(), "wod_client/window",
+          &flutter::StandardMethodCodec::GetInstance());
+  window_channel_->SetMethodCallHandler(
+      [this](const auto& call, auto result) {
+        const std::string& method = call.method_name();
+        HWND window = GetHandle();
+        if (method == "startDrag") {
+          ReleaseCapture();
+          SendMessage(window, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+          result->Success();
+        } else if (method == "minimize") {
+          ShowWindow(window, SW_MINIMIZE);
+          result->Success();
+        } else if (method == "toggleMaximize") {
+          const bool maximize = !IsZoomed(window);
+          ShowWindow(window, maximize ? SW_MAXIMIZE : SW_RESTORE);
+          result->Success(flutter::EncodableValue(maximize));
+        } else if (method == "isMaximized") {
+          result->Success(flutter::EncodableValue(IsZoomed(window) != FALSE));
+        } else if (method == "close") {
+          PostMessage(window, WM_CLOSE, 0, 0);
+          result->Success();
+        } else {
+          result->NotImplemented();
+        }
+      });
+}
+
 void FlutterWindow::OnDestroy() {
+  window_channel_.reset();
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }
@@ -51,7 +82,7 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
-  // Give Flutter, including plugins, an opportunity to handle window messages.
+  // 让 Flutter 及插件有机会处理窗口消息。
   if (flutter_controller_) {
     std::optional<LRESULT> result =
         flutter_controller_->HandleTopLevelWindowProc(hwnd, message, wparam,

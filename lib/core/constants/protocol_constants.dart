@@ -1,237 +1,246 @@
-/// Protocol constants for RoboMaster 2026 Custom Client.
+/// RoboMaster 2026 自定义客户端协议常量。
 ///
-/// Covers both MQTT 3333 and UDP 3334 link parameters.
-/// All values sourced from official protocol V1.3.1.
+/// 覆盖 MQTT 3333 与 UDP 3334 两条链路的固定参数。
+/// 所有取值均来自官方协议 V1.3.1。
 library;
 
 // ============================================================
-// MQTT Link (3333)
+// MQTT 链路 (3333)
 // ============================================================
 
-/// Default MQTT broker IP address.
+/// 默认 MQTT 代理服务器 IP 地址。
 const String defaultMqttBrokerIp = '192.168.12.1';
 
-/// MQTT broker port number.
+/// MQTT 代理服务器端口号。
 const int defaultMqttPort = 3333;
 
-/// Default client IP address (as per protocol spec).
+/// 默认客户端 IP 地址（协议规范约定）。
 const String defaultClientIp = '192.168.12.2';
 
-/// MQTT connection timeout duration.
+/// MQTT 连接超时时间。
 const Duration mqttConnectionTimeout = Duration(seconds: 5);
 
-/// MQTT keep-alive interval.
+/// MQTT 保活间隔。
 const Duration mqttKeepAliveInterval = Duration(seconds: 20);
 
-/// Auto-reconnect initial delay.
+/// 自动重连初始延迟。
 const Duration mqttReconnectDelay = Duration(seconds: 3);
 
-/// Auto-reconnect max delay cap.
+/// 自动重连最大延迟上限。
 const Duration mqttMaxReconnectDelay = Duration(seconds: 60);
 
-/// MQTT topic prefix for robot-specific messages.
+/// 机器人专属 MQTT 消息的主题前缀。
 const String robotTopicPrefix = 'robot';
 
 // ============================================================
-// MQTT Topics (from protocol §2.1)
+// MQTT 主题（来自协议 §2.1）
 // ============================================================
 
-/// Mouse/keyboard control input topic.
+/// 鼠标/键盘控制输入主题。
 const String topicKeyboardMouseControl = 'KeyboardMouseControl';
 
-/// Custom 30-byte data topic.
+/// 自定义 30 字节数据主题。
 const String topicCustomControl = 'CustomControl';
 
-/// Global game status topic.
+/// 全局比赛状态主题。
 const String topicGameStatus = 'GameStatus';
 
 // ============================================================
-// Game Status Stages (from protocol §2.2.3 current_stage)
+// 比赛状态阶段（来自协议 §2.2.3 current_stage）
 // ============================================================
 
-/// Match has not started.
+/// 比赛尚未开始。
 const int stageNotStarted = 0;
 
-/// Preparation phase.
+/// 准备阶段。
 const int stagePreparation = 1;
 
-/// 15-second referee system self-check phase.
+/// 15 秒裁判系统自检阶段。
 const int stageSelfCheck = 2;
 
-/// 5-second countdown.
+/// 5 秒倒计时阶段。
 const int stageCountdown = 3;
 
-/// Match in progress.
+/// 比赛进行中。
 const int stageInMatch = 4;
 
-/// Match settlement phase.
+/// 比赛结算阶段。
 const int stageSettlement = 5;
 
-/// Standard match duration plus a settlement buffer.
+/// 标准比赛时长加上结算缓冲。
 ///
-/// Standard RoboMaster matches run 7 minutes; the extra 30 seconds gives the
-/// settlement message (stage 5) time to arrive before the disconnect fallback
-/// auto-export fires. Measured from the wall-clock "比赛中" (stage 4) anchor.
+/// 标准 RoboMaster 比赛时长为 7 分钟；额外 30 秒用于在断线降级触发
+/// 自动导出前等待结算消息（阶段 5）到达。计时锚点为本地观察到
+/// “比赛中”（阶段 4）的墙钟时间。
 const Duration matchDurationWithBuffer = Duration(minutes: 7, seconds: 30);
 
-/// Base, outpost and robot status topic.
+/// 基地、前哨站和机器人状态主题。
 const String topicGlobalUnitStatus = 'GlobalUnitStatus';
 
-/// Logistics (economy, tech level) topic.
+/// 后勤 (经济，科技等级) 主题。
 const String topicGlobalLogisticsStatus = 'GlobalLogisticsStatus';
 
-/// Active special mechanisms topic.
+/// 当前特殊机制主题。
 const String topicGlobalSpecialMechanism = 'GlobalSpecialMechanism';
 
-/// Global event notifications topic.
+/// 全局事件通知主题。
 const String topicEvent = 'Event';
 
-/// Robot injury statistics topic.
+/// 机器人受伤统计主题。
 const String topicRobotInjuryStat = 'RobotInjuryStat';
 
-/// Robot respawn status topic.
+/// 机器人复活状态主题。
 const String topicRobotRespawnStatus = 'RobotRespawnStatus';
 
-/// Robot static attributes topic.
+/// 机器人固定属性主题。
 const String topicRobotStaticStatus = 'RobotStaticStatus';
 
-/// Robot real-time data topic.
+/// 机器人实时数据主题。
 const String topicRobotDynamicStatus = 'RobotDynamicStatus';
 
-/// Robot module status topic.
+/// 机器人模块状态主题。
 const String topicRobotModuleStatus = 'RobotModuleStatus';
 
-/// Robot position topic.
+/// 机器人位置主题。
 const String topicRobotPosition = 'RobotPosition';
 
-/// Buff effect topic.
+/// 增益效果主题。
 const String topicBuff = 'Buff';
 
-/// Penalty information topic.
+/// 判罚信息主题。
 const String topicPenaltyInfo = 'PenaltyInfo';
 
-/// Sentry path planning topic.
+/// 哨兵路径规划主题。
 const String topicRobotPathPlanInfo = 'RobotPathPlanInfo';
 
-/// Map click info sync topic.
+/// 地图点击信息同步主题。
 const String topicMapClickInfo = 'MapClickInfo';
 
-/// Map click command topic.
+/// 地图点击命令主题。
 const String topicMapClickCmd = 'MapClickCmd';
 
-/// Radar robot position info topic.
+/// 雷达机器人位置信息主题。
 const String topicRadarInfoToClient = 'RadarInfoToClient';
 
-/// Custom byte block topic.
+/// 自定义字节块主题。
 const String topicCustomByteBlock = 'CustomByteBlock';
 
-/// Assembly command topic.
+/// 工程装配命令主题。
 const String topicAssemblyCommand = 'AssemblyCommand';
 
-/// Tech core motion state topic.
+/// 科技核心运动状态主题。
 const String topicTechCoreMotionStateSync = 'TechCoreMotionStateSync';
 
-/// Performance selection command topic.
+/// 性能体系选择命令主题。
 const String topicRobotPerformanceSelectionCommand =
     'RobotPerformanceSelectionCommand';
 
-/// Performance selection sync topic.
+/// 性能体系选择同步主题。
 const String topicRobotPerformanceSelectionSync =
     'RobotPerformanceSelectionSync';
 
-/// Common command topic.
+/// 通用命令主题。
 const String topicCommonCommand = 'CommonCommand';
 
-/// Hero deploy mode command topic.
+/// 英雄部署模式命令主题。
 const String topicHeroDeployModeEventCommand = 'HeroDeployModeEventCommand';
 
-/// Deploy mode status sync topic.
+/// 部署模式状态同步主题。
 const String topicDeployModeStatusSync = 'DeployModeStatusSync';
 
-/// Rune activation command topic.
+/// 能量机关激活命令主题。
 const String topicRuneActivateCommand = 'RuneActivateCommand';
 
-/// Rune status sync topic.
+/// 能量机关状态同步主题。
 const String topicRuneStatusSync = 'RuneStatusSync';
 
-/// Sentry status sync topic.
+/// 哨兵状态同步主题。
 const String topicSentryStatusSync = 'SentryStatusSync';
 
-/// Dart control command topic.
+/// 飞镖控制命令主题。
 const String topicDartCommand = 'DartCommand';
 
-/// Dart target selection sync topic.
+/// 飞镖目标选择同步主题。
 const String topicDartSelectTargetStatusSync = 'DartSelectTargetStatusSync';
 
-/// Sentry control command topic.
+/// 哨兵控制命令主题。
 const String topicSentryCtrlCommand = 'SentryCtrlCommand';
 
-/// Sentry control result topic.
+/// 哨兵控制结果主题。
 const String topicSentryCtrlResult = 'SentryCtrlResult';
 
-/// Air support command topic.
+/// 空中支援命令主题。
 const String topicAirSupportCommand = 'AirSupportCommand';
 
-/// Air support status sync topic.
+/// 空中支援状态同步主题。
 const String topicAirSupportStatusSync = 'AirSupportStatusSync';
 
+/// 通知规则引擎正常工作必须接收的主题。
+///
+/// 即使用户在记录配置中关闭这些主题，也仍需订阅；记录层可独立决定是否写入文件。
+const Set<String> notificationRequiredTopics = {
+  topicGameStatus,
+  topicGlobalUnitStatus,
+  topicEvent,
+  topicDeployModeStatusSync,
+  topicRobotModuleStatus,
+};
+
 // ============================================================
-// UDP Video Stream (3334)
+// UDP 视频流 (3334)
 // ============================================================
 
-/// UDP video stream listen port.
+/// UDP 视频流监听端口。
 const int defaultUdpVideoPort = 3334;
 
-/// UDP packet header size in bytes.
-/// Format: frame_id(2) + packet_id(2) + frame_size(4) = 8 bytes.
+/// UDP 包头长度，单位为字节。
+/// 格式：frame_id(2) + packet_id(2) + frame_size(4) = 8 字节。
 const int udpPacketHeaderSize = 8;
 
-/// Offset of frame_id field within UDP header.
+/// UDP 包头内 frame_id 字段的偏移。
 const int udpFrameIdOffset = 0;
 
-/// Size of frame_id field in bytes.
+/// frame_id 字段长度，单位为字节。
 const int udpFrameIdSize = 2;
 
-/// Offset of packet_id field within UDP header.
+/// UDP 包头内 packet_id 字段的偏移。
 const int udpPacketIdOffset = 2;
 
-/// Size of packet_id field in bytes.
+/// packet_id 字段长度，单位为字节。
 const int udpPacketIdSize = 2;
 
-/// Offset of frame_size field within UDP header.
+/// UDP 包头内 frame_size 字段的偏移。
 const int udpFrameSizeOffset = 4;
 
-/// Size of frame_size field in bytes.
+/// frame_size 字段长度，单位为字节。
 const int udpFrameSizeSize = 4;
 
-/// HEVC AnnexB start code prefix (4 bytes).
+/// HEVC AnnexB 起始码前缀（4 字节）。
 const List<int> annexbStartCode = [0x00, 0x00, 0x00, 0x01];
 
-/// Alternative AnnexB start code prefix (3 bytes).
+/// 另一种 AnnexB 起始码前缀（3 字节）。
 const List<int> annexbStartCodeShort = [0x00, 0x00, 0x01];
 
 // ============================================================
-// Video Frame Reassembly
+// 视频帧重组
 // ============================================================
 
-/// Maximum number of frames to cache simultaneously.
+/// 同时缓存的最大帧数。
 ///
-/// Must be large enough to hold an in-progress keyframe (which can span ~90
-/// UDP fragments and arrives interleaved with many small inter-frames) without
-/// evicting it. The reference client keeps frames effectively unbounded; 64 is
-/// a safe bound that still caps memory.
+/// 该值必须足够容纳正在重组的关键帧。关键帧可能包含约 90 个 UDP 分片，
+/// 并与多个较小的帧交错到达，过早淘汰会导致解码器拿不到参数集。
+/// 参考客户端近似无限缓存；这里用 64 作为有界但相对安全的内存上限。
 const int maxCachedFrames = 64;
 
-/// Timeout for incomplete frame reassembly.
+/// 未完成帧重组的超时时间。
 ///
-/// A large keyframe (~128 KB / ~90 fragments) needs time to fully arrive. The
-/// previous 200 ms was too tight — the keyframe carrying VPS/SPS/PPS was
-/// dropped before completing, so the decoder never received parameter sets and
-/// produced no picture. The reference client effectively never times out.
+/// 大关键帧（约 128 KB / 90 个分片）需要更长时间才能完整到达。
+/// 早先的 200 ms 过紧，携带 VPS/SPS/PPS 的关键帧会在完成前被丢弃，
+/// 导致解码器始终拿不到参数集、无法出图。参考客户端实际上不会超时输出。
 const Duration frameReassemblyTimeout = Duration(milliseconds: 1000);
 
-/// Maximum expected frame size in bytes (HEVC 1080p ~ 4MB).
+/// 预期最大帧大小，单位为字节（HEVC 1080p 约 4MB）。
 const int maxFrameSizeBytes = 4 * 1024 * 1024;
 
-/// Maximum UDP payload size.
+/// 最大 UDP 载荷大小。
 const int maxUdpPayloadSize = 65507;
