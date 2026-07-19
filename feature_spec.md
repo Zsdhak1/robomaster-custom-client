@@ -24,8 +24,9 @@
 | 项 | 当前结论 |
 |---|---|
 | 当前版本 | `0.1.3`，通知与比赛规则可配置化已完整实现；版本号以 `pubspec.yaml` 为唯一权威。 |
-| 当前状态 | `v0.1.3 Phase 1–11` 已完成；全局界面已接入 MiSans 常用字重，桌面设置返回按钮命中区与二级页面过渡叠层已修复。`flutter analyze` 零问题，MiSans 主题测试通过；上一轮 178 项全量测试通过，当前状态为已实现、待发布。 |
-| 历史待办 | `v0.0.1 Phase 3, Task 3.5` 是历史遗留未交付项，不是当前默认下一任务；只有用户点名赛后分析看板时再接。 |
+| 当前状态 | `v0.1.3 Phase 1–12` 已完成；全局界面已接入 MiSans 常用字重，桌面设置返回按钮命中区、二级页面过渡叠层与 Windows 发布构建均已修复。`flutter analyze` 零问题，MiSans 主题测试通过；上一轮 178 项全量测试通过，当前状态为已实现、待发布。 |
+| 长期路线 | 已确认的候选路线为 `v0.1.4` 至 `v0.2.2`，详见 `docs/superpowers/specs/2026-07-19-long-term-development-roadmap-design.md`；候选版本未启动前不进入开发进度表、Changelog、`pubspec.yaml` 或 git tag。 |
+| 历史待办 | `v0.0.1 Phase 3, Task 3.5` 是历史遗留未交付项，已纳入候选 `v0.2.0` 赛后分析看板方向；该版本启动时必须先运行 brainstorming，当前不作为默认下一任务。 |
 | 主要链路 | 官方线：MQTT 3333 + UDP 3334 HEVC；自定义图传线：MQTT `CustomByteBlock` / `0x0310` + H.264 + 独立 TCP 解码桥。 |
 | 设计现状 | v0.1.1 已完成 Typography、Color、Layout、Elevation、Motion 的 MD3 收口；继续 UI 工作时先复用现有 theme/responsive/provider。 |
 | 验证命令 | 每次文件写入后运行 `flutter analyze`；改动 Dart 逻辑时补跑最小相关测试，发布前跑 `flutter test`。 |
