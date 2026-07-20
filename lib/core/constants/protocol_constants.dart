@@ -170,6 +170,21 @@ const int assemblyOperationCancel = 2;
 /// 单次远程兑换弹丸请求的发弹量。
 const int remoteAmmoExchangeRounds = 100;
 
+/// 科技核心尚未开始运动的基础状态值。
+const int techCoreBasicStateInitial = 1;
+
+/// 科技核心正在运动的基础状态值。
+const int techCoreBasicStateMoving = 2;
+
+/// 科技核心已经到达的基础状态值。
+const int techCoreBasicStateArrived = 3;
+
+/// 科技核心单个装配步骤已经完成的状态值。
+const int techCoreStepCompleted = 1;
+
+/// 科技核心协议允许展示的最高装配难度。
+const int maximumTechCoreDifficulty = 4;
+
 /// 英雄部署模式命令主题。
 const String topicHeroDeployModeEventCommand = 'HeroDeployModeEventCommand';
 

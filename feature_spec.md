@@ -62,9 +62,9 @@
 
 | # | Task | 描述 | 产出文件 | 状态 |
 |---|------|------|----------|------|
-| v0.1.4 Phase 2, Task 1 | 操作面板状态模型 | 定义身份类别、远程操作可用状态、单次脉冲序号、科技核心步骤、自动确认状态和结构化反馈模型 | `lib/features/dashboard/domain/operation_panel_state.dart` | `[ ]` |
-| v0.1.4 Phase 2, Task 2 | 状态与重发控制器 | 监听 `RobotDynamicStatus`、`TechCoreMotionStateSync`、登录身份和 MQTT 连接；管理开始兑换/确认装配重发，并在完成、取消、流程复位、断线、身份切换或释放时停止 | `lib/features/dashboard/logic/operation_panel_controller.dart` | `[ ]` |
-| v0.1.4 Phase 2, Task 3 | 控制器测试 | 覆盖首帧不脉冲、false→true 单次脉冲、身份重置、最高难度、流程进入/完成/复位及所有定时任务停止条件 | `test/operation_panel_controller_test.dart` | `[ ]` |
+| v0.1.4 Phase 2, Task 1 | 操作面板状态模型 | 定义身份类别、远程操作可用状态、单次脉冲序号、科技核心步骤、自动确认状态和结构化反馈模型 | `lib/features/dashboard/domain/operation_panel_state.dart` | `[x]` |
+| v0.1.4 Phase 2, Task 2 | 状态与重发控制器 | 监听 `RobotDynamicStatus`、`TechCoreMotionStateSync`、登录身份和 MQTT 连接；管理开始兑换/确认装配重发，并在完成、取消、流程复位、断线、身份切换或释放时停止 | `lib/features/dashboard/logic/operation_panel_controller.dart` | `[x]` |
+| v0.1.4 Phase 2, Task 3 | 控制器测试 | 覆盖首帧不脉冲、false→true 单次脉冲、身份重置、最高难度、流程进入/完成/复位及所有定时任务停止条件 | `test/operation_panel_controller_test.dart` | `[x]` |
 
 **Phase 2 验收标准：** 操作状态完全由真实协议消息和显式用户操作驱动；定时发送不依赖 Widget 生命周期变量；首次状态快照不误触发脉冲；未知状态安全禁用操作。
 
