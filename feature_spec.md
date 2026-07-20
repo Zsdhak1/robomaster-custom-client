@@ -9,7 +9,7 @@
 | 目标平台   | Android, Linux Desktop, Windows Desktop |
 | 状态管理   | flutter_riverpod              |
 | 图表库    | fl_chart                      |
-| 当前版本   | 0.1.3（以 `pubspec.yaml` 为准） |
+| 当前版本   | 0.1.4（以 `pubspec.yaml` 为准） |
 
 > **架构说明：** 本监控客户端仅对接自定义客户端的两条标准链路：
 > 1. **MQTT 3333** — 控制指令、配置、比赛状态与事件（Protobuf 序列化）
@@ -23,9 +23,9 @@
 
 | 项 | 当前结论 |
 |---|---|
-| 当前版本 | `0.1.3`，通知与比赛规则可配置化已完整实现；版本号以 `pubspec.yaml` 为唯一权威。 |
-| 当前状态 | `v0.1.3 Phase 1–12` 已完成；全局界面已接入 MiSans 常用字重，桌面设置返回按钮命中区、二级页面过渡叠层与 Windows 发布构建均已修复。`flutter analyze` 零问题，MiSans 主题测试通过；上一轮 178 项全量测试通过，当前状态为已实现、待发布。 |
-| 长期路线 | 已确认的候选路线为 `v0.1.4` 至 `v0.2.2`，详见 `docs/superpowers/specs/2026-07-19-long-term-development-roadmap-design.md`；候选版本未启动前不进入开发进度表、Changelog、`pubspec.yaml` 或 git tag。 |
+| 当前版本 | `0.1.4`，操作面板规则校正与协议状态接入已经启动；版本号以 `pubspec.yaml` 为唯一权威。 |
+| 当前状态 | `v0.1.4 Phase 1–4` 已登记、待按顺序实施；上一正式实现版本 `v0.1.3 Phase 1–12` 已完成，上一轮全量回归为 178 项通过。 |
+| 长期路线 | `v0.1.4` 已从候选路线转为当前开发版本；`v0.1.5` 至 `v0.2.2` 仍为候选，详见 `docs/superpowers/specs/2026-07-19-long-term-development-roadmap-design.md`。 |
 | 历史待办 | `v0.0.1 Phase 3, Task 3.5` 是历史遗留未交付项，已纳入候选 `v0.2.0` 赛后分析看板方向；该版本启动时必须先运行 brainstorming，当前不作为默认下一任务。 |
 | 主要链路 | 官方线：MQTT 3333 + UDP 3334 HEVC；自定义图传线：MQTT `CustomByteBlock` / `0x0310` + H.264 + 独立 TCP 解码桥。 |
 | 设计现状 | v0.1.1 已完成 Typography、Color、Layout、Elevation、Motion 的 MD3 收口；继续 UI 工作时先复用现有 theme/responsive/provider。 |
@@ -39,6 +39,59 @@
 > **AI 执行指令：** 按 Phase 顺序逐个完成，在每个Phase开始前，必须询问用户这个Phase的具体执行方式，确认用户需求理解无误之后开始具体执行。每完成一个 Task，在状态列标记 `[x]`，运行 `flutter analyze` 确认零警告，执行自审计检查清单，然后自动进入下一个 Task。严禁跳过 Phase。
 
 > **版本化规范：** 开发进度以**版本号为顶层迭代单元**。每个版本（如 `v0.1.0`）是一次独立迭代，其内部 Phase 与 Task 从 `Phase 1, Task 1` 重新编号。在本表登记或更新任务时，**必须在功能描述前标注其所属版本号 + Phase + Task**，格式为 `vX.Y.Z Phase N, Task M`（例：`v0.1.0 Phase 1, Task 1`）。版本号须与 `pubspec.yaml` 的 `version` 字段、附录 E Changelog、git tag 三者一致（见附录 E.1）。**历史版本（v0.0.1 / v0.0.2）保留其原始 Phase 编号以便追溯**，新版本（v0.1.0 起）一律从 Phase 1 Task 1 起编。
+
+---
+
+### v0.1.4 — 操作面板规则校正与协议状态接入（2026-07-20）
+
+> **状态：实施计划已确认，开发中。** 本版本只修复和补齐现有操作面板：校正常规/远程兑换指令，移除副屏复活确认，使用机器人动态状态控制远程操作，并用科技核心状态驱动工程兑换/装配流程。详细执行清单见 `docs/superpowers/plans/2026-07-20-v014-operation-panel.md`。
+
+#### Phase 1: 指令边界与协议常量
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.1.4 Phase 1, Task 1 | 操作指令常量 | 为 17mm/42mm、远程回血/买弹和工程开始/确认/取消提取命名协议常量，明确远程买弹最小单位 100 发 | `lib/core/constants/protocol_constants.dart` | `[ ]` |
+| v0.1.4 Phase 1, Task 2 | MQTT 操作指令服务 | 将 `CommonCommand` / `AssemblyCommand` 构建和发布移出 Widget，提供可注入发布函数和角色明确的方法 | `lib/features/dashboard/data/operation_command_service.dart` | `[ ]` |
+| v0.1.4 Phase 1, Task 3 | 指令服务测试 | 验证每个方法的 Topic、Protobuf 类型、`cmd_type`、`operation`、难度和数量参数 | `test/operation_command_service_test.dart` | `[ ]` |
+
+**Phase 1 验收标准：** Widget 不再直接构建或发布操作 Protobuf；英雄 42mm 使用命令类型 2，远程买弹使用参数 100；指令服务测试覆盖全部保留操作。
+
+---
+
+#### Phase 2: 操作状态控制器与协议同步
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.1.4 Phase 2, Task 1 | 操作面板状态模型 | 定义身份类别、远程操作可用状态、单次脉冲序号、科技核心步骤、自动确认状态和结构化反馈模型 | `lib/features/dashboard/domain/operation_panel_state.dart` | `[ ]` |
+| v0.1.4 Phase 2, Task 2 | 状态与重发控制器 | 监听 `RobotDynamicStatus`、`TechCoreMotionStateSync`、登录身份和 MQTT 连接；管理开始兑换/确认装配重发，并在完成、取消、流程复位、断线、身份切换或释放时停止 | `lib/features/dashboard/logic/operation_panel_controller.dart` | `[ ]` |
+| v0.1.4 Phase 2, Task 3 | 控制器测试 | 覆盖首帧不脉冲、false→true 单次脉冲、身份重置、最高难度、流程进入/完成/复位及所有定时任务停止条件 | `test/operation_panel_controller_test.dart` | `[ ]` |
+
+**Phase 2 验收标准：** 操作状态完全由真实协议消息和显式用户操作驱动；定时发送不依赖 Widget 生命周期变量；首次状态快照不误触发脉冲；未知状态安全禁用操作。
+
+---
+
+#### Phase 3: 操作面板界面接入
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.1.4 Phase 3, Task 1 | 文案与组件拆分 | 集中操作面板 UI 文案，拆分通用按钮、脉冲外框、英雄/步兵区和工程状态区，保证单函数不超过 50 行 | `lib/features/dashboard/presentation/operation_panel_strings.dart`, `lib/features/dashboard/presentation/widgets/operation_panel_sections.dart` | `[ ]` |
+| v0.1.4 Phase 3, Task 2 | 英雄/步兵操作接入 | 复用控制器发送常规兑换、远程回血/买弹；移除复活按钮；未知/不可用状态禁用并显示准确原因；可用转换播放一次低强度脉冲 | `lib/features/dashboard/presentation/widgets/operation_panel.dart` | `[ ]` |
+| v0.1.4 Phase 3, Task 3 | 工程状态界面 | 展示最高难度、基础运动状态、放入/平移/旋转步骤及总/步骤剩余时间；接入开始兑换、自动确认和取消操作 | `lib/features/dashboard/presentation/widgets/operation_panel.dart`, `operation_panel_sections.dart` | `[ ]` |
+| v0.1.4 Phase 3, Task 4 | 组件测试 | 覆盖英雄/步兵无复活按钮、远程按钮禁用/启用、单次脉冲、工程步骤和窄高度无溢出 | `test/operation_panel_test.dart` | `[ ]` |
+
+**Phase 3 验收标准：** 操作面板只通过 Controller 修改状态；所有登录身份显示正确控件；远程操作和工程流程均由协议状态驱动；现有 Material 3 触控、hover、focus、pressed、disabled 反馈保持有效。
+
+---
+
+#### Phase 4: 回归、自审与文档收口
+
+| # | Task | 描述 | 产出文件 | 状态 |
+|---|------|------|----------|------|
+| v0.1.4 Phase 4, Task 1 | 相关回归 | 运行操作指令、控制器、操作面板、比赛状态和通知运行时相关测试，修复回归 | `test/operation_*_test.dart`, `test/game_state_notifier_test.dart`, `test/notification_runtime_test.dart` | `[ ]` |
+| v0.1.4 Phase 4, Task 2 | 全量验证与自审 | 运行格式化、`flutter analyze` 和全量 `flutter test`；检查函数长度、状态分层、字符串常量、异步错误和平台兼容 | 验证结果 | `[ ]` |
+| v0.1.4 Phase 4, Task 3 | 版本文档收口 | 更新接手摘要、任务状态、验收结果、文档版本和附录 E Changelog；保持 pubspec、进度表和发布版本一致 | `feature_spec.md` | `[ ]` |
+
+**v0.1.4 验收标准：** 所有保留操作使用正确协议参数；副屏不提供复活确认；远程回血/买弹由协议字段控制并在首次变为可用时仅脉冲一次；工程界面展示真实科技核心状态且重发任务在全部终止条件下停止；`flutter analyze` 零问题且全量测试通过。
 
 ---
 
@@ -887,6 +940,7 @@ class VideoFrame {
 
 | 版本 | 日期 | 变更摘要 |
 |------|------|----------|
+| 0.1.4 | 2026-07-20 | 文档 启动操作面板规则校正与协议状态接入版本，登记 v0.1.4 Phase 1–4 实施计划；实现完成后在本行补充实际新增、修复与优化内容 |
 | 0.1.3 | 2026-07-13 | 新增 可跨页面显示的 INFO/CRITICAL 通知运行时、独立位置与关闭策略、会话历史、系统声音和 Android 震动；新增 设置页 INFO、CRITICAL 与全部事件类型的手动通知测试入口，测试使用当前档案反馈和展示策略但绕过开关与冷却；新增 通知总览、事件级设置、斩杀线、复活公式、部署跳转、连接质量与档案选择的逐项作用说明，统一使用 MD3 辅助文本层级；新增 英雄部署模式 0→1 三秒倒计时、取消/立即进入、本场抑制、自定义图传预启动与失败降级；新增 三种敌方斩杀线、免费复活公式、买活/普通复活/己方复活与装配事件判定；新增 MQTT 断开/重连、连接质量防抖恢复和机器人模块断联/恢复通知；新增 通知与比赛规则版本化配置档案、JSON 导入导出、持久化设置与完整 Material 3 配置表单；修复 AppShell 非默认初始页面的 Riverpod 构建期写入、部署准备期间取消后的异步竞态和导航失败反馈；修复 AppShell 宽屏内容区因未纵向拉伸而折叠为零高度的启动空白；修复 设置详情区内嵌 Navigator 在当前 Flutter 页面 API 下缺少移除回调的断言；修复 Windows 顶部拖动层覆盖设置返回按钮中心以及通知二级页进入动画新旧内容透叠；优化 通知设置由单页长列表重构为两组目录和六个二级页面，兼容紧凑全屏与桌面详情区导航；优化 通知规则引擎拆分、必需主题订阅与 178 项全量回归；优化 全局普通界面文字统一使用随应用打包的 MiSans，覆盖 400、500、600、700、900 字重并保留调试数据等宽字体；修复 Dashboard 机器人列表、连接质量与操作面板裁切；修复 最大化工作区轻微超宽时画布产生左右白边、视频页侧栏血量列表越界；优化 Windows 窗口控件为页面内悬浮叠加，不再占用独立标题栏高度；修复 GitHub Actions Windows 构建因 fvp 0.37.2 在插件符号链接目录解压 MDK SDK 被新版 CMake 拒绝，升级至 fvp 0.37.3 使用真实路径解压 |
 | 0.1.2 | 2026-07-12 | 新增 仪表盘整行血量卡片、亚克力信息层、预计击杀弹丸量及可配置命中率/弹丸伤害/机器人血量上限；新增 比赛详情与录制状态面板；优化 无血量遥测时使用从左到右的扫描光晕提示血条区域；优化 底部四面板布局与 MD3 原生操作按钮；优化 Windows/Linux 固定设计画布整体等比缩放；修复 高分辨率全屏时固定画布不放大及多页面共享 FAB 默认 Hero tag 冲突 |
 | 0.1.1 | 2026-07-03 | 修复 稳定性审查问题：MQTT 自动重连保留用户实际 broker/port，手动断开后再次连接恢复自动重连，并忽略旧客户端迟到回调；修复 UDP/自定义图传启动失败后的资源回滚与迟到数据保护；优化 Android 安装包下载超时与打开链接异常兜底 |
@@ -958,7 +1012,7 @@ class VideoFrame {
 
 ---
 
-*文档版本：v2.16（完成 v0.1.3 Phase 10 桌面设置导航交互修复，并记录 178 项全量回归）*
+*文档版本：v2.17（启动 v0.1.4 操作面板规则校正与协议状态接入）*
 *适配协议：RoboMaster 2026 自定义客户端协议（MQTT 3333 + UDP 3334）*
 *参考依据：V1.3.1 第2章 + 自定义客户端 UDP 流问答 + 0x0310 抓包分析 + MD3 合规审计（2026-06-23）*
-*修正日期：2026-07-13*
+*修正日期：2026-07-20*
