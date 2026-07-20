@@ -62,3 +62,6 @@ _*.txt
 validationscreenshot/
 test_data/
 新建 文本文档.txt
+
+# Local Git worktrees
+/.worktrees/
