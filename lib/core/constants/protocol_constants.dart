@@ -142,6 +142,34 @@ const String topicRobotPerformanceSelectionSync =
 /// 通用命令主题。
 const String topicCommonCommand = 'CommonCommand';
 
+// ============================================================
+// 操作面板指令参数（来自协议 §2.2.21 / §2.2.25）
+// ============================================================
+
+/// 兑换 17mm 弹丸的通用指令类型。
+const int commonCommandExchange17mm = 1;
+
+/// 兑换 42mm 弹丸的通用指令类型。
+const int commonCommandExchange42mm = 2;
+
+/// 远程兑换弹丸的通用指令类型。
+const int commonCommandRemoteAmmo = 5;
+
+/// 远程兑换血量的通用指令类型。
+const int commonCommandRemoteHeal = 6;
+
+/// 开始工程兑换流程的装配操作类型。
+const int assemblyOperationStartExchange = 0;
+
+/// 确认工程装配的操作类型。
+const int assemblyOperationConfirm = 1;
+
+/// 取消工程装配的操作类型。
+const int assemblyOperationCancel = 2;
+
+/// 单次远程兑换弹丸请求的发弹量。
+const int remoteAmmoExchangeRounds = 100;
+
 /// 英雄部署模式命令主题。
 const String topicHeroDeployModeEventCommand = 'HeroDeployModeEventCommand';
 

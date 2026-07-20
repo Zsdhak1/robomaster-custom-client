@@ -50,9 +50,9 @@
 
 | # | Task | 描述 | 产出文件 | 状态 |
 |---|------|------|----------|------|
-| v0.1.4 Phase 1, Task 1 | 操作指令常量 | 为 17mm/42mm、远程回血/买弹和工程开始/确认/取消提取命名协议常量，明确远程买弹最小单位 100 发 | `lib/core/constants/protocol_constants.dart` | `[ ]` |
-| v0.1.4 Phase 1, Task 2 | MQTT 操作指令服务 | 将 `CommonCommand` / `AssemblyCommand` 构建和发布移出 Widget，提供可注入发布函数和角色明确的方法 | `lib/features/dashboard/data/operation_command_service.dart` | `[ ]` |
-| v0.1.4 Phase 1, Task 3 | 指令服务测试 | 验证每个方法的 Topic、Protobuf 类型、`cmd_type`、`operation`、难度和数量参数 | `test/operation_command_service_test.dart` | `[ ]` |
+| v0.1.4 Phase 1, Task 1 | 操作指令常量 | 为 17mm/42mm、远程回血/买弹和工程开始/确认/取消提取命名协议常量，明确远程买弹最小单位 100 发 | `lib/core/constants/protocol_constants.dart` | `[x]` |
+| v0.1.4 Phase 1, Task 2 | MQTT 操作指令服务 | 将 `CommonCommand` / `AssemblyCommand` 构建和发布移出 Widget，提供可注入发布函数和角色明确的方法 | `lib/features/dashboard/data/operation_command_service.dart` | `[x]` |
+| v0.1.4 Phase 1, Task 3 | 指令服务测试 | 验证每个方法的 Topic、Protobuf 类型、`cmd_type`、`operation`、难度和数量参数 | `test/operation_command_service_test.dart` | `[x]` |
 
 **Phase 1 验收标准：** Widget 不再直接构建或发布操作 Protobuf；英雄 42mm 使用命令类型 2，远程买弹使用参数 100；指令服务测试覆盖全部保留操作。
 
