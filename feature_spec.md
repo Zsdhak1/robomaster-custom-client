@@ -74,10 +74,10 @@
 
 | # | Task | 描述 | 产出文件 | 状态 |
 |---|------|------|----------|------|
-| v0.1.4 Phase 3, Task 1 | 文案与组件拆分 | 集中操作面板 UI 文案，拆分通用按钮、脉冲外框、英雄/步兵区和工程状态区，保证单函数不超过 50 行 | `lib/features/dashboard/presentation/operation_panel_strings.dart`, `lib/features/dashboard/presentation/widgets/operation_panel_sections.dart` | `[ ]` |
-| v0.1.4 Phase 3, Task 2 | 英雄/步兵操作接入 | 复用控制器发送常规兑换、远程回血/买弹；移除复活按钮；未知/不可用状态禁用并显示准确原因；可用转换播放一次低强度脉冲 | `lib/features/dashboard/presentation/widgets/operation_panel.dart` | `[ ]` |
-| v0.1.4 Phase 3, Task 3 | 工程状态界面 | 展示最高难度、基础运动状态、放入/平移/旋转步骤及总/步骤剩余时间；接入开始兑换、自动确认和取消操作 | `lib/features/dashboard/presentation/widgets/operation_panel.dart`, `operation_panel_sections.dart` | `[ ]` |
-| v0.1.4 Phase 3, Task 4 | 组件测试 | 覆盖英雄/步兵无复活按钮、远程按钮禁用/启用、单次脉冲、工程步骤和窄高度无溢出 | `test/operation_panel_test.dart` | `[ ]` |
+| v0.1.4 Phase 3, Task 1 | 文案与组件拆分 | 集中操作面板 UI 文案，拆分通用按钮、脉冲外框、英雄/步兵区和工程状态区，保证单函数不超过 50 行 | `lib/features/dashboard/presentation/operation_panel_strings.dart`, `lib/features/dashboard/presentation/widgets/operation_panel_sections.dart` | `[x]` |
+| v0.1.4 Phase 3, Task 2 | 英雄/步兵操作接入 | 复用控制器发送常规兑换、远程回血/买弹；移除复活按钮；未知/不可用状态禁用并显示准确原因；可用转换播放一次低强度脉冲 | `lib/features/dashboard/presentation/widgets/operation_panel.dart` | `[x]` |
+| v0.1.4 Phase 3, Task 3 | 工程状态界面 | 展示最高难度、基础运动状态、放入/平移/旋转步骤及总/步骤剩余时间；接入开始兑换、自动确认和取消操作 | `lib/features/dashboard/presentation/widgets/operation_panel.dart`, `operation_panel_sections.dart` | `[x]` |
+| v0.1.4 Phase 3, Task 4 | 组件测试 | 覆盖英雄/步兵无复活按钮、远程按钮禁用/启用、单次脉冲、工程步骤和窄高度无溢出 | `test/operation_panel_test.dart` | `[x]` |
 
 **Phase 3 验收标准：** 操作面板只通过 Controller 修改状态；所有登录身份显示正确控件；远程操作和工程流程均由协议状态驱动；现有 Material 3 触控、hover、focus、pressed、disabled 反馈保持有效。
 
