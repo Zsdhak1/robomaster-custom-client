@@ -50,3 +50,33 @@
 
 - worktree 中已有 7 个 Flutter 平台生成文件改动，不属于 Task 4，保持未暂存且未提交。
 - `test/notification_rule_profile_test.dart` 在基线提交中已包含 INFO/CRITICAL 官方默认值断言，因此本任务只运行并验证该文件，没有重复改写。
+
+## 审查修复（2026-07-22）
+
+### RED
+
+- 精确命令：`flutter test test/notification_rule_engine_test.dart --plain-name "respawn"`
+- 结果：失败，14 项复活测试中 12 项通过、2 项失败。
+- 预期失败：
+  - 倒置配置 `acceleratedProgressPerSecond < normalProgressPerSecond` 时，最快边界错误地变成 10 秒，而非安全规范化后的 2.5 秒。
+  - `buybackDetectionEnabled = false` 时，普通免费复活错误地降级为“复活方式不确定”。
+- 同轮新增的连续战亡回归已通过，确认当前基线中普通、加速和缺数据不确定分支未增加买活惩罚，明确付费分支会影响下一次所需进度。
+
+### GREEN
+
+- 精确命令：`flutter test test/notification_rule_engine_test.dart --plain-name "respawn"`
+  - 结果：14 项全部通过。
+- 精确命令：`flutter test test/notification_rule_engine_test.dart test/notification_rule_profile_test.dart`
+  - 结果：28 项全部通过。
+- 精确命令：`flutter analyze`
+  - 结果：`No issues found!`
+
+### 修复内容
+
+- 使用普通速率与配置加速速率的较大值计算最快免费复活边界，保证 `fastest <= normal`，避免倒置自定义配置误报付费 CRITICAL 或污染买活计数。
+- `buybackDetectionEnabled` 仅关闭付费识别：普通与加速免费复活继续分类，只有本应判为付费的分支降级为方式不确定。
+- 新增连续两次战亡测试：普通、加速与缺数据不确定均不增加 `priorBuybackCount`；明确付费会增加惩罚，使下一次 12 秒复活仍落入加速免费区间。
+
+### 新提交
+
+- `b177e19` — `fix: harden enemy respawn classification`
