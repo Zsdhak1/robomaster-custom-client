@@ -24,10 +24,12 @@ void main() {
 
     expect(find.text('事件时间轴'), findsOneWidget);
 
-    controller.observe(const ModuleStatusReading({
-      RobotModuleType.videoTransmission: ModuleAvailability.offline,
-      RobotModuleType.armor: ModuleAvailability.online,
-    }));
+    controller.observe(
+      const ModuleStatusReading({
+        RobotModuleType.videoTransmission: ModuleAvailability.offline,
+        RobotModuleType.armor: ModuleAvailability.online,
+      }),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('模块状态'), findsOneWidget);
@@ -38,9 +40,11 @@ void main() {
       lessThan(tester.getTopLeft(find.text('装甲模块')).dy),
     );
 
-    controller.observe(const ModuleStatusReading({
-      RobotModuleType.videoTransmission: ModuleAvailability.online,
-    }));
+    controller.observe(
+      const ModuleStatusReading({
+        RobotModuleType.videoTransmission: ModuleAvailability.online,
+      }),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('事件时间轴'), findsOneWidget);
@@ -50,20 +54,21 @@ void main() {
     tester,
   ) async {
     final controller = ModuleStatusMonitorController();
-    final disabledProfile = NotificationRuleProfile.official()
-        .withEventSetting(
-          NotificationEventType.moduleDisconnected,
-          const NotificationEventSetting(enabled: false),
-        );
+    final disabledProfile = NotificationRuleProfile.official().withEventSetting(
+      NotificationEventType.moduleDisconnected,
+      const NotificationEventSetting(enabled: false),
+    );
     await _pumpSidePanel(
       tester,
       controller: controller,
       profile: disabledProfile,
     );
 
-    controller.observe(const ModuleStatusReading({
-      RobotModuleType.videoTransmission: ModuleAvailability.offline,
-    }));
+    controller.observe(
+      const ModuleStatusReading({
+        RobotModuleType.videoTransmission: ModuleAvailability.offline,
+      }),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('模块状态'), findsOneWidget);
@@ -74,14 +79,12 @@ void main() {
   ) async {
     final controller = ModuleStatusMonitorController();
     final gameState = GameStateNotifier();
-    await _pumpSidePanel(
-      tester,
-      controller: controller,
-      gameState: gameState,
+    await _pumpSidePanel(tester, controller: controller, gameState: gameState);
+    controller.observe(
+      const ModuleStatusReading({
+        RobotModuleType.videoTransmission: ModuleAvailability.offline,
+      }),
     );
-    controller.observe(const ModuleStatusReading({
-      RobotModuleType.videoTransmission: ModuleAvailability.offline,
-    }));
     await tester.pumpAndSettle();
 
     final event = Event(eventId: 14, param: '');
@@ -94,9 +97,11 @@ void main() {
         timestamp: DateTime(2026, 7, 22, 12),
       ),
     );
-    controller.observe(const ModuleStatusReading({
-      RobotModuleType.videoTransmission: ModuleAvailability.online,
-    }));
+    controller.observe(
+      const ModuleStatusReading({
+        RobotModuleType.videoTransmission: ModuleAvailability.online,
+      }),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('四级装配请求'), findsOneWidget);

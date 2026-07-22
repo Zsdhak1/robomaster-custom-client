@@ -58,8 +58,14 @@ void _registerRespawnTests() {
   );
   test('classifies a paid respawn', _testPaidRespawn);
   test('uses protocol robot number in enemy respawn title', _testRespawnTitle);
-  test('applies tolerance before classifying paid respawn', _testRespawnTolerance);
-  test('keeps respawn method uncertain when timing is missing', _testUncertainRespawn);
+  test(
+    'applies tolerance before classifying paid respawn',
+    _testRespawnTolerance,
+  );
+  test(
+    'keeps respawn method uncertain when timing is missing',
+    _testUncertainRespawn,
+  );
   test('normalizes an inverted accelerated rate', _testInvertedRespawnRates);
   test(
     'keeps classifying free respawns when buyback detection is disabled',
@@ -272,7 +278,12 @@ void _testLowBaseHealthAcceleratedRespawn() {
     config,
   );
 
-  final event = _respawnEnemy(engine, start, const Duration(seconds: 4), config);
+  final event = _respawnEnemy(
+    engine,
+    start,
+    const Duration(seconds: 4),
+    config,
+  );
 
   expect(event.type, NotificationEventType.enemyRespawned);
   expect(event.detail, contains('推断为基地低血量加速免费复活'));
@@ -288,10 +299,7 @@ void _testPaidRespawn() {
 }
 
 void _testRespawnTitle() {
-  final event = _enemyRespawnAfter(
-    const Duration(seconds: 10),
-    targetIndex: 4,
-  );
+  final event = _enemyRespawnAfter(const Duration(seconds: 10), targetIndex: 4);
 
   expect(event.headline, '敌方 7 号机器人复活');
 }
@@ -339,7 +347,10 @@ void _testDisabledBuybackFreeRespawns() {
     buybackDetectionEnabled: false,
     toleranceMilliseconds: 0,
   );
-  final normal = _enemyRespawnAfter(const Duration(seconds: 10), config: config);
+  final normal = _enemyRespawnAfter(
+    const Duration(seconds: 10),
+    config: config,
+  );
   final accelerated = _enemyRespawnAfter(
     const Duration(seconds: 4),
     config: config,
@@ -448,9 +459,7 @@ void _testRespawnFormula() {
 
 RuleNotificationEvent _enemyRespawnAfter(
   Duration elapsed, {
-  RespawnRuleConfig config = const RespawnRuleConfig(
-    toleranceMilliseconds: 0,
-  ),
+  RespawnRuleConfig config = const RespawnRuleConfig(toleranceMilliseconds: 0),
   int? remainingMatchSeconds = 420,
   int targetIndex = 0,
 }) {
@@ -557,7 +566,9 @@ void _testModuleTransition() {
   expect(offline, isNotNull);
   expect(recovered, isNotNull);
   final transitions = [offline, recovered].whereType<ModuleStatusTransition>();
-  final events = transitions.map((transition) => engine.moduleEvent(transition, now));
+  final events = transitions.map(
+    (transition) => engine.moduleEvent(transition, now),
+  );
   final eventList = events.toList(growable: false);
   expect(eventList, hasLength(2));
   final offlineEvent = eventList[0];

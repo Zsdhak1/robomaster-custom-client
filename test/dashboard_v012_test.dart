@@ -151,7 +151,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            customVideoStatsProvider.overrideWith((ref) => const Stream.empty()),
+            customVideoStatsProvider.overrideWith(
+              (ref) => const Stream.empty(),
+            ),
           ],
           child: MaterialApp(
             theme: buildTeamTheme(rmRedTeamColor),

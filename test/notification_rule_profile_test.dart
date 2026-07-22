@@ -23,9 +23,7 @@ void _testOfficialDefaults() {
       NotificationSeverity.info,
     );
     expect(
-      profile
-          .eventSettings[NotificationEventType.enemyBoughtRespawn]
-          ?.severity,
+      profile.eventSettings[NotificationEventType.enemyBoughtRespawn]?.severity,
       NotificationSeverity.critical,
     );
     expect(defaultSmallProjectileDamage, 20);
