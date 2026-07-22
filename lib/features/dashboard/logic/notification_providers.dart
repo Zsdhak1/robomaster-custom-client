@@ -67,19 +67,22 @@ final dashboardNotificationProvider =
       DashboardNotificationState
     >((ref) {
       final controller = DashboardNotificationController();
-      final runtime = _NotificationRuntime(ref, controller)..start();
+      final runtime = _NotificationRuntime(
+        ref,
+        controller,
+        ref.read(moduleStatusMonitorProvider.notifier),
+      )..start();
       ref.onDispose(runtime.dispose);
       return controller;
     });
 
 class _NotificationRuntime {
-  _NotificationRuntime(this.ref, this.controller);
+  _NotificationRuntime(this.ref, this.controller, this.moduleMonitor);
 
   final Ref ref;
   final DashboardNotificationController controller;
+  final ModuleStatusMonitorController moduleMonitor;
   final NotificationRuleEngine _engine = NotificationRuleEngine();
-  final ModuleStatusMonitorController _moduleMonitor =
-      ModuleStatusMonitorController();
   final ConnectionQualityEvaluator _quality = ConnectionQualityEvaluator();
   final MqttNotificationTracker _mqttTracker = MqttNotificationTracker();
   final _UdpWindowSampler _udpSampler = _UdpWindowSampler();
@@ -136,8 +139,13 @@ class _NotificationRuntime {
       case final DeployModeStatusSync status:
         _handleDeployStatus(status, envelope.timestamp);
       case final RobotModuleStatus status:
-        for (final transition in _moduleMonitor.observe(_moduleReading(status))) {
-          _emit(_engine.moduleEvent(transition, envelope.timestamp));
+        for (final event in moduleStatusEventsFromReading(
+          monitor: moduleMonitor,
+          engine: _engine,
+          status: status,
+          timestamp: envelope.timestamp,
+        )) {
+          _emit(event);
         }
     }
   }
@@ -153,7 +161,7 @@ class _NotificationRuntime {
         previous.currentStage >= 4;
     if (!newRound && !returnedToPrematch) return;
     _engine.resetMatch();
-    _moduleMonitor.reset();
+    moduleMonitor.reset();
     _quality.reset();
     ref.read(deploymentNavigationProvider.notifier).resetMatch();
   }
@@ -310,6 +318,19 @@ ModuleStatusReading _moduleReading(RobotModuleStatus status) {
     RobotModuleType.mainController: status.mainController,
     RobotModuleType.laserDetectionModule: status.laserDetectionModule,
   });
+}
+
+/// 使用调用方注入的监控器处理模块读数并映射通知事件。
+List<RuleNotificationEvent> moduleStatusEventsFromReading({
+  required ModuleStatusMonitorController monitor,
+  required NotificationRuleEngine engine,
+  required RobotModuleStatus status,
+  required DateTime timestamp,
+}) {
+  return monitor
+      .observe(_moduleReading(status))
+      .map((transition) => engine.moduleEvent(transition, timestamp))
+      .toList(growable: false);
 }
 
 /// 按当前通知偏好播放系统声音和 Android 震动，失败时静默降级。

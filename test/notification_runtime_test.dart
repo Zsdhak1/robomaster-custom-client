@@ -1,6 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:robomaster_custom_client_1/features/dashboard/logic/module_status_monitor.dart';
 import 'package:robomaster_custom_client_1/features/dashboard/logic/mqtt_notification_tracker.dart';
+import 'package:robomaster_custom_client_1/features/dashboard/logic/notification_providers.dart';
+import 'package:robomaster_custom_client_1/features/dashboard/logic/notification_rule_engine.dart';
 import 'package:robomaster_custom_client_1/features/settings/domain/notification_preferences.dart';
+import 'package:robomaster_custom_client_1/generated/robomaster_custom_client.pb.dart';
 import 'package:robomaster_custom_client_1/services/mqtt_service.dart';
 
 void main() {
@@ -30,4 +34,28 @@ void main() {
       expect(reconnected?.recoveryKey, 'mqtt-disconnected');
     },
   );
+
+  test('runtime module processing updates the injected monitor', () {
+    final monitor = ModuleStatusMonitorController();
+    final events = moduleStatusEventsFromReading(
+      monitor: monitor,
+      engine: NotificationRuleEngine(),
+      status: RobotModuleStatus(videoTransmission: 0),
+      timestamp: DateTime(2026, 7, 22, 12),
+    );
+
+    expect(events, hasLength(RobotModuleType.values.length));
+    expect(
+      events.any((event) =>
+          event.type == NotificationEventType.moduleDisconnected &&
+          event.dedupKey == 'module-offline-videoTransmission'),
+      isTrue,
+    );
+    expect(
+      monitor.state.statuses[RobotModuleType.videoTransmission],
+      ModuleAvailability.offline,
+    );
+    monitor.reset();
+    expect(monitor.state.statuses, isEmpty);
+  });
 }
