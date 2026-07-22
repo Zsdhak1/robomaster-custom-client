@@ -45,7 +45,7 @@ No issues found!
 
 ## 实现提交
 
-`0870f8f feat: connect notification accuracy to live protocol`
+`f93774d feat: connect notification accuracy to live protocol`
 
 ## Concerns
 
