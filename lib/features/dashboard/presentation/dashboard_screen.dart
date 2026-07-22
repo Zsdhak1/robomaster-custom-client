@@ -19,8 +19,8 @@ import '../logic/notification_providers.dart';
 import '../logic/notification_runtime_strings.dart';
 import '../logic/stream_providers.dart';
 import 'widgets/connection_quality_panel.dart';
+import 'widgets/dashboard_side_panel.dart';
 import 'widgets/debug_panel.dart';
-import 'widgets/event_timeline_panel.dart';
 import 'widgets/game_status_card.dart';
 import 'widgets/health_chart.dart';
 import 'widgets/notification_history_sheet.dart';
@@ -184,7 +184,7 @@ class _MainContent extends StatelessWidget {
     return const Row(
       children: [
         Expanded(flex: 2, child: RobotStatusList()),
-        Expanded(child: EventTimelinePanel()),
+        Expanded(child: DashboardSidePanel()),
       ],
     );
   }

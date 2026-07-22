@@ -33,7 +33,7 @@ void main() {
     );
 
     expect(find.text('预计弹丸'), findsNWidgets(4));
-    expect(find.text('2'), findsOneWidget);
+    expect(find.text('1'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
