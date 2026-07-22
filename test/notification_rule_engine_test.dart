@@ -37,6 +37,7 @@ void _registerKillLineTests() {
     'engineer collision ignores attack buff and zero damage',
     _testEngineerCollisionBoundaries,
   );
+  test('zero damage rearms the kill line', _testZeroDamageRearm);
   test('supports health percent and fixed modes', _testOtherKillLineModes);
 }
 
@@ -147,6 +148,12 @@ void _testHeroWeaponAgainstEngineer() {
 }
 
 void _testSmallProjectileRoles() {
+  final positive = _handleKillLineForRobot(
+    selectedRobotId: 3,
+    targetHealth: 24,
+  );
+  expect(positive.single.detail, contains('预计还需 2 发弹丸'));
+
   for (final selectedRobotId in const [3, 4, 6, 7, 103, 104, 106, 107]) {
     final events = _handleKillLineForRobot(
       selectedRobotId: selectedRobotId,
@@ -154,6 +161,34 @@ void _testSmallProjectileRoles() {
     );
     expect(events, isEmpty, reason: 'robot $selectedRobotId must use 17mm');
   }
+}
+
+void _testZeroDamageRearm() {
+  final engine = NotificationRuleEngine();
+  final start = DateTime(2026, 7, 22, 12);
+  final first = _handleKillLineForRobot(
+    engine: engine,
+    timestamp: start,
+    selectedRobotId: 1,
+    targetHealth: 100,
+  );
+  final zeroDamage = _handleKillLineForRobot(
+    engine: engine,
+    timestamp: start.add(const Duration(seconds: 1)),
+    selectedRobotId: 1,
+    targetHealth: 100,
+    buffs: const CombatBuffLevels(defense: {101: 100}),
+  );
+  final reentered = _handleKillLineForRobot(
+    engine: engine,
+    timestamp: start.add(const Duration(seconds: 6)),
+    selectedRobotId: 1,
+    targetHealth: 100,
+  );
+
+  expect(first, hasLength(1));
+  expect(zeroDamage, isEmpty);
+  expect(reentered, hasLength(1));
 }
 
 void _testEngineerCollisionBoundaries() {
@@ -272,14 +307,16 @@ List<RuleNotificationEvent> _handleKillLine(
 List<RuleNotificationEvent> _handleKillLineForRobot({
   required int selectedRobotId,
   required int targetHealth,
+  NotificationRuleEngine? engine,
+  DateTime? timestamp,
   int targetIndex = 0,
   CombatBuffLevels buffs = const CombatBuffLevels(),
 }) {
   final enemy = List<int>.filled(notificationRobotCount, 0);
   enemy[targetIndex] = targetHealth;
-  return NotificationRuleEngine().handleUnitHealth(
+  return (engine ?? NotificationRuleEngine()).handleUnitHealth(
     _sample(
-      DateTime(2026, 7, 22, 12),
+      timestamp ?? DateTime(2026, 7, 22, 12),
       enemy: enemy,
       selectedRobotId: selectedRobotId,
       combatBuffs: buffs,

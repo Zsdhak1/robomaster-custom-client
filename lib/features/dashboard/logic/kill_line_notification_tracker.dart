@@ -102,7 +102,8 @@ class KillLineNotificationTracker {
     KillEstimateConfig estimate,
   ) {
     final damage = _damageFor(sample, index, estimate);
-    if (damage == null || damage <= 0) return null;
+    if (damage == null) return null;
+    if (damage <= 0) return (double.maxFinite, 0, '');
     if (sample.selectedRobotId % 100 == _engineerRobotId) {
       return (health.toDouble(), damage.toDouble(), '一次撞击扣血可清空当前血量');
     }
