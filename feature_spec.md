@@ -23,8 +23,9 @@
 
 | 项 | 当前结论 |
 |---|---|
-| 当前版本 | `0.1.5`，通知规则准确性校正开发中；版本号以 `pubspec.yaml` 为唯一权威。 |
-| 当前状态 | `v0.1.5 Phase 1, Task 1` 已完成；版本仍在开发中；`v0.1.4 Phase 1–4` 已全部完成。 |
+| 当前版本 | `0.1.5`，通知规则准确性校正已实现、待发布；版本号以 `pubspec.yaml` 为唯一权威。 |
+| 当前状态 | `v0.1.5 Phase 1, Task 1` 至 `v0.1.5 Phase 1, Task 8` 已完成；针对性测试 69 项、全量测试 248 项通过，`flutter analyze` 零问题。 |
+| 产品定位 | 面向操作手的信息副屏：提供可核对的比赛状态、通知和设备信息，不提供指挥决策；本版本未修改自定义图传或操作面板。 |
 | 长期路线 | `v0.1.5` 已从候选路线转为当前开发版本；`v0.1.6` 至 `v0.2.2` 仍为候选，详见 `docs/superpowers/specs/2026-07-19-long-term-development-roadmap-design.md`。 |
 | 历史待办 | `v0.0.1 Phase 3, Task 3.5` 是历史遗留未交付项，已纳入候选 `v0.2.0` 赛后分析看板方向；该版本启动时必须先运行 brainstorming，当前不作为默认下一任务。 |
 | 主要链路 | 官方线：MQTT 3333 + UDP 3334 HEVC；自定义图传线：MQTT `CustomByteBlock` / `0x0310` + H.264 + 独立 TCP 解码桥。 |
@@ -44,13 +45,24 @@
 
 ### v0.1.5 — 通知规则准确性校正（2026-07-22）
 
-> **状态：开发中。** 本版本校正官方通知规则版本、敌方复活严重级别和预计击杀弹丸伤害默认值。
+> **状态：已实现，待发布。** 本版本在现有通知档案、规则引擎和 Dashboard 基础上，提高操作手信息副屏的通知准确性与状态可见性；不把客户端定位为指挥面板，不修改自定义图传或操作面板。
 
-#### Phase 1: 正式登记与规则默认值
+#### Phase 1: 通知准确性校正与运行时接入
 
 | # | Task | 描述 | 产出文件 | 状态 |
 |---|------|------|----------|------|
 | v0.1.5 Phase 1, Task 1 | 正式登记版本与规则默认值 | 登记应用与官方规则版本，并校正敌方复活严重级别和 17mm/42mm 默认伤害 | `pubspec.yaml`, `feature_spec.md`, `lib/features/settings/domain/kill_estimate_config.dart`, `lib/features/settings/domain/notification_rule_profile.dart`, `test/notification_rule_profile_test.dart` | `[x]` |
+| v0.1.5 Phase 1, Task 2 | Buff 有效状态跟踪 | 按机器人、Buff 类型和协议剩余时间跟踪攻防 Buff，拒绝越界与乱序输入并清理过期项 | `lib/features/dashboard/logic/combat_buff_tracker.dart`, `test/combat_buff_tracker_test.dart` | `[x]` |
+| v0.1.5 Phase 1, Task 3 | 操作手斩杀线校正 | 按当前操作手武器、敌方目标血量及双方攻防 Buff 估算弹丸或工程撞击需求，并修复零伤害后的重新触发 | `lib/features/dashboard/logic/kill_line_notification_tracker.dart`, `lib/features/dashboard/logic/notification_rule_engine.dart`, `lib/features/dashboard/logic/notification_rule_models.dart`, `test/notification_rule_engine_test.dart` | `[x]` |
+| v0.1.5 Phase 1, Task 4 | 敌方复活分类 | 将敌方复活区分为普通免费、加速免费、付费和方式不确定；缺少必要数据时安全降级，不把不确定事件误报为付费 | `lib/features/dashboard/logic/notification_rule_engine.dart`, `test/notification_rule_engine_test.dart` | `[x]` |
+| v0.1.5 Phase 1, Task 5 | 共享模块状态监控 | 仅合并 Protobuf 中明确出现且数值已知的模块字段，生成离线与恢复转换，并由通知运行时共享唯一状态源 | `lib/features/dashboard/logic/module_status_monitor.dart`, `lib/features/dashboard/logic/notification_protocol_tracker.dart`, `lib/features/dashboard/logic/notification_providers.dart`, `test/module_status_monitor_test.dart`, `test/notification_runtime_test.dart` | `[x]` |
+| v0.1.5 Phase 1, Task 6 | 模块持久显示面板 | 任一已知模块离线时在 Dashboard 侧栏持续显示模块状态，全部恢复后切回事件时间轴；通知开关不影响面板，事件仍继续记录 | `lib/features/dashboard/presentation/module_status_strings.dart`, `lib/features/dashboard/presentation/widgets/module_status_panel.dart`, `lib/features/dashboard/presentation/widgets/dashboard_side_panel.dart`, `test/dashboard_side_panel_test.dart` | `[x]` |
+| v0.1.5 Phase 1, Task 7 | 实时协议与重置边界接入 | 接入 Buff Topic、模块字段和共享状态；在 MQTT 断开、新小局、离开比赛阶段（含异常结束兜底）及操作身份变化时清理比赛临时状态 | `lib/features/dashboard/logic/notification_providers.dart`, `test/notification_runtime_test.dart`, `test/notification_runtime_widget_test.dart` | `[x]` |
+| v0.1.5 Phase 1, Task 8 | 回归、自审与文档收口 | 运行格式检查、针对性/全量回归与静态分析，完成发布前自审、验收记录和版本文档 | `feature_spec.md`, `.superpowers/sdd/task-8-report.md` | `[x]` |
+
+**v0.1.5 验收标准：** 官方通知规则档案与 17mm/42mm 伤害基线准确；斩杀线结合当前操作手武器、目标血量和攻防 Buff；敌方复活可区分普通免费、加速免费、付费和方式不确定；任一明确离线模块在侧栏持续可见；比赛临时状态在断线、新小局、离开比赛阶段和身份变化时完整清理；自定义图传与操作面板保持不变。
+
+**v0.1.5 验收结果（2026-07-22）：** 官方规则版本更新为 `2.0.0`，敌方普通复活为 INFO、付费复活为 CRITICAL，17mm/42mm 默认伤害为 20/200；斩杀线按操作手身份选择 17mm、42mm 或工程撞击并计算攻防 Buff；敌方复活按普通免费、基地低血量或补给区加速免费、付费和方式不确定分类；模块状态面板在任一明确离线模块存在时持续显示，全部恢复后切回事件时间轴；MQTT 断开、新小局、离开比赛阶段（包括未收到正常结算的异常结束兜底）和身份变化均清理 Buff、模块、斩杀线、复活、连接质量与部署临时状态。本版本未修改自定义图传或操作面板，也未增加指挥性决策。针对性测试 69 项通过，`flutter analyze` 零问题，全量测试 248 项通过。
 
 ---
 
@@ -954,7 +966,7 @@ class VideoFrame {
 
 | 版本 | 日期 | 变更摘要 |
 |------|------|----------|
-| 0.1.5 | 2026-07-22 | 文档 登记 v0.1.5 通知规则准确性校正开发；优化 官方通知规则版本、敌方普通复活/付费复活严重级别与 17mm/42mm 默认伤害基线 |
+| 0.1.5 | 2026-07-22 | 新增 Dashboard 模块状态持续显示面板，并接入 Buff 与模块实时协议状态；修复 斩杀线按操作手武器、目标血量及攻防 Buff 估算，敌方复活区分普通免费、加速免费、付费和方式不确定；优化 官方规则版本、复活严重级别、17mm/42mm 默认伤害与断线/新小局/离场/身份变化状态清理；文档 完成 69 项针对性测试、248 项全量测试和零问题静态分析的发布收口 |
 | 0.1.4 | 2026-07-21 | 修复 英雄 42mm 常规兑换指令类型为 2、远程买弹参数为 100，并移除副屏复活确认；新增 `RobotDynamicStatus` 驱动的远程回血/买弹许可与单次脉冲提示；新增 `TechCoreMotionStateSync` 驱动的工程难度、运动步骤、剩余时间和自动确认控制；重构 操作 Protobuf 构建、MQTT 发布与重发定时任务到数据层和控制器，覆盖完成、取消、复位、剩余时间归零、断线、身份切换及释放清理；优化 操作面板文案、窄高度滚动布局与 197 项全量回归 |
 | 0.1.3 | 2026-07-13 | 新增 可跨页面显示的 INFO/CRITICAL 通知运行时、独立位置与关闭策略、会话历史、系统声音和 Android 震动；新增 设置页 INFO、CRITICAL 与全部事件类型的手动通知测试入口，测试使用当前档案反馈和展示策略但绕过开关与冷却；新增 通知总览、事件级设置、斩杀线、复活公式、部署跳转、连接质量与档案选择的逐项作用说明，统一使用 MD3 辅助文本层级；新增 英雄部署模式 0→1 三秒倒计时、取消/立即进入、本场抑制、自定义图传预启动与失败降级；新增 三种敌方斩杀线、免费复活公式、买活/普通复活/己方复活与装配事件判定；新增 MQTT 断开/重连、连接质量防抖恢复和机器人模块断联/恢复通知；新增 通知与比赛规则版本化配置档案、JSON 导入导出、持久化设置与完整 Material 3 配置表单；修复 AppShell 非默认初始页面的 Riverpod 构建期写入、部署准备期间取消后的异步竞态和导航失败反馈；修复 AppShell 宽屏内容区因未纵向拉伸而折叠为零高度的启动空白；修复 设置详情区内嵌 Navigator 在当前 Flutter 页面 API 下缺少移除回调的断言；修复 Windows 顶部拖动层覆盖设置返回按钮中心以及通知二级页进入动画新旧内容透叠；优化 通知设置由单页长列表重构为两组目录和六个二级页面，兼容紧凑全屏与桌面详情区导航；优化 通知规则引擎拆分、必需主题订阅与 178 项全量回归；优化 全局普通界面文字统一使用随应用打包的 MiSans，覆盖 400、500、600、700、900 字重并保留调试数据等宽字体；修复 Dashboard 机器人列表、连接质量与操作面板裁切；修复 最大化工作区轻微超宽时画布产生左右白边、视频页侧栏血量列表越界；优化 Windows 窗口控件为页面内悬浮叠加，不再占用独立标题栏高度；修复 GitHub Actions Windows 构建因 fvp 0.37.2 在插件符号链接目录解压 MDK SDK 被新版 CMake 拒绝，升级至 fvp 0.37.3 使用真实路径解压 |
 | 0.1.2 | 2026-07-12 | 新增 仪表盘整行血量卡片、亚克力信息层、预计击杀弹丸量及可配置命中率/弹丸伤害/机器人血量上限；新增 比赛详情与录制状态面板；优化 无血量遥测时使用从左到右的扫描光晕提示血条区域；优化 底部四面板布局与 MD3 原生操作按钮；优化 Windows/Linux 固定设计画布整体等比缩放；修复 高分辨率全屏时固定画布不放大及多页面共享 FAB 默认 Hero tag 冲突 |
@@ -1027,7 +1039,7 @@ class VideoFrame {
 
 ---
 
-*文档版本：v2.18（完成 v0.1.4 操作面板规则校正与协议状态接入）*
+*文档版本：v2.19（完成 v0.1.5 通知规则准确性校正）*
 *适配协议：RoboMaster 2026 自定义客户端协议（MQTT 3333 + UDP 3334）*
 *参考依据：V1.3.1 第2章 + 自定义客户端 UDP 流问答 + 0x0310 抓包分析 + MD3 合规审计（2026-06-23）*
-*修正日期：2026-07-21*
+*修正日期：2026-07-22*
