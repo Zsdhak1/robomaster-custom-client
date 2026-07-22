@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:robomaster_custom_client_1/features/settings/domain/combat_notification_rules.dart';
+import 'package:robomaster_custom_client_1/features/settings/domain/kill_estimate_config.dart';
 import 'package:robomaster_custom_client_1/features/settings/domain/notification_preferences.dart';
 import 'package:robomaster_custom_client_1/features/settings/domain/notification_rule_profile.dart';
 
@@ -8,6 +9,27 @@ void main() {
     _testJsonRoundTrip();
     _testImportedValueClamping();
     _testUnsupportedSchema();
+    _testOfficialDefaults();
+  });
+}
+
+void _testOfficialDefaults() {
+  test('official profile matches 2026 V2.0.0 notification defaults', () {
+    final profile = NotificationRuleProfile.official();
+
+    expect(profile.ruleVersion, '2.0.0');
+    expect(
+      profile.eventSettings[NotificationEventType.enemyRespawned]?.severity,
+      NotificationSeverity.info,
+    );
+    expect(
+      profile
+          .eventSettings[NotificationEventType.enemyBoughtRespawn]
+          ?.severity,
+      NotificationSeverity.critical,
+    );
+    expect(defaultSmallProjectileDamage, 20);
+    expect(defaultLargeProjectileDamage, 200);
   });
 }
 

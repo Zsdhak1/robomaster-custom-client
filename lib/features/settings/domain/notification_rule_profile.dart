@@ -14,7 +14,7 @@ const String officialNotificationProfileId = 'official-rm2026-v1.3.1';
 const String officialProtocolVersion = '1.3.1';
 
 /// 内置比赛规则版本。
-const String officialRuleVersion = '1.5.0';
+const String officialRuleVersion = '2.0.0';
 
 /// 单个通知与比赛规则档案。
 class NotificationRuleProfile {
@@ -262,7 +262,6 @@ Map<NotificationEventType, NotificationEventSetting> _defaultEventSettings() {
   return Map.unmodifiable({
     for (final type in NotificationEventType.values)
       type: switch (type) {
-        NotificationEventType.enemyRespawned ||
         NotificationEventType.enemyBoughtRespawn ||
         NotificationEventType.enemyKillLine ||
         NotificationEventType.enemyRequestedLevelFour ||

@@ -10,10 +10,10 @@ const int killEstimateSchemaVersion = 1;
 const double defaultHitRate = 0.6;
 
 /// 默认 17mm 弹丸单发伤害。
-const double defaultSmallProjectileDamage = 10;
+const double defaultSmallProjectileDamage = 20;
 
 /// 默认 42mm 弹丸单发伤害。
-const double defaultLargeProjectileDamage = 100;
+const double defaultLargeProjectileDamage = 200;
 
 /// 可配置的机器人角色。
 enum KillEstimateRobotRole { hero, engineer, infantry3, infantry4, sentry }
