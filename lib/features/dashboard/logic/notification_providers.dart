@@ -24,6 +24,7 @@ import 'connection_quality_evaluator.dart';
 import 'dashboard_notification_controller.dart';
 import 'dashboard_notification_models.dart';
 import 'deployment_navigation_controller.dart';
+import 'module_status_monitor.dart';
 import 'mqtt_notification_tracker.dart';
 import 'notification_rule_engine.dart';
 import 'stream_providers.dart';
@@ -77,6 +78,8 @@ class _NotificationRuntime {
   final Ref ref;
   final DashboardNotificationController controller;
   final NotificationRuleEngine _engine = NotificationRuleEngine();
+  final ModuleStatusMonitorController _moduleMonitor =
+      ModuleStatusMonitorController();
   final ConnectionQualityEvaluator _quality = ConnectionQualityEvaluator();
   final MqttNotificationTracker _mqttTracker = MqttNotificationTracker();
   final _UdpWindowSampler _udpSampler = _UdpWindowSampler();
@@ -133,11 +136,8 @@ class _NotificationRuntime {
       case final DeployModeStatusSync status:
         _handleDeployStatus(status, envelope.timestamp);
       case final RobotModuleStatus status:
-        for (final event in _engine.handleModuleStatus(
-          _moduleValues(status),
-          envelope.timestamp,
-        )) {
-          _emit(event);
+        for (final transition in _moduleMonitor.observe(_moduleReading(status))) {
+          _emit(_engine.moduleEvent(transition, envelope.timestamp));
         }
     }
   }
@@ -153,6 +153,7 @@ class _NotificationRuntime {
         previous.currentStage >= 4;
     if (!newRound && !returnedToPrematch) return;
     _engine.resetMatch();
+    _moduleMonitor.reset();
     _quality.reset();
     ref.read(deploymentNavigationProvider.notifier).resetMatch();
   }
@@ -295,19 +296,21 @@ ConnectionQualityRuleConfig _sensitivityAdjustedQualityConfig(
   );
 }
 
-List<int> _moduleValues(RobotModuleStatus status) => [
-  status.powerManager,
-  status.rfid,
-  status.lightStrip,
-  status.smallShooter,
-  status.bigShooter,
-  status.uwb,
-  status.armor,
-  status.videoTransmission,
-  status.capacitor,
-  status.mainController,
-  status.laserDetectionModule,
-];
+ModuleStatusReading _moduleReading(RobotModuleStatus status) {
+  return ModuleStatusReading.fromProtocolValues({
+    RobotModuleType.powerManager: status.powerManager,
+    RobotModuleType.rfid: status.rfid,
+    RobotModuleType.lightStrip: status.lightStrip,
+    RobotModuleType.smallShooter: status.smallShooter,
+    RobotModuleType.bigShooter: status.bigShooter,
+    RobotModuleType.uwb: status.uwb,
+    RobotModuleType.armor: status.armor,
+    RobotModuleType.videoTransmission: status.videoTransmission,
+    RobotModuleType.capacitor: status.capacitor,
+    RobotModuleType.mainController: status.mainController,
+    RobotModuleType.laserDetectionModule: status.laserDetectionModule,
+  });
+}
 
 /// 按当前通知偏好播放系统声音和 Android 震动，失败时静默降级。
 Future<void> playNotificationFeedback(

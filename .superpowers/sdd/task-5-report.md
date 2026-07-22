@@ -41,4 +41,13 @@ DONE_WITH_CONCERNS
 
 ## Concerns
 
-- 为保证 Task 7 尚未迁移的现有通知运行时继续兼容，`NotificationRuleEngine` 保留了已弃用的列表适配器；Task 7 接入 `moduleStatusMonitorProvider` 后应删除该兼容入口及其私有监控器。
+- 无。
+
+## 审查修复（Important）
+
+- 移除了 `NotificationRuleEngine` 内的私有模块状态控制器和接收原始状态列表的兼容入口。该引擎现在仅将调用方提供的 `ModuleStatusTransition` 转发为通知事件。
+- 现有 MQTT 通知运行时成为唯一临时状态源：它拥有 `ModuleStatusMonitorController`、在新比赛时重置，并只将产生的转换传给规则引擎。
+- 将规则引擎测试拆分为独立的“调用方提供模块转换”用例，明确其只消费转换而不自行读取状态快照。
+- 验证：`flutter analyze`，exit 0，`No issues found!`。
+- `flutter test test/module_status_monitor_test.dart test/notification_rule_engine_test.dart --reporter expanded`：exit 0，31/31 通过。
+- `flutter test test/notification_runtime_test.dart --reporter expanded`：exit 0，1/1 通过。

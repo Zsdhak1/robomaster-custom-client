@@ -12,7 +12,11 @@ import 'package:robomaster_custom_client_1/features/settings/domain/notification
 void main() {
   group('NotificationRuleEngine kill line', _registerKillLineTests);
   group('NotificationRuleEngine respawn', _registerRespawnTests);
-  test('maps protocol, deploy and module transitions', _testTransitions);
+  test('maps protocol and deploy transitions', _testTransitions);
+  test(
+    'maps a supplied module transition without a status snapshot',
+    _testModuleTransition,
+  );
 }
 
 void _registerKillLineTests() {
@@ -531,6 +535,11 @@ void _testTransitions() {
     engine.handleProtocolEvent(eventId: 15, param: '0', timestamp: now)?.type,
     NotificationEventType.allyAssemblyCompleted,
   );
+}
+
+void _testModuleTransition() {
+  final engine = NotificationRuleEngine();
+  final now = DateTime(2026, 7, 13, 12);
   final offline = ModuleStatusTransition.from(
     ModuleAvailability.online,
     const MapEntry(

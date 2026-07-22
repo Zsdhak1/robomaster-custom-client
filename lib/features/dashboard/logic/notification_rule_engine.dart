@@ -20,8 +20,6 @@ class NotificationRuleEngine {
   List<int>? _previousEnemyHealth;
   final NotificationProtocolTracker _protocol = NotificationProtocolTracker();
   final KillLineNotificationTracker _killLines = KillLineNotificationTracker();
-  final ModuleStatusMonitorController _legacyModuleMonitor =
-      ModuleStatusMonitorController();
   final Map<int, _DeathRecord> _enemyDeaths = {};
   final Map<int, int> _enemyBuybackCounts = {};
 
@@ -68,29 +66,10 @@ class NotificationRuleEngine {
     return _protocol.moduleEvent(transition, timestamp);
   }
 
-  /// 兼容旧运行时；新运行时应从模块状态监控器传入转换。
-  @Deprecated('Use moduleEvent with a ModuleStatusTransition instead.')
-  List<RuleNotificationEvent> handleModuleStatus(
-    List<int> statuses,
-    DateTime timestamp,
-  ) {
-    final values = <RobotModuleType, int>{
-      for (var index = 0;
-          index < statuses.length && index < RobotModuleType.values.length;
-          index++)
-        RobotModuleType.values[index]: statuses[index],
-    };
-    return _legacyModuleMonitor
-        .observe(ModuleStatusReading.fromProtocolValues(values))
-        .map((transition) => moduleEvent(transition, timestamp))
-        .toList(growable: false);
-  }
-
   /// 清理跨比赛状态，避免上一场的死亡和冷却泄漏。
   void resetMatch() {
     _previousAllyHealth = null;
     _previousEnemyHealth = null;
-    _legacyModuleMonitor.reset();
     _protocol.resetMatch();
     _killLines.reset();
     _enemyDeaths.clear();
