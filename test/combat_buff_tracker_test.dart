@@ -83,7 +83,10 @@ void main() {
         ),
       );
 
-    expect(tracker.snapshot(now.add(const Duration(seconds: 1))).attackLevelFor(1), isNull);
+    expect(
+      tracker.snapshot(now.add(const Duration(seconds: 1))).attackLevelFor(1),
+      isNull,
+    );
   });
 
   test('reset returns an empty snapshot', () {
@@ -105,4 +108,91 @@ void main() {
     expect(snapshot.attack, isEmpty);
     expect(snapshot.defense, isEmpty);
   });
+
+  test('ignores Buff samples with an invalid robot identity', () {
+    final tracker = CombatBuffTracker();
+    final now = DateTime(2026, 7, 22, 12);
+    tracker
+      ..observe(_sample(robotId: 8, receivedAt: now))
+      ..observe(_sample(robotId: 108, receivedAt: now));
+
+    expect(tracker.snapshot(now).attack, isEmpty);
+  });
+
+  test('ignores Buff samples with an invalid level', () {
+    final tracker = CombatBuffTracker();
+    final now = DateTime(2026, 7, 22, 12);
+    tracker
+      ..observe(_sample(level: -1001, receivedAt: now))
+      ..observe(_sample(level: 1001, receivedAt: now));
+
+    expect(tracker.snapshot(now).attack, isEmpty);
+  });
+
+  test('ignores Buff samples with an invalid duration', () {
+    final tracker = CombatBuffTracker();
+    final now = DateTime(2026, 7, 22, 12);
+    tracker
+      ..observe(_sample(leftSeconds: -1, receivedAt: now))
+      ..observe(_sample(leftSeconds: 3601, receivedAt: now));
+
+    expect(tracker.snapshot(now).attack, isEmpty);
+  });
+
+  test('keeps valid Buff boundary values', () {
+    final tracker = CombatBuffTracker();
+    final now = DateTime(2026, 7, 22, 12);
+    tracker
+      ..observe(
+        _sample(
+          level: -1000,
+          buffType: combatDefenseBuffType,
+          leftSeconds: 3600,
+          receivedAt: now,
+        ),
+      )
+      ..observe(
+        _sample(robotId: 107, level: 1000, leftSeconds: 3600, receivedAt: now),
+      );
+
+    final snapshot = tracker.snapshot(now);
+    expect(snapshot.defenseLevelFor(1), -1000);
+    expect(snapshot.attackLevelFor(107), 1000);
+  });
+
+  test('expired Buff cleanup accepts a previously older sample', () {
+    final tracker = CombatBuffTracker();
+    final now = DateTime(2026, 7, 22, 12);
+    tracker
+      ..observe(_sample(leftSeconds: 1, receivedAt: now))
+      ..snapshot(now.add(const Duration(seconds: 2)))
+      ..observe(
+        _sample(
+          level: 50,
+          leftSeconds: 3600,
+          receivedAt: now.subtract(const Duration(seconds: 1)),
+        ),
+      );
+
+    expect(
+      tracker.snapshot(now.add(const Duration(seconds: 2))).attackLevelFor(1),
+      50,
+    );
+  });
+}
+
+CombatBuffSample _sample({
+  required DateTime receivedAt,
+  int robotId = 1,
+  int buffType = combatAttackBuffType,
+  int level = 150,
+  int leftSeconds = 5,
+}) {
+  return CombatBuffSample(
+    robotId: robotId,
+    buffType: buffType,
+    level: level,
+    leftSeconds: leftSeconds,
+    receivedAt: receivedAt,
+  );
 }

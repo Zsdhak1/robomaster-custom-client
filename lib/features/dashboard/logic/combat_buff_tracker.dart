@@ -1,5 +1,12 @@
 const int combatAttackBuffType = 1;
 const int combatDefenseBuffType = 2;
+const int combatRobotIdMin = 1;
+const int combatRobotIdMax = 7;
+const int combatAlternateRobotIdMin = 101;
+const int combatAlternateRobotIdMax = 107;
+const int combatBuffLevelMin = -1000;
+const int combatBuffLevelMax = 1000;
+const int combatBuffDurationMaxSeconds = 3600;
 
 class CombatBuffSample {
   const CombatBuffSample({
@@ -55,8 +62,10 @@ class CombatBuffTracker {
   CombatBuffLevels snapshot(DateTime now) {
     final attack = <int, int>{};
     final defense = <int, int>{};
+    final expiredKeys = <(int, int)>[];
     for (final entry in _buffs.entries) {
       if (!entry.value.expiresAt.isAfter(now)) {
+        expiredKeys.add(entry.key);
         continue;
       }
       final (robotId, buffType) = entry.key;
@@ -65,6 +74,9 @@ class CombatBuffTracker {
       } else {
         defense[robotId] = entry.value.level;
       }
+    }
+    for (final key in expiredKeys) {
+      _buffs.remove(key);
     }
     return CombatBuffLevels(
       attack: Map.unmodifiable(attack),
@@ -75,9 +87,29 @@ class CombatBuffTracker {
   void reset() => _buffs.clear();
 
   bool _isTrackable(CombatBuffSample sample) {
-    return sample.leftSeconds >= 0 &&
-        (sample.buffType == combatAttackBuffType ||
-            sample.buffType == combatDefenseBuffType);
+    return _isCombatRobotId(sample.robotId) &&
+        _isCombatBuffType(sample.buffType) &&
+        _isCombatBuffLevel(sample.level) &&
+        _isCombatBuffDuration(sample.leftSeconds);
+  }
+
+  bool _isCombatRobotId(int robotId) {
+    return (robotId >= combatRobotIdMin && robotId <= combatRobotIdMax) ||
+        (robotId >= combatAlternateRobotIdMin &&
+            robotId <= combatAlternateRobotIdMax);
+  }
+
+  bool _isCombatBuffType(int buffType) {
+    return buffType == combatAttackBuffType ||
+        buffType == combatDefenseBuffType;
+  }
+
+  bool _isCombatBuffLevel(int level) {
+    return level >= combatBuffLevelMin && level <= combatBuffLevelMax;
+  }
+
+  bool _isCombatBuffDuration(int leftSeconds) {
+    return leftSeconds >= 0 && leftSeconds <= combatBuffDurationMaxSeconds;
   }
 }
 
