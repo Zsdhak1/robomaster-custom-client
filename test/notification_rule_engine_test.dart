@@ -1,6 +1,7 @@
 // ignore_for_file: avoid_redundant_argument_values
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:robomaster_custom_client_1/features/dashboard/logic/combat_buff_tracker.dart';
 import 'package:robomaster_custom_client_1/features/dashboard/logic/dashboard_notification_models.dart';
 import 'package:robomaster_custom_client_1/features/dashboard/logic/notification_rule_engine.dart';
 import 'package:robomaster_custom_client_1/features/settings/domain/combat_notification_rules.dart';
@@ -15,6 +16,27 @@ void main() {
 
 void _registerKillLineTests() {
   test('detects projectile threshold and requires rearm', _testProjectileRearm);
+  test(
+    'uses logged-in weapon and combat buffs for kill line',
+    _testOperatorWeaponAndBuffs,
+  );
+  test(
+    'maps enemy defense buffs for both alliances',
+    _testEnemyAllianceMapping,
+  );
+  test(
+    'engineer uses defense-adjusted collision damage',
+    _testEngineerCollision,
+  );
+  test(
+    'hero keeps 42mm damage against engineer target',
+    _testHeroWeaponAgainstEngineer,
+  );
+  test('infantry and sentry use 17mm damage', _testSmallProjectileRoles);
+  test(
+    'engineer collision ignores attack buff and zero damage',
+    _testEngineerCollisionBoundaries,
+  );
   test('supports health percent and fixed modes', _testOtherKillLineModes);
 }
 
@@ -47,7 +69,7 @@ void _testProjectileRearm() {
     config,
   );
   expect(duplicate, isEmpty);
-  _handleKillLine(engine, start.add(const Duration(seconds: 3)), 300, config);
+  _handleKillLine(engine, start.add(const Duration(seconds: 3)), 500, config);
   final rearmed = _handleKillLine(
     engine,
     start.add(const Duration(seconds: 4)),
@@ -75,6 +97,79 @@ void _testOtherKillLineModes() {
       isTrue,
     );
   }
+}
+
+void _testOperatorWeaponAndBuffs() {
+  final events = _handleKillLineForRobot(
+    selectedRobotId: 1,
+    targetHealth: 180,
+    buffs: const CombatBuffLevels(attack: {1: 150}, defense: {101: 25}),
+  );
+
+  expect(events.single.headline, '敌方 1 号机器人进入斩杀线');
+  expect(events.single.detail, contains('预计还需 2 发弹丸'));
+}
+
+void _testEnemyAllianceMapping() {
+  final redEvents = _handleKillLineForRobot(
+    selectedRobotId: 1,
+    targetHealth: 180,
+    buffs: const CombatBuffLevels(attack: {1: 150}, defense: {101: 25}),
+  );
+  final blueEvents = _handleKillLineForRobot(
+    selectedRobotId: 101,
+    targetHealth: 180,
+    buffs: const CombatBuffLevels(attack: {101: 150}, defense: {1: 25}),
+  );
+
+  expect(redEvents.single.detail, contains('预计还需 2 发弹丸'));
+  expect(blueEvents.single.detail, contains('预计还需 2 发弹丸'));
+}
+
+void _testEngineerCollision() {
+  final events = _handleKillLineForRobot(
+    selectedRobotId: 2,
+    targetHealth: 1,
+    buffs: const CombatBuffLevels(defense: {101: 50}),
+  );
+
+  expect(events.single.detail, contains('一次撞击扣血可清空当前血量'));
+}
+
+void _testHeroWeaponAgainstEngineer() {
+  final events = _handleKillLineForRobot(
+    selectedRobotId: 1,
+    targetIndex: 1,
+    targetHealth: 200,
+  );
+
+  expect(events.single.detail, contains('预计还需 2 发弹丸'));
+}
+
+void _testSmallProjectileRoles() {
+  for (final selectedRobotId in const [3, 4, 6, 7, 103, 104, 106, 107]) {
+    final events = _handleKillLineForRobot(
+      selectedRobotId: selectedRobotId,
+      targetHealth: 100,
+    );
+    expect(events, isEmpty, reason: 'robot $selectedRobotId must use 17mm');
+  }
+}
+
+void _testEngineerCollisionBoundaries() {
+  final attackBuffed = _handleKillLineForRobot(
+    selectedRobotId: 2,
+    targetHealth: 3,
+    buffs: const CombatBuffLevels(attack: {2: 1000}),
+  );
+  final roundedToZero = _handleKillLineForRobot(
+    selectedRobotId: 2,
+    targetHealth: 1,
+    buffs: const CombatBuffLevels(defense: {101: 99}),
+  );
+
+  expect(attackBuffed, isEmpty);
+  expect(roundedToZero, isEmpty);
 }
 
 void _testRespawnClassification() {
@@ -174,15 +269,39 @@ List<RuleNotificationEvent> _handleKillLine(
   );
 }
 
+List<RuleNotificationEvent> _handleKillLineForRobot({
+  required int selectedRobotId,
+  required int targetHealth,
+  int targetIndex = 0,
+  CombatBuffLevels buffs = const CombatBuffLevels(),
+}) {
+  final enemy = List<int>.filled(notificationRobotCount, 0);
+  enemy[targetIndex] = targetHealth;
+  return NotificationRuleEngine().handleUnitHealth(
+    _sample(
+      DateTime(2026, 7, 22, 12),
+      enemy: enemy,
+      selectedRobotId: selectedRobotId,
+      combatBuffs: buffs,
+    ),
+    killLine: const KillLineRuleConfig(),
+    respawn: const RespawnRuleConfig(enabled: false),
+    estimate: const KillEstimateConfig(),
+  );
+}
+
 UnitHealthSample _sample(
   DateTime timestamp, {
   List<int> ally = const [500, 300, 300, 300, 600],
   List<int> enemy = const [500, 300, 300, 300, 600],
+  int selectedRobotId = 1,
+  CombatBuffLevels combatBuffs = const CombatBuffLevels(),
 }) {
   return UnitHealthSample(
     allyHealth: ally,
     enemyHealth: enemy,
-    selectedRobotId: 1,
+    selectedRobotId: selectedRobotId,
+    combatBuffs: combatBuffs,
     timestamp: timestamp,
     remainingMatchSeconds: 420,
     enemyBaseHealth: 5000,

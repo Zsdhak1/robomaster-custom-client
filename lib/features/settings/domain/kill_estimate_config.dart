@@ -103,11 +103,22 @@ class KillEstimateConfig {
     required int currentHealth,
     required bool useLargeProjectile,
   }) {
-    if (currentHealth <= 0) return 0;
     final damage = useLargeProjectile
         ? largeProjectileDamage
         : smallProjectileDamage;
-    final expectedDamage = damage * hitRate;
+    return expectedProjectilesForDamage(
+      currentHealth: currentHealth,
+      projectileDamage: damage,
+    );
+  }
+
+  /// 使用已经过攻防修正的单发伤害计算预计弹丸数。
+  int? expectedProjectilesForDamage({
+    required int currentHealth,
+    required double projectileDamage,
+  }) {
+    if (currentHealth <= 0) return 0;
+    final expectedDamage = projectileDamage * hitRate;
     if (expectedDamage <= 0) return null;
     return math.max(1, (currentHealth / expectedDamage).ceil());
   }

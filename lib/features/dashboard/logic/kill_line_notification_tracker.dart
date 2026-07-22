@@ -7,6 +7,11 @@ import '../../settings/domain/notification_preferences.dart';
 import 'dashboard_notification_models.dart';
 import 'notification_rule_models.dart';
 
+const int _heroRobotId = 1;
+const int _engineerRobotId = 2;
+const int _collisionBaseDamage = 2;
+const Set<int> _smallProjectileRobotIds = {3, 4, 6, 7};
+
 /// 执行斩杀线冷却、再武装和三种阈值判定。
 class KillLineNotificationTracker {
   final Map<int, bool> _armed = {};
@@ -22,7 +27,7 @@ class KillLineNotificationTracker {
     final events = <RuleNotificationEvent>[];
     for (var index = 0; index < sample.enemyHealth.length; index++) {
       final health = sample.enemyHealth[index];
-      final evaluation = _evaluate(index, health, config, estimate);
+      final evaluation = _evaluate(sample, index, health, config, estimate);
       if (evaluation == null) continue;
       if (!evaluation.inside) {
         if (evaluation.rearmed) _armed[index] = true;
@@ -52,6 +57,7 @@ class KillLineNotificationTracker {
   }
 
   _KillLineEvaluation? _evaluate(
+    UnitHealthSample sample,
     int index,
     int health,
     KillLineRuleConfig config,
@@ -59,8 +65,9 @@ class KillLineNotificationTracker {
   ) {
     if (health <= 0 || index >= notificationRobotCount) return null;
     final role = KillEstimateRobotRole.values[index];
-    final (value, threshold, description) = switch (config.mode) {
-      KillLineMode.expectedProjectiles => _projectileMetric(
+    final metric = switch (config.mode) {
+      KillLineMode.expectedProjectiles => _damageMetric(
+        sample,
         index,
         health,
         config,
@@ -78,6 +85,8 @@ class KillLineNotificationTracker {
         '当前 $health HP',
       ),
     };
+    if (metric == null) return null;
+    final (value, threshold, description) = metric;
     return _KillLineEvaluation(
       inside: value <= threshold,
       rearmed: value > threshold + config.rearmDelta,
@@ -85,29 +94,66 @@ class KillLineNotificationTracker {
     );
   }
 
-  (double, double, String) _projectileMetric(
+  (double, double, String)? _damageMetric(
+    UnitHealthSample sample,
     int index,
     int health,
     KillLineRuleConfig config,
     KillEstimateConfig estimate,
   ) {
+    final damage = _damageFor(sample, index, estimate);
+    if (damage == null || damage <= 0) return null;
+    if (sample.selectedRobotId % 100 == _engineerRobotId) {
+      return (health.toDouble(), damage.toDouble(), '一次撞击扣血可清空当前血量');
+    }
     final projectiles =
-        estimate.expectedProjectiles(
+        estimate.expectedProjectilesForDamage(
           currentHealth: health,
-          useLargeProjectile: index == 0,
+          projectileDamage: damage.toDouble(),
         ) ??
         double.maxFinite.toInt();
-    final threshold = switch (index) {
-      0 => config.heroThreshold,
-      4 => config.sentryThreshold,
-      _ => config.infantryThreshold,
-    };
+    final threshold = _thresholdFor(index, config);
     return (
       projectiles.toDouble(),
       threshold.toDouble(),
-      '预计 $projectiles 发可击杀',
+      '预计还需 $projectiles 发弹丸',
     );
   }
+
+  int? _damageFor(
+    UnitHealthSample sample,
+    int index,
+    KillEstimateConfig estimate,
+  ) {
+    final selectedBaseId = sample.selectedRobotId % 100;
+    final defense = _targetDefenseFraction(sample, index);
+    if (selectedBaseId == _engineerRobotId) {
+      return (_collisionBaseDamage * (1 - defense)).round();
+    }
+    final baseDamage = switch (selectedBaseId) {
+      _heroRobotId => estimate.largeProjectileDamage,
+      _ when _smallProjectileRobotIds.contains(selectedBaseId) =>
+        estimate.smallProjectileDamage,
+      _ => null,
+    };
+    if (baseDamage == null) return null;
+    final attack =
+        (sample.combatBuffs.attackLevelFor(sample.selectedRobotId) ?? 100) /
+        100;
+    return (baseDamage * attack * (1 - defense)).round();
+  }
+
+  double _targetDefenseFraction(UnitHealthSample sample, int index) {
+    final ownBlue = sample.selectedRobotId >= 100;
+    final targetRobotId = notificationRobotBaseIds[index] + (ownBlue ? 0 : 100);
+    return (sample.combatBuffs.defenseLevelFor(targetRobotId) ?? 0) / 100;
+  }
+
+  int _thresholdFor(int index, KillLineRuleConfig config) => switch (index) {
+    0 => config.heroThreshold,
+    4 => config.sentryThreshold,
+    _ => config.infantryThreshold,
+  };
 
   (double, double, String) _healthPercentMetric(
     KillEstimateRobotRole role,
@@ -130,14 +176,10 @@ class KillLineNotificationTracker {
     int health,
     String description,
   ) {
-    final name = notificationRobotName(
-      index,
-      sample.selectedRobotId,
-      enemy: true,
-    );
+    final robotId = notificationRobotBaseIds[index];
     return RuleNotificationEvent(
       type: NotificationEventType.enemyKillLine,
-      headline: '$name进入斩杀线',
+      headline: '敌方 $robotId 号机器人进入斩杀线',
       detail: '$description · $health HP',
       dedupKey: 'enemy-kill-line-$index',
       occurredAt: sample.timestamp,

@@ -1,6 +1,8 @@
 /// 通知规则引擎使用的协议无关输入模型和机器人标签。
 library;
 
+import 'combat_buff_tracker.dart';
+
 const List<int> notificationRobotBaseIds = [1, 2, 3, 4, 7];
 const List<String> notificationRobotRoleLabels = [
   '英雄',
@@ -21,6 +23,7 @@ class UnitHealthSample {
     required this.enemyHealth,
     required this.selectedRobotId,
     required this.timestamp,
+    this.combatBuffs = const CombatBuffLevels(),
     this.remainingMatchSeconds,
     this.enemyBaseHealth,
   });
@@ -29,6 +32,7 @@ class UnitHealthSample {
   final List<int> enemyHealth;
   final int selectedRobotId;
   final DateTime timestamp;
+  final CombatBuffLevels combatBuffs;
   final int? remainingMatchSeconds;
   final int? enemyBaseHealth;
 }

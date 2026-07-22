@@ -26,14 +26,14 @@ void main() {
           currentHealth: 101,
           useLargeProjectile: false,
         ),
-        21,
+        11,
       );
       expect(
         config.expectedProjectiles(
           currentHealth: 500,
           useLargeProjectile: true,
         ),
-        10,
+        5,
       );
       expect(
         config.expectedProjectiles(currentHealth: 0, useLargeProjectile: true),
