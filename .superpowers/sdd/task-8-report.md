@@ -4,14 +4,14 @@
 
 DONE_WITH_CONCERNS
 
-v0.1.5 已完成回归、自审与 `feature_spec.md` 收口。剩余 concern 为 `notification_providers.dart` 约 513 行的 Minor 可维护性问题，以及本机 `dart format` batch wrapper 未产生可核验回显；均未发现发布阻塞。
+v0.1.5 已完成格式化、回归、自审与 `feature_spec.md` 收口。剩余 concern 为 `notification_providers.dart` 约 513 行的 Minor 可维护性问题，未发现发布阻塞。
 
 ## 格式化
 
-- 按 brief 对 21 个本版本 Dart 文件运行指定 `dart format` 命令。
-- batch wrapper 等待 30 秒无回显，进程检查未发现 `dart` 或 `flutter` 进程，因此未把该命令记为成功。
-- 命令前后 `git status --short` 对比显示 0 个 Dart 文件 changed；仅保留任务开始前已有的 7 个 Flutter 平台生成文件修改。
-- Task 7 已记录使用 SDK `dart.exe format` 完成相关文件格式化；Task 8 的 `flutter analyze` 与全部测试均通过，但本报告不以这些结果替代 formatter 自身回显。
+- 首次通过 batch wrapper 运行指定命令时，等待 30 秒无回显且未发现 `dart` / `flutter` 进程，因此未把该次调用记为成功。
+- 随后直接调用 Flutter SDK 内的 `dart.exe format` 处理 brief 指定的 21 个文件，明确输出 `Formatted 21 files (9 changed)`。
+- formatter 写入完成后尝试更新 Dart telemetry 会话文件，因权限不足返回 exit 1；该错误发生在 21 个文件格式化完成之后，未修改 SDK。
+- 9 个写入文件中，Git 规范化后有 5 个测试文件产生实际文本 diff；其余 4 个库文件与 HEAD 内容等价。5 个机械格式化 diff 已独立提交。
 
 ## 验证
 
@@ -24,6 +24,7 @@ flutter test test/combat_buff_tracker_test.dart test/module_status_monitor_test.
 - exit 0
 - 69/69 通过
 - 最终输出：`All tests passed!`
+- formatter 产生实际 diff 后再次运行，仍为 69/69 通过。
 
 ### 静态分析
 
@@ -34,6 +35,7 @@ flutter analyze
 - feature_spec 写入前：exit 0，`No issues found!`
 - feature_spec 写入后：exit 0，`No issues found!`
 - 最终报告写入后：exit 0，`No issues found!`
+- formatter 产生实际 diff 后：exit 0，`No issues found!`
 
 ### 全量回归
 
@@ -44,6 +46,7 @@ flutter test --reporter expanded
 - exit 0
 - 248/248 通过
 - 最终输出：`All tests passed!`
+- formatter 产生实际 diff 后再次运行，仍为 248/248 通过。
 
 ## 自审
 
@@ -72,9 +75,10 @@ flutter test --reporter expanded
 
 - Tasks 1–7 最终实现/审查基线：`a9b66a7`
 - feature_spec 收口提交：`2bcd77b docs: complete v0.1.5 notification accuracy`
-- 本报告将由后续独立提交纳入版本历史；其哈希在任务交付消息中报告。
+- 初版报告提交：`e0ce20a docs: record v0.1.5 final verification`
+- 格式化提交：`c9dc38a style: format v0.1.5 tests`
+- 本报告最终修订将由后续独立提交纳入版本历史；其哈希在任务交付消息中报告。
 
 ## Concerns
 
 1. `lib/features/dashboard/logic/notification_providers.dart` 约 513 行，存在 Minor 级可维护性 concern。逐项审查未发现功能或发布阻塞；为避免发布前高风险重构，本任务不拆分，交由最终整分支审查决定后续边界重组。
-2. 本机 `dart format` batch wrapper 无回显且无存活进程，无法提供 Task 8 独立 formatter 成功输出；Git 对比确认没有格式化改动，Task 7 已有格式化记录，静态分析和回归验证均通过。
