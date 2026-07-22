@@ -88,6 +88,7 @@ class _NotificationRuntime {
   final MqttNotificationTracker _mqttTracker = MqttNotificationTracker();
   final UdpWindowSampler _udpSampler = UdpWindowSampler();
   Timer? _qualityTimer;
+  StreamSubscription<ProtobufEnvelope>? _mqttEnvelopeSubscription;
   MqttConnectionState? _mqttState;
   DateTime? _mqttConnectedAt;
   int? _mqttGeneration;
@@ -108,12 +109,12 @@ class _NotificationRuntime {
       _mqttConnectedAt = now;
       _mqttGeneration = ref.read(mqttServiceProvider).connectionGeneration;
     }
+    _mqttEnvelopeSubscription = ref
+        .read(mqttEnvelopeStreamFactoryProvider)()
+        .listen(_handleEnvelope);
     ref
       ..listen(mqttConnectionStateProvider, (_, next) {
         next.whenData(_handleMqttState);
-      })
-      ..listen(mqttMessageProvider, (_, next) {
-        next.whenData(_handleEnvelope);
       })
       ..listen(customVideoStatsProvider, (_, next) {
         next.whenData((stats) => _customStats = stats);
@@ -145,7 +146,7 @@ class _NotificationRuntime {
       _mqttConnectedAt = null;
       _mqttGeneration = null;
       _lastMqttMessageAt = null;
-      _resetMatchState();
+      _resetMqttSessionState();
     }
     _emitNullable(_mqttTracker.handle(next, now));
   }
@@ -200,11 +201,16 @@ class _NotificationRuntime {
   }
 
   void _resetMatchState() {
-    resetNotificationMatchState(engine: _engine, moduleMonitor: moduleMonitor);
+    resetNotificationMatchState(engine: _engine);
     controller.resetRuntimeState();
     _quality.reset();
     _udpSampler.reset();
     ref.read(deploymentNavigationProvider.notifier).resetMatch();
+  }
+
+  void _resetMqttSessionState() {
+    _resetMatchState();
+    moduleMonitor.reset();
   }
 
   void _handleUnitStatus(GlobalUnitStatus status, DateTime timestamp) {
@@ -325,6 +331,9 @@ class _NotificationRuntime {
 
   void dispose() {
     _qualityTimer?.cancel();
+    final subscription = _mqttEnvelopeSubscription;
+    _mqttEnvelopeSubscription = null;
+    if (subscription != null) unawaited(subscription.cancel());
   }
 }
 
@@ -505,13 +514,9 @@ bool shouldAcceptNotificationEnvelope({
   return envelopeGeneration == connectedGeneration;
 }
 
-/// 清理规则引擎与共享模块面板持有的比赛级状态。
-void resetNotificationMatchState({
-  required NotificationRuleEngine engine,
-  required ModuleStatusMonitorController moduleMonitor,
-}) {
+/// 清理规则引擎持有的比赛级状态。
+void resetNotificationMatchState({required NotificationRuleEngine engine}) {
   engine.resetMatch();
-  moduleMonitor.reset();
 }
 
 /// 按当前通知偏好播放系统声音和 Android 震动，失败时静默降级。

@@ -89,7 +89,7 @@ void main() {
     expect(engine.combatBuffsAt(receivedAt).attack[1], 150);
   });
 
-  test('notification match reset clears Buff and shared module state', () {
+  test('match reset keeps MQTT module state and offline baseline', () {
     final engine = NotificationRuleEngine();
     final monitor = ModuleStatusMonitorController();
     final now = DateTime(2026, 7, 22, 12);
@@ -108,11 +108,21 @@ void main() {
       }),
     );
 
-    resetNotificationMatchState(engine: engine, moduleMonitor: monitor);
+    resetNotificationMatchState(engine: engine);
 
     expect(engine.combatBuffsAt(now).attack, isEmpty);
     expect(engine.combatBuffsAt(now).defense, isEmpty);
-    expect(monitor.state.statuses, isEmpty);
+    expect(
+      monitor.state.statuses[RobotModuleType.armor],
+      ModuleAvailability.offline,
+    );
+    final repeated = moduleStatusEventsFromReading(
+      monitor: monitor,
+      engine: engine,
+      status: RobotModuleStatus(armor: 0),
+      timestamp: now.add(const Duration(seconds: 1)),
+    );
+    expect(repeated, isEmpty);
   });
 
   test('match reset detects a new round and every in-match exit', () {

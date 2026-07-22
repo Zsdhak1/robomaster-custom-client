@@ -52,19 +52,25 @@ final protobufParserProvider = Provider<ProtobufParser>((ref) {
 
 /// 来自 MQTT 的已解析 Protobuf 信封流。
 ///
-/// 监听 [MqttService.messageStream] 并解析每个载荷。
-final mqttMessageProvider = StreamProvider<ProtobufEnvelope>((ref) {
-  final mqtt = ref.watch(mqttServiceProvider);
-  final parser = ref.watch(protobufParserProvider);
+/// 每次调用都会独立监听 [MqttService.messageStream]，并完整重放其缓存。
+final mqttEnvelopeStreamFactoryProvider =
+    Provider<Stream<ProtobufEnvelope> Function()>((ref) {
+      final mqtt = ref.watch(mqttServiceProvider);
+      final parser = ref.watch(protobufParserProvider);
 
-  return mqtt.messageStream.map(
-    (msg) => parser.parse(
-      msg.topic,
-      msg.payload,
-      receivedAt: msg.receivedAt,
-      connectionGeneration: msg.connectionGeneration,
-    ),
-  );
+      return () => mqtt.messageStream.map(
+        (msg) => parser.parse(
+          msg.topic,
+          msg.payload,
+          receivedAt: msg.receivedAt,
+          connectionGeneration: msg.connectionGeneration,
+        ),
+      );
+    });
+
+/// 供比赛状态、记录和调试功能共享的 MQTT Protobuf 信封流。
+final mqttMessageProvider = StreamProvider<ProtobufEnvelope>((ref) {
+  return ref.watch(mqttEnvelopeStreamFactoryProvider)();
 });
 
 /// 来自 UDP 3334 的已重组 HEVC 视频帧流。

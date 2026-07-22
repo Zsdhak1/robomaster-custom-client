@@ -53,7 +53,10 @@ void _testRejectsOldMqttGeneration() {
           2,
         ),
       ]);
-      final harness = await _RuntimeHarness.start(mqttService: mqtt);
+      final harness = await _RuntimeHarness.start(
+        mqttService: mqtt,
+        consumeSharedCacheBeforeRuntime: true,
+      );
       addTearDown(harness.dispose);
       await _flushEvents();
 
@@ -76,7 +79,7 @@ void _testRejectsOldMqttGeneration() {
 
 void _testAcceptsCachedCurrentMqttGeneration() {
   test(
-    'current-generation cache remains valid before runtime starts',
+    'current-generation cache replays after shared provider consumes it',
     () async {
       final beforeRuntime = DateTime.now().subtract(
         const Duration(seconds: 10),
@@ -98,7 +101,10 @@ void _testAcceptsCachedCurrentMqttGeneration() {
           2,
         ),
       ]);
-      final harness = await _RuntimeHarness.start(mqttService: mqtt);
+      final harness = await _RuntimeHarness.start(
+        mqttService: mqtt,
+        consumeSharedCacheBeforeRuntime: true,
+      );
       addTearDown(harness.dispose);
       await _flushEvents();
 
@@ -120,10 +126,14 @@ void _testRuntimeMqttSession() {
       addTearDown(harness.dispose);
       expect(harness.connectionState, MqttConnectionState.connected);
       final firstSessionAt = DateTime.now().add(const Duration(seconds: 1));
-      harness.addInMatchBaseline(firstSessionAt);
+      harness
+        ..addInMatchBaseline(firstSessionAt)
+        ..setModuleOffline();
       await _flushEvents();
+      expect(harness.moduleState.hasOffline, isTrue);
 
       await harness.setConnection(MqttConnectionState.disconnected);
+      expect(harness.moduleState.statuses, isEmpty);
       expect(
         harness.notificationState.visible.where(
           (item) => item.eventType == NotificationEventType.mqttDisconnected,
@@ -150,10 +160,14 @@ class _RuntimeHarness {
     this.messages,
     this.container,
     this.connectionSubscription,
+    this.messageSubscription,
     this.runtimeSubscription,
   );
 
-  static Future<_RuntimeHarness> start({MqttService? mqttService}) async {
+  static Future<_RuntimeHarness> start({
+    MqttService? mqttService,
+    bool consumeSharedCacheBeforeRuntime = false,
+  }) async {
     final connections = StreamController<MqttConnectionState>.broadcast();
     final messages = StreamController<ProtobufEnvelope>.broadcast();
     final container = ProviderContainer(
@@ -163,7 +177,10 @@ class _RuntimeHarness {
         if (mqttService == null)
           mqttConnectionStateProvider.overrideWith((ref) => connections.stream),
         if (mqttService == null)
-          mqttMessageProvider.overrideWith((ref) => messages.stream),
+          mqttEnvelopeStreamFactoryProvider.overrideWith(
+            (ref) =>
+                () => messages.stream,
+          ),
         customVideoStatsProvider.overrideWith((ref) => const Stream.empty()),
         deploymentNavigationProvider.overrideWith(
           (ref) => _deploymentController(),
@@ -179,6 +196,15 @@ class _RuntimeHarness {
       connections.add(MqttConnectionState.connected);
     }
     await _flushEvents();
+    ProviderSubscription<AsyncValue<ProtobufEnvelope>>? messageSubscription;
+    if (consumeSharedCacheBeforeRuntime) {
+      messageSubscription = container.listen(
+        mqttMessageProvider,
+        (_, _) {},
+        fireImmediately: true,
+      );
+      await _flushEvents();
+    }
     final runtimeSubscription = container.listen(
       dashboardNotificationProvider,
       (_, _) {},
@@ -189,6 +215,7 @@ class _RuntimeHarness {
       messages,
       container,
       connectionSubscription,
+      messageSubscription,
       runtimeSubscription,
     );
   }
@@ -198,6 +225,7 @@ class _RuntimeHarness {
   final ProviderContainer container;
   final ProviderSubscription<AsyncValue<MqttConnectionState>>
   connectionSubscription;
+  final ProviderSubscription<AsyncValue<ProtobufEnvelope>>? messageSubscription;
   final ProviderSubscription<DashboardNotificationState> runtimeSubscription;
 
   MqttConnectionState? get connectionState =>
@@ -205,6 +233,9 @@ class _RuntimeHarness {
 
   DashboardNotificationState get notificationState =>
       container.read(dashboardNotificationProvider);
+
+  ModuleStatusMonitorState get moduleState =>
+      container.read(moduleStatusMonitorProvider);
 
   void addInMatchBaseline(DateTime timestamp) {
     messages
@@ -225,6 +256,16 @@ class _RuntimeHarness {
     messages.add(_envelope(_unitStatus(enemyHeroHealth), timestamp));
   }
 
+  void setModuleOffline() {
+    container
+        .read(moduleStatusMonitorProvider.notifier)
+        .observe(
+          const ModuleStatusReading({
+            RobotModuleType.armor: ModuleAvailability.offline,
+          }),
+        );
+  }
+
   Future<void> setConnection(MqttConnectionState state) async {
     connectionStates.add(state);
     await _flushEvents();
@@ -232,6 +273,7 @@ class _RuntimeHarness {
 
   Future<void> dispose() async {
     connectionSubscription.close();
+    messageSubscription?.close();
     runtimeSubscription.close();
     container.dispose();
     await connectionStates.close();
@@ -244,7 +286,7 @@ class _CachedSessionMqttService extends MqttService {
 
   final List<MqttInboundMessage> cached;
   final StreamController<MqttInboundMessage> _messages =
-      StreamController<MqttInboundMessage>();
+      StreamController<MqttInboundMessage>.broadcast();
 
   @override
   MqttConnectionState get state => MqttConnectionState.connected;
