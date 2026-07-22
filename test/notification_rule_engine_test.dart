@@ -11,7 +11,10 @@ import 'package:robomaster_custom_client_1/features/settings/domain/notification
 
 void main() {
   group('NotificationRuleEngine kill line', _registerKillLineTests);
-  group('NotificationRuleEngine respawn', _registerRespawnTests);
+  group('NotificationRuleEngine respawn', () {
+    _registerRespawnClassificationTests();
+    _registerRespawnEvidenceTests();
+  });
   test('maps protocol and deploy transitions', _testTransitions);
   test(
     'maps a supplied module transition without a status snapshot',
@@ -46,7 +49,7 @@ void _registerKillLineTests() {
   test('supports health percent and fixed modes', _testOtherKillLineModes);
 }
 
-void _registerRespawnTests() {
+void _registerRespawnClassificationTests() {
   test('classifies a normal free respawn', _testNormalFreeRespawn);
   test(
     'classifies supply-zone accelerated free respawn',
@@ -74,6 +77,33 @@ void _registerRespawnTests() {
   test(
     'keeps a paid-speed respawn uncertain when detection is disabled',
     _testDisabledBuybackPaidRespawn,
+  );
+}
+
+void _registerRespawnEvidenceTests() {
+  test(
+    'suppresses uncertain respawns when configured',
+    _testSuppressesUncertainRespawn,
+  );
+  test(
+    'suppresses disabled paid detection when configured',
+    _testSuppressesDisabledPaidDetection,
+  );
+  test(
+    'does not suppress known free respawns',
+    _testUncertainSettingDoesNotSuppressFreeRespawns,
+  );
+  test(
+    'reports an unknown accelerated-respawn reason without base evidence',
+    _testUnknownAcceleratedRespawnReason,
+  );
+  test(
+    'keeps low base evidence across missing and high samples',
+    _testLowBaseEvidencePersists,
+  );
+  test(
+    'promotes unknown base evidence to not-low on a high sample',
+    _testUnknownBaseEvidenceBecomesNotLow,
   );
   test(
     'does not penalize a later death after non-paid respawns',
@@ -371,6 +401,102 @@ void _testDisabledBuybackPaidRespawn() {
   expect(event.detail, '敌方复活用时 2 秒，复活方式不确定');
 }
 
+void _testSuppressesUncertainRespawn() {
+  const config = RespawnRuleConfig(
+    uncertainBehavior: UncertainBuybackBehavior.suppress,
+    toleranceMilliseconds: 0,
+  );
+
+  final events = _enemyRespawnEventsAfter(
+    const Duration(seconds: 2),
+    config: config,
+    remainingMatchSeconds: null,
+  );
+
+  expect(events, isEmpty);
+}
+
+void _testSuppressesDisabledPaidDetection() {
+  const config = RespawnRuleConfig(
+    buybackDetectionEnabled: false,
+    uncertainBehavior: UncertainBuybackBehavior.suppress,
+    toleranceMilliseconds: 0,
+  );
+
+  expect(
+    _enemyRespawnEventsAfter(const Duration(seconds: 2), config: config),
+    isEmpty,
+  );
+}
+
+void _testUncertainSettingDoesNotSuppressFreeRespawns() {
+  const config = RespawnRuleConfig(
+    buybackDetectionEnabled: false,
+    uncertainBehavior: UncertainBuybackBehavior.suppress,
+    toleranceMilliseconds: 0,
+  );
+
+  final normal = _enemyRespawnEventsAfter(
+    const Duration(seconds: 10),
+    config: config,
+  );
+  final accelerated = _enemyRespawnEventsAfter(
+    const Duration(seconds: 4),
+    config: config,
+  );
+
+  expect(normal.single.detail, contains('普通免费复活'));
+  expect(accelerated.single.detail, contains('补给区加速免费复活'));
+}
+
+void _testUnknownAcceleratedRespawnReason() {
+  final event = _acceleratedRespawnWithBaseSamples(const [null]);
+
+  expect(event.detail, contains('加速原因不确定'));
+  expect(event.detail, isNot(contains('补给区')));
+  expect(event.detail, isNot(contains('基地低血量')));
+}
+
+void _testLowBaseEvidencePersists() {
+  final event = _acceleratedRespawnWithBaseSamples(const [2000, null, 5000]);
+
+  expect(event.detail, contains('基地低血量加速免费复活'));
+}
+
+void _testUnknownBaseEvidenceBecomesNotLow() {
+  final event = _acceleratedRespawnWithBaseSamples(const [null, 5000]);
+
+  expect(event.detail, contains('补给区加速免费复活'));
+}
+
+RuleNotificationEvent _acceleratedRespawnWithBaseSamples(
+  List<int?> baseHealthSamples,
+) {
+  final engine = NotificationRuleEngine();
+  const config = RespawnRuleConfig(toleranceMilliseconds: 0);
+  final start = DateTime(2026, 7, 22, 12);
+  _handle(engine, _sample(start), config);
+  for (var index = 0; index < baseHealthSamples.length; index++) {
+    _handle(
+      engine,
+      _sample(
+        start.add(Duration(seconds: index + 1)),
+        enemy: const [0, 300, 300, 300, 600],
+        enemyBaseHealth: baseHealthSamples[index],
+      ),
+      config,
+    );
+  }
+  return _handle(
+    engine,
+    _sample(
+      start.add(const Duration(seconds: 5)),
+      enemyBaseHealth: baseHealthSamples.last,
+    ),
+    config,
+  ).single;
+}
+
 void _testNonPaidRespawnsDoNotIncreasePenalty() {
   const config = RespawnRuleConfig(toleranceMilliseconds: 0);
   final cases = <({Duration elapsed, int? remaining})>[
@@ -463,6 +589,20 @@ RuleNotificationEvent _enemyRespawnAfter(
   int? remainingMatchSeconds = 420,
   int targetIndex = 0,
 }) {
+  return _enemyRespawnEventsAfter(
+    elapsed,
+    config: config,
+    remainingMatchSeconds: remainingMatchSeconds,
+    targetIndex: targetIndex,
+  ).single;
+}
+
+List<RuleNotificationEvent> _enemyRespawnEventsAfter(
+  Duration elapsed, {
+  RespawnRuleConfig config = const RespawnRuleConfig(toleranceMilliseconds: 0),
+  int? remainingMatchSeconds = 420,
+  int targetIndex = 0,
+}) {
   final engine = NotificationRuleEngine();
   final start = DateTime(2026, 7, 13, 12);
   _recordEnemyDeath(
@@ -472,7 +612,12 @@ RuleNotificationEvent _enemyRespawnAfter(
     remainingMatchSeconds: remainingMatchSeconds,
     targetIndex: targetIndex,
   );
-  return _respawnEnemy(engine, start, elapsed, config);
+  final enemy = List<int>.from(const [500, 300, 300, 300, 600]);
+  return _handle(
+    engine,
+    _sample(start.add(const Duration(seconds: 1)).add(elapsed), enemy: enemy),
+    config,
+  );
 }
 
 void _recordEnemyDeath(

@@ -10,6 +10,10 @@ import 'package:robomaster_custom_client_1/generated/robomaster_custom_client.pb
 import 'package:robomaster_custom_client_1/services/mqtt_service.dart';
 
 void main() {
+  group('Buff protocol presence', _registerBuffPresenceTests);
+  group('protocol scalar presence', _registerProtocolScalarPresenceTests);
+  group('MQTT notification session fence', _registerMqttSessionFenceTests);
+  group('UDP notification sampling', _registerUdpSamplingTests);
   test('notification runtime requires Buff topic', () {
     expect(notificationRequiredTopics, contains(topicBuff));
   });
@@ -235,4 +239,185 @@ void main() {
       ModuleAvailability.online,
     );
   });
+}
+
+void _registerProtocolScalarPresenceTests() {
+  test('only maps explicitly present countdown and base health fields', () {
+    expect(remainingMatchSecondsFromProtocol(GameStatus()), isNull);
+    expect(enemyBaseHealthFromProtocol(GlobalUnitStatus()), isNull);
+    expect(
+      remainingMatchSecondsFromProtocol(GameStatus(stageCountdownSec: 0)),
+      0,
+    );
+    expect(
+      enemyBaseHealthFromProtocol(GlobalUnitStatus(enemyBaseHealth: 0)),
+      0,
+    );
+  });
+}
+
+void _registerMqttSessionFenceTests() {
+  test('rejects disconnected and stale envelopes but accepts this session', () {
+    final connectedAt = DateTime(2026, 7, 22, 12);
+
+    expect(
+      shouldAcceptNotificationEnvelope(
+        mqttState: MqttConnectionState.disconnected,
+        connectedAt: connectedAt,
+        envelopeTimestamp: connectedAt,
+      ),
+      isFalse,
+    );
+    expect(
+      shouldAcceptNotificationEnvelope(
+        mqttState: MqttConnectionState.connected,
+        connectedAt: null,
+        envelopeTimestamp: connectedAt,
+      ),
+      isFalse,
+    );
+    expect(
+      shouldAcceptNotificationEnvelope(
+        mqttState: MqttConnectionState.connected,
+        connectedAt: connectedAt,
+        envelopeTimestamp: connectedAt.subtract(
+          const Duration(microseconds: 1),
+        ),
+      ),
+      isFalse,
+    );
+    expect(
+      shouldAcceptNotificationEnvelope(
+        mqttState: MqttConnectionState.connected,
+        connectedAt: connectedAt,
+        envelopeTimestamp: connectedAt,
+      ),
+      isTrue,
+    );
+  });
+}
+
+void _registerUdpSamplingTests() {
+  test('reset makes the next UDP sample start a fresh window', () {
+    final sampler = UdpWindowSampler();
+    final now = DateTime(2026, 7, 22, 12);
+    expect(
+      sampler.sample(now: now, received: 10, dropped: 0, windowSeconds: 5),
+      isNull,
+    );
+    expect(
+      sampler.sample(
+        now: now.add(const Duration(seconds: 1)),
+        received: 20,
+        dropped: 10,
+        windowSeconds: 5,
+      ),
+      50,
+    );
+
+    sampler.reset();
+
+    expect(
+      sampler.sample(
+        now: now.add(const Duration(seconds: 2)),
+        received: 30,
+        dropped: 10,
+        windowSeconds: 5,
+      ),
+      isNull,
+    );
+  });
+}
+
+void _registerBuffPresenceTests() {
+  test(
+    'ignores a Buff missing each required scalar field',
+    _testMissingBuffFields,
+  );
+  test(
+    'preserves explicit zero Buff values and complete samples',
+    _testExplicitZeroAndCompleteBuffs,
+  );
+}
+
+void _testMissingBuffFields() {
+  final builders = <Buff Function()>[
+    () => Buff(buffType: combatAttackBuffType, buffLevel: 25, buffLeftTime: 2),
+    () => Buff(robotId: 1, buffLevel: 25, buffLeftTime: 2),
+    () => Buff(robotId: 1, buffType: combatAttackBuffType, buffLeftTime: 2),
+    () => Buff(robotId: 1, buffType: combatAttackBuffType, buffLevel: 25),
+  ];
+  for (final build in builders) {
+    final engine = NotificationRuleEngine();
+    final now = DateTime(2026, 7, 22, 12);
+    _observeProtocolBuff(
+      engine,
+      Buff(
+        robotId: 1,
+        buffType: combatAttackBuffType,
+        buffLevel: 150,
+        buffLeftTime: 10,
+      ),
+      now,
+    );
+    _observeProtocolBuff(engine, build(), now.add(const Duration(seconds: 1)));
+    expect(
+      engine.combatBuffsAt(now.add(const Duration(seconds: 1))).attack[1],
+      150,
+    );
+  }
+}
+
+void _testExplicitZeroAndCompleteBuffs() {
+  final engine = NotificationRuleEngine();
+  final now = DateTime(2026, 7, 22, 12);
+  _observeProtocolBuff(
+    engine,
+    Buff(
+      robotId: 1,
+      buffType: combatAttackBuffType,
+      buffLevel: 0,
+      buffLeftTime: 2,
+    ),
+    now,
+  );
+  expect(engine.combatBuffsAt(now).attack[1], 0);
+
+  _observeProtocolBuff(
+    engine,
+    Buff(
+      robotId: 1,
+      buffType: combatAttackBuffType,
+      buffLevel: 0,
+      buffLeftTime: 0,
+    ),
+    now.add(const Duration(seconds: 1)),
+  );
+  expect(
+    engine.combatBuffsAt(now.add(const Duration(seconds: 1))).attack,
+    isEmpty,
+  );
+
+  _observeProtocolBuff(
+    engine,
+    Buff(
+      robotId: 1,
+      buffType: combatDefenseBuffType,
+      buffLevel: 25,
+      buffLeftTime: 2,
+    ),
+    now.add(const Duration(seconds: 2)),
+  );
+  expect(
+    engine.combatBuffsAt(now.add(const Duration(seconds: 2))).defense[1],
+    25,
+  );
+}
+
+void _observeProtocolBuff(
+  NotificationRuleEngine engine,
+  Buff buff,
+  DateTime timestamp,
+) {
+  observeBuffFromProtocol(engine: engine, buff: buff, timestamp: timestamp);
 }

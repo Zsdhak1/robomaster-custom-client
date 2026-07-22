@@ -181,10 +181,8 @@ class RobotStatusList extends ConsumerWidget {
         ownIsBlueOverride ?? isBlueSide(ref.watch(selectedRobotIdProvider));
     final DashboardDisplayMode mode =
         modeOverride ?? ref.watch(dashboardDisplayModeProvider);
-    final estimateConfig = ref.watch(killEstimateConfigProvider);
 
     final sections = _resolveSections(ownIsBlue: ownIsBlue, mode: mode);
-    final enemyDefs = _enemyDefs(ownIsBlue: ownIsBlue, sections: sections);
 
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 0.0, end: 1.0),
@@ -220,33 +218,12 @@ class RobotStatusList extends ConsumerWidget {
                 Expanded(
                   child: _buildSectionList(context, sections, effectiveState),
                 ),
-
-                // --- 敌方集火建议（仅 enemyFocus 模式）---
-                if (mode == DashboardDisplayMode.enemyFocus &&
-                    enemyDefs.isNotEmpty)
-                  _buildSuggestionBar(
-                    context,
-                    effectiveState,
-                    enemyDefs,
-                    estimateConfig,
-                  ),
               ],
             ),
           ),
         ),
       ),
     );
-  }
-
-  /// 提取敌方区段的机器人定义；不存在时返回空列表。
-  static List<_RobotDef> _enemyDefs({
-    required bool ownIsBlue,
-    required List<_TeamSection> sections,
-  }) {
-    for (final s in sections) {
-      if (s.title == 'enemy') return s.defs;
-    }
-    return [];
   }
 
   /// 根据 [mode] 和己方阵营解析要显示的队伍区段。
@@ -319,89 +296,11 @@ class RobotStatusList extends ConsumerWidget {
             _SectionHeader(title: section.title, color: section.color),
             context.sizedBox(h: 6),
             for (final def in section.defs)
-              _RobotStatusRow(
-                def: def,
-                gameState: gameState,
-                compact: compact,
-              ),
+              _RobotStatusRow(def: def, gameState: gameState, compact: compact),
           ],
         );
       },
     );
-  }
-
-  /// 建议栏：高亮当前血量比例最低的敌方机器人。
-  Widget _buildSuggestionBar(
-    BuildContext context,
-    GameState gameState,
-    List<_RobotDef> enemyDefs,
-    KillEstimateConfig estimateConfig,
-  ) {
-    _RobotDef? lowestDef;
-    var lowestHp = double.infinity;
-    int? lowestHealth;
-    for (final def in enemyDefs) {
-      final hp = _getHealth(def, gameState);
-      final role = def.role;
-      final maxHp = role == null
-          ? def.maxHealth
-          : estimateConfig.maxHealth(role);
-      if (maxHp <= 0) continue;
-      final ratio = hp / maxHp;
-      if (ratio < lowestHp) {
-        lowestHp = ratio;
-        lowestDef = def;
-        lowestHealth = hp;
-      }
-    }
-
-    if (lowestDef == null || lowestHp > _criticalThreshold) {
-      return const SizedBox.shrink();
-    }
-    final targetRole = lowestDef.role;
-    final targetMax = targetRole == null
-        ? lowestDef.maxHealth
-        : estimateConfig.maxHealth(targetRole);
-
-    return Padding(
-      padding: EdgeInsets.only(top: context.sp(8)),
-      child: Container(
-        padding: context.insetSym(h: 12, v: 8),
-        decoration: BoxDecoration(
-          color: rmHealthLowColor.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(context.sp(8)),
-          border: Border.all(color: rmHealthLowColor.withValues(alpha: 0.3)),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.whatshot,
-              size: context.iconSize(18),
-              color: rmHealthLowColor,
-            ),
-            context.sizedBox(w: 8),
-            Expanded(
-              child: Text(
-                '集火目标 · ${lowestDef.name}  剩余 $lowestHealth / '
-                '$targetMax',
-                style: context.textTheme.bodySmall!.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: rmHealthLowColor,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 从 [gameState] 中读取 [def] 对应的血量。
-  static int _getHealth(_RobotDef def, GameState gameState) {
-    if (def.dataIndex < 0) return 0;
-    final list = gameState.globalUnitStatus?.robotHealth;
-    if (list == null || def.dataIndex >= list.length) return 0;
-    return list[def.dataIndex];
   }
 }
 

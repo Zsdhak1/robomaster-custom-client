@@ -86,7 +86,7 @@ class _NotificationRuntime {
   final NotificationRuleEngine _engine = NotificationRuleEngine();
   final ConnectionQualityEvaluator _quality = ConnectionQualityEvaluator();
   final MqttNotificationTracker _mqttTracker = MqttNotificationTracker();
-  final _UdpWindowSampler _udpSampler = _UdpWindowSampler();
+  final UdpWindowSampler _udpSampler = UdpWindowSampler();
   Timer? _qualityTimer;
   MqttConnectionState? _mqttState;
   DateTime? _mqttConnectedAt;
@@ -97,6 +97,15 @@ class _NotificationRuntime {
 
   void start() {
     _selectedRobotId = ref.read(selectedRobotIdProvider);
+    final initialMqttState =
+        ref.read(mqttConnectionStateProvider).valueOrNull ??
+        ref.read(mqttServiceProvider).state;
+    final now = DateTime.now();
+    _mqttState = initialMqttState;
+    _mqttTracker.handle(initialMqttState, now);
+    if (initialMqttState == MqttConnectionState.connected) {
+      _mqttConnectedAt = now;
+    }
     ref
       ..listen(mqttConnectionStateProvider, (_, next) {
         next.whenData(_handleMqttState);
@@ -121,20 +130,29 @@ class _NotificationRuntime {
   }
 
   void _handleMqttState(MqttConnectionState next) {
-    if (next == MqttConnectionState.connecting) return;
     final previous = _mqttState;
     _mqttState = next;
     final now = DateTime.now();
-    if (next == MqttConnectionState.connected) {
+    if (next == MqttConnectionState.connected &&
+        previous != MqttConnectionState.connected) {
       _mqttConnectedAt = now;
     }
     if (shouldResetNotificationMatchForMqttTransition(previous, next)) {
+      _gameStatus = null;
+      _mqttConnectedAt = null;
+      _lastMqttMessageAt = null;
       _resetMatchState();
     }
     _emitNullable(_mqttTracker.handle(next, now));
   }
 
   void _handleEnvelope(ProtobufEnvelope envelope) {
+    final accept = shouldAcceptNotificationEnvelope(
+      mqttState: _mqttState,
+      connectedAt: _mqttConnectedAt,
+      envelopeTimestamp: envelope.timestamp,
+    );
+    if (accept == false) return;
     _lastMqttMessageAt = envelope.timestamp;
     final message = envelope.protobufMessage;
     switch (message) {
@@ -179,7 +197,9 @@ class _NotificationRuntime {
 
   void _resetMatchState() {
     resetNotificationMatchState(engine: _engine, moduleMonitor: moduleMonitor);
+    controller.resetRuntimeState();
     _quality.reset();
+    _udpSampler.reset();
     ref.read(deploymentNavigationProvider.notifier).resetMatch();
   }
 
@@ -195,8 +215,8 @@ class _NotificationRuntime {
           .toList(growable: false),
       selectedRobotId: ref.read(selectedRobotIdProvider),
       timestamp: timestamp,
-      remainingMatchSeconds: _gameStatus?.stageCountdownSec,
-      enemyBaseHealth: status.enemyBaseHealth,
+      remainingMatchSeconds: remainingMatchSecondsFromProtocol(_gameStatus),
+      enemyBaseHealth: enemyBaseHealthFromProtocol(status),
       combatBuffs: _engine.combatBuffsAt(timestamp),
     );
     final profile = ref.read(activeNotificationProfileProvider);
@@ -412,11 +432,17 @@ List<RuleNotificationEvent> moduleStatusEventsFromReading({
 }
 
 /// 将 Buff 协议字段连同信封时间写入规则引擎。
-void observeBuffFromProtocol({
+bool observeBuffFromProtocol({
   required NotificationRuleEngine engine,
   required Buff buff,
   required DateTime timestamp,
 }) {
+  final complete =
+      buff.hasRobotId() &&
+      buff.hasBuffType() &&
+      buff.hasBuffLevel() &&
+      buff.hasBuffLeftTime();
+  if (!complete) return false;
   engine.observeBuff(
     CombatBuffSample(
       robotId: buff.robotId,
@@ -426,6 +452,7 @@ void observeBuffFromProtocol({
       receivedAt: timestamp,
     ),
   );
+  return true;
 }
 
 /// 判定比赛状态变化是否必须清理比赛级通知状态。
@@ -448,6 +475,29 @@ bool shouldResetNotificationMatchForMqttTransition(
 /// 判定操作身份变化是否必须清理比赛级通知状态。
 bool shouldResetNotificationMatchForIdentity(int? previous, int current) {
   return previous != null && previous != current;
+}
+
+/// 仅返回协议中明确出现的比赛剩余秒数。
+int? remainingMatchSecondsFromProtocol(GameStatus? status) {
+  if (status == null) return null;
+  return status.hasStageCountdownSec() ? status.stageCountdownSec : null;
+}
+
+/// 仅返回协议中明确出现的敌方基地血量。
+int? enemyBaseHealthFromProtocol(GlobalUnitStatus status) {
+  return status.hasEnemyBaseHealth() ? status.enemyBaseHealth : null;
+}
+
+/// 判断信封是否属于当前已连接的 MQTT 会话。
+bool shouldAcceptNotificationEnvelope({
+  required MqttConnectionState? mqttState,
+  required DateTime? connectedAt,
+  required DateTime envelopeTimestamp,
+}) {
+  if (mqttState != MqttConnectionState.connected || connectedAt == null) {
+    return false;
+  }
+  return envelopeTimestamp.isBefore(connectedAt) == false;
 }
 
 /// 清理规则引擎与共享模块面板持有的比赛级状态。
@@ -476,9 +526,14 @@ Future<void> playNotificationFeedback(
   }
 }
 
-class _UdpWindowSampler {
+/// 使用累计 UDP 计数计算滑动窗口丢包率。
+class UdpWindowSampler {
   final Queue<_UdpSample> _samples = Queue<_UdpSample>();
 
+  /// 清空当前比赛的采样基线。
+  void reset() => _samples.clear();
+
+  /// 记录累计计数，并在至少存在两个样本时返回窗口丢包百分比。
   double? sample({
     required DateTime now,
     required int received,

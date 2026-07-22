@@ -7,6 +7,10 @@ import 'package:robomaster_custom_client_1/features/settings/domain/notification
 void main() {
   _testProfileApplication();
   _testRecoveryDismissal();
+  _testDisabledRecoveryDismissal();
+  _testPausedRecoveryDismissal();
+  _testCoolingRecoveryDismissal();
+  _testRuntimeReset();
   _testPreviewBypassesGuards();
 }
 
@@ -74,6 +78,85 @@ void _testRecoveryDismissal() {
   });
 }
 
+void _testDisabledRecoveryDismissal() {
+  test('disabled recovery still closes its matching warning', () {
+    final controller = DashboardNotificationController();
+    addTearDown(controller.dispose);
+    final now = DateTime(2026, 7, 22, 12);
+    final base = _profile(const NotificationDisplayConfig());
+    final disabledRecovery = base
+        .eventSettings[NotificationEventType.moduleRecovered]
+        ?.copyWith(enabled: false);
+    final profile = disabledRecovery == null
+        ? base
+        : base.withEventSetting(
+            NotificationEventType.moduleRecovered,
+            disabledRecovery,
+          );
+    controller.showConfigured(_moduleOffline(now), profile, gamePaused: false);
+
+    final result = controller.showConfigured(
+      _moduleRecovery(now.add(const Duration(seconds: 10))),
+      profile,
+      gamePaused: false,
+    );
+
+    expect(result, isNull);
+    expect(controller.state.visible, isEmpty);
+  });
+}
+
+void _testPausedRecoveryDismissal() {
+  test('paused recovery still closes its matching warning', () {
+    final controller = DashboardNotificationController();
+    addTearDown(controller.dispose);
+    final now = DateTime(2026, 7, 22, 12);
+    final profile = _profile(
+      const NotificationDisplayConfig(muteWhenPaused: true),
+    );
+    controller.showConfigured(_moduleOffline(now), profile, gamePaused: false);
+
+    final result = controller.showConfigured(
+      _moduleRecovery(now.add(const Duration(seconds: 10))),
+      profile,
+      gamePaused: true,
+    );
+
+    expect(result, isNull);
+    expect(controller.state.visible, isEmpty);
+  });
+}
+
+void _testCoolingRecoveryDismissal() {
+  test('cooling recovery still closes a newly visible matching warning', () {
+    final controller = DashboardNotificationController();
+    addTearDown(controller.dispose);
+    final now = DateTime(2026, 7, 22, 12);
+    final profile = _profile(const NotificationDisplayConfig());
+    controller
+      ..showConfigured(_moduleRecovery(now), profile, gamePaused: false)
+      ..showConfigured(
+        _moduleOffline(now.add(const Duration(seconds: 1))),
+        profile,
+        gamePaused: false,
+      );
+
+    final result = controller.showConfigured(
+      _moduleRecovery(now.add(const Duration(seconds: 2))),
+      profile,
+      gamePaused: false,
+    );
+
+    expect(result, isNull);
+    expect(
+      controller.state.visible.where(
+        (item) => item.dedupKey == 'module-offline-0',
+      ),
+      isEmpty,
+    );
+  });
+}
+
 void _testPreviewBypassesGuards() {
   test('preview bypasses disabled settings and cooldown', () {
     final controller = DashboardNotificationController();
@@ -123,6 +206,51 @@ RuleNotificationEvent _event(DateTime now, String key) {
     headline: '连接质量变化',
     detail: 'MQTT 延迟',
     dedupKey: key,
+    occurredAt: now,
+  );
+}
+
+void _testRuntimeReset() {
+  test('runtime reset clears visible and cooldown but preserves history', () {
+    final controller = DashboardNotificationController();
+    addTearDown(controller.dispose);
+    final profile = _profile(const NotificationDisplayConfig());
+    final now = DateTime(2026, 7, 22, 12);
+    controller.showConfigured(_moduleOffline(now), profile, gamePaused: false);
+    expect(controller.state.visible, hasLength(1));
+    expect(controller.state.history, hasLength(1));
+
+    controller.resetRuntimeState();
+
+    expect(controller.state.visible, isEmpty);
+    expect(controller.state.history, hasLength(1));
+    final firstAfterReset = controller.showConfigured(
+      _moduleOffline(now.add(const Duration(seconds: 1))),
+      profile,
+      gamePaused: false,
+    );
+    expect(firstAfterReset, isNotNull);
+    expect(controller.state.history, hasLength(2));
+  });
+}
+
+RuleNotificationEvent _moduleOffline(DateTime now) {
+  return RuleNotificationEvent(
+    type: NotificationEventType.moduleDisconnected,
+    headline: '模块断联',
+    detail: '主控离线',
+    dedupKey: 'module-offline-0',
+    occurredAt: now,
+  );
+}
+
+RuleNotificationEvent _moduleRecovery(DateTime now) {
+  return RuleNotificationEvent(
+    type: NotificationEventType.moduleRecovered,
+    headline: '模块恢复',
+    detail: '主控在线',
+    dedupKey: 'module-recovered-0',
+    recoveryKey: 'module-offline-0',
     occurredAt: now,
   );
 }

@@ -114,7 +114,8 @@ class NotificationRuleEngine {
       if (before > 0 && current == 0) _recordEnemyDeath(index, sample, config);
       if (current == 0) _trackEnemyBaseHealth(index, sample, config);
       if (before == 0 && current > 0 && config.enabled) {
-        events.add(_classifyEnemyRespawn(index, sample, config));
+        final event = _classifyEnemyRespawn(index, sample, config);
+        if (event != null) events.add(event);
       }
     }
     return events;
@@ -135,7 +136,7 @@ class NotificationRuleEngine {
       at: sample.timestamp,
       normalDuration: bounds?.normal,
       fastestDuration: bounds?.fastest,
-      baseLowDuringDeath: _isEnemyBaseLow(sample, config),
+      baseHealthEvidence: _baseHealthEvidence(sample, config),
     );
   }
 
@@ -145,35 +146,67 @@ class NotificationRuleEngine {
     RespawnRuleConfig config,
   ) {
     final death = _enemyDeaths[index];
-    if (death == null || death.baseLowDuringDeath) return;
-    if (!_isEnemyBaseLow(sample, config)) return;
-    _enemyDeaths[index] = death.copyWith(baseLowDuringDeath: true);
+    if (death == null) return;
+    final evidence = _mergeBaseHealthEvidence(
+      death.baseHealthEvidence,
+      _baseHealthEvidence(sample, config),
+    );
+    if (evidence == death.baseHealthEvidence) return;
+    _enemyDeaths[index] = death.copyWith(baseHealthEvidence: evidence);
   }
 
-  bool _isEnemyBaseLow(UnitHealthSample sample, RespawnRuleConfig config) {
+  _BaseHealthEvidence _baseHealthEvidence(
+    UnitHealthSample sample,
+    RespawnRuleConfig config,
+  ) {
     final baseHealth = sample.enemyBaseHealth;
-    return baseHealth != null && baseHealth <= config.lowBaseHealthThreshold;
+    if (baseHealth == null) return _BaseHealthEvidence.unknown;
+    return baseHealth <= config.lowBaseHealthThreshold
+        ? _BaseHealthEvidence.low
+        : _BaseHealthEvidence.notLow;
   }
 
-  RuleNotificationEvent _classifyEnemyRespawn(
+  _BaseHealthEvidence _mergeBaseHealthEvidence(
+    _BaseHealthEvidence current,
+    _BaseHealthEvidence next,
+  ) {
+    if (current == _BaseHealthEvidence.low || next == _BaseHealthEvidence.low) {
+      return _BaseHealthEvidence.low;
+    }
+    return next == _BaseHealthEvidence.unknown ? current : next;
+  }
+
+  RuleNotificationEvent? _classifyEnemyRespawn(
     int index,
     UnitHealthSample sample,
     RespawnRuleConfig config,
   ) {
     final death = _enemyDeaths.remove(index);
-    if (death == null) return _enemyRespawnEvent(sample, index, null, null);
+    if (death == null) return _uncertainRespawn(sample, index, null, config);
     final elapsed = sample.timestamp.difference(death.at);
     final tolerance = Duration(milliseconds: config.toleranceMilliseconds);
     final method = _respawnMethod(death, elapsed, tolerance);
     final disabledPaidDetection =
         method == _EnemyRespawnMethod.paid && !config.buybackDetectionEnabled;
     if (method == null || disabledPaidDetection) {
-      return _enemyRespawnEvent(sample, index, elapsed, null);
+      return _uncertainRespawn(sample, index, elapsed, config);
     }
     if (method == _EnemyRespawnMethod.paid) {
       _enemyBuybackCounts[index] = (_enemyBuybackCounts[index] ?? 0) + 1;
     }
     return _enemyRespawnEvent(sample, index, elapsed, method, death);
+  }
+
+  RuleNotificationEvent? _uncertainRespawn(
+    UnitHealthSample sample,
+    int index,
+    Duration? elapsed,
+    RespawnRuleConfig config,
+  ) {
+    if (config.uncertainBehavior == UncertainBuybackBehavior.suppress) {
+      return null;
+    }
+    return _enemyRespawnEvent(sample, index, elapsed, null);
   }
 
   _EnemyRespawnMethod? _respawnMethod(
@@ -239,8 +272,11 @@ class NotificationRuleEngine {
     final inference = switch (method) {
       _EnemyRespawnMethod.paid => '付费复活',
       _EnemyRespawnMethod.normal => '普通免费复活',
-      _EnemyRespawnMethod.accelerated =>
-        death?.baseLowDuringDeath == true ? '基地低血量加速免费复活' : '补给区加速免费复活',
+      _EnemyRespawnMethod.accelerated => switch (death?.baseHealthEvidence) {
+        _BaseHealthEvidence.low => '基地低血量加速免费复活',
+        _BaseHealthEvidence.notLow => '补给区加速免费复活',
+        _BaseHealthEvidence.unknown || null => '加速原因不确定',
+      },
     };
     return '敌方复活用时 $seconds 秒，推断为$inference';
   }
@@ -292,22 +328,24 @@ class _DeathRecord {
     required this.at,
     required this.normalDuration,
     required this.fastestDuration,
-    required this.baseLowDuringDeath,
+    required this.baseHealthEvidence,
   });
 
   final DateTime at;
   final Duration? normalDuration;
   final Duration? fastestDuration;
-  final bool baseLowDuringDeath;
+  final _BaseHealthEvidence baseHealthEvidence;
 
-  _DeathRecord copyWith({required bool baseLowDuringDeath}) {
+  _DeathRecord copyWith({required _BaseHealthEvidence baseHealthEvidence}) {
     return _DeathRecord(
       at: at,
       normalDuration: normalDuration,
       fastestDuration: fastestDuration,
-      baseLowDuringDeath: baseLowDuringDeath,
+      baseHealthEvidence: baseHealthEvidence,
     );
   }
 }
 
 enum _EnemyRespawnMethod { paid, accelerated, normal }
+
+enum _BaseHealthEvidence { low, notLow, unknown }

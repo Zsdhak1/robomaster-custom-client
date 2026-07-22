@@ -12,8 +12,9 @@ const int defaultSelectedRobotId = 1;
 ///
 /// 红方 ID 为 1-7，蓝方 ID 为 101-107。所选阵营会驱动全局主题颜色，
 /// 并决定仪表盘中哪一队计为“己方”。
-final selectedRobotIdProvider =
-    StateProvider<int>((ref) => defaultSelectedRobotId);
+final selectedRobotIdProvider = StateProvider<int>(
+  (ref) => defaultSelectedRobotId,
+);
 
 /// 仪表盘机器人列表展示双方队伍的方式。
 enum DashboardDisplayMode {
@@ -28,19 +29,19 @@ enum DashboardDisplayMode {
 extension DashboardDisplayModeLabel on DashboardDisplayMode {
   /// 设置页中显示的短中文标签。
   String get label => switch (this) {
-        DashboardDisplayMode.enemyFocus => '敌方详情 + 己方趋势',
-        DashboardDisplayMode.both => '双方都显示',
-      };
+    DashboardDisplayMode.enemyFocus => '敌方详情 + 己方趋势',
+    DashboardDisplayMode.both => '双方都显示',
+  };
 
   /// 描述该模式展示内容的单行说明。
   String get description => switch (this) {
-        DashboardDisplayMode.enemyFocus =>
-          '机器人列表展示敌方逐个血量，便于集火监控；下方趋势图展示己方总血量。',
-        DashboardDisplayMode.both =>
-          '机器人列表分两栏同时展示己方与敌方所有机器人的详细血量。',
-      };
+    DashboardDisplayMode.enemyFocus =>
+      '机器人列表展示敌方逐个血量，便于快速查看各机器人状态；下方趋势图展示己方总血量。',
+    DashboardDisplayMode.both => '机器人列表分两栏同时展示己方与敌方所有机器人的详细血量。',
+  };
 }
 
 /// 当前仪表盘显示模式，默认聚焦敌方监控。
-final dashboardDisplayModeProvider =
-    StateProvider<DashboardDisplayMode>((ref) => DashboardDisplayMode.enemyFocus);
+final dashboardDisplayModeProvider = StateProvider<DashboardDisplayMode>(
+  (ref) => DashboardDisplayMode.enemyFocus,
+);

@@ -40,13 +40,13 @@ class DashboardNotificationController
     NotificationRuleProfile profile, {
     required bool gamePaused,
   }) {
+    final recoveryKey = event.recoveryKey;
+    if (recoveryKey != null) dismissByDedupKey(recoveryKey);
     final display = profile.display;
     final setting = profile.eventSettings[event.type];
     if (setting == null) return null;
     if (!_canShow(display, setting, gamePaused)) return null;
     if (_isCoolingDown(event, setting, display)) return null;
-    final recoveryKey = event.recoveryKey;
-    if (recoveryKey != null) dismissByDedupKey(recoveryKey);
     final content = notificationFromRuleEvent(event, profile);
     final item = content.instantiate(now: event.occurredAt);
     _lastShownAt[_cooldownKey(event)] = event.occurredAt;
@@ -109,6 +109,16 @@ class DashboardNotificationController
   /// 清空本次运行的通知历史。
   void clearHistory() {
     state = state.copyWith(history: const []);
+  }
+
+  /// 清理当前比赛会话的可见通知、定时器和冷却基线，保留历史记录。
+  void resetRuntimeState() {
+    for (final timer in _dismissTimers.values) {
+      timer.cancel();
+    }
+    _dismissTimers.clear();
+    _lastShownAt.clear();
+    state = state.copyWith(visible: const []);
   }
 
   void _showItem(
