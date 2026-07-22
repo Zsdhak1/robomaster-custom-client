@@ -1,28 +1,12 @@
 /// 协议事件、英雄部署和本机模块转换跟踪。
 library;
 
-import 'dart:math' as math;
-
 import '../../settings/domain/notification_preferences.dart';
 import 'dashboard_notification_models.dart';
-
-const List<String> _moduleLabels = [
-  '电源管理',
-  'RFID',
-  '灯条',
-  '17mm 发射机构',
-  '42mm 发射机构',
-  '定位',
-  '装甲',
-  '图传',
-  '电容',
-  '主控',
-  '激光检测',
-];
+import 'module_status_monitor.dart';
 
 /// 跟踪不依赖机器人血量的协议状态转换。
 class NotificationProtocolTracker {
-  List<int>? _previousModuleStatus;
   int? _previousDeployStatus;
 
   /// 处理通知计划中使用的全局 Event。
@@ -59,47 +43,26 @@ class NotificationProtocolTracker {
     return previous == 0 && status == 1;
   }
 
-  /// 检测本机各模块在线状态变化。
-  List<RuleNotificationEvent> handleModuleStatus(
-    List<int> statuses,
-    DateTime timestamp,
-  ) {
-    final previous = _previousModuleStatus;
-    _previousModuleStatus = List<int>.from(statuses);
-    if (previous == null) return const [];
-    final events = <RuleNotificationEvent>[];
-    final count = math.min(statuses.length, previous.length);
-    for (var index = 0; index < count; index++) {
-      final wasOffline = previous[index] == 0;
-      final isOffline = statuses[index] == 0;
-      if (wasOffline != isOffline) {
-        events.add(_moduleEvent(index, isOffline, timestamp));
-      }
-    }
-    return events;
-  }
-
   /// 新比赛开始时重置部署转换基线。
   void resetMatch() {
     _previousDeployStatus = null;
   }
 
-  RuleNotificationEvent _moduleEvent(
-    int index,
-    bool offline,
+  /// 将已确认的模块状态转换映射为通知事件。
+  RuleNotificationEvent moduleEvent(
+    ModuleStatusTransition transition,
     DateTime timestamp,
   ) {
-    final label = index < _moduleLabels.length
-        ? _moduleLabels[index]
-        : '模块 ${index + 1}';
-    final key = 'module-offline-$index';
+    final offline = transition.becameOffline;
+    final label = transition.module.label;
+    final key = 'module-offline-${transition.module.name}';
     return RuleNotificationEvent(
       type: offline
           ? NotificationEventType.moduleDisconnected
           : NotificationEventType.moduleRecovered,
-      headline: offline ? '$label模块断联' : '$label模块恢复',
+      headline: offline ? '$label模块离线' : '$label模块恢复在线',
       detail: offline ? '检测到模块状态由在线变为离线' : '模块已重新上报非离线状态',
-      dedupKey: offline ? key : 'module-recovered-$index',
+      dedupKey: offline ? key : 'module-recovered-${transition.module.name}',
       recoveryKey: offline ? null : key,
       occurredAt: timestamp,
     );

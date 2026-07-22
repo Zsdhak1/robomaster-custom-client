@@ -3,6 +3,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:robomaster_custom_client_1/features/dashboard/logic/combat_buff_tracker.dart';
 import 'package:robomaster_custom_client_1/features/dashboard/logic/dashboard_notification_models.dart';
+import 'package:robomaster_custom_client_1/features/dashboard/logic/module_status_monitor.dart';
 import 'package:robomaster_custom_client_1/features/dashboard/logic/notification_rule_engine.dart';
 import 'package:robomaster_custom_client_1/features/settings/domain/combat_notification_rules.dart';
 import 'package:robomaster_custom_client_1/features/settings/domain/kill_estimate_config.dart';
@@ -530,16 +531,34 @@ void _testTransitions() {
     engine.handleProtocolEvent(eventId: 15, param: '0', timestamp: now)?.type,
     NotificationEventType.allyAssemblyCompleted,
   );
-  expect(engine.handleModuleStatus(List.filled(11, 1), now), isEmpty);
-  final offline = List<int>.filled(11, 1)..[7] = 0;
-  expect(
-    engine.handleModuleStatus(offline, now).single.type,
-    NotificationEventType.moduleDisconnected,
+  final offline = ModuleStatusTransition.from(
+    ModuleAvailability.online,
+    const MapEntry(
+      RobotModuleType.videoTransmission,
+      ModuleAvailability.offline,
+    ),
   );
-  expect(
-    engine.handleModuleStatus(List.filled(11, 1), now).single.type,
-    NotificationEventType.moduleRecovered,
+  final recovered = ModuleStatusTransition.from(
+    ModuleAvailability.offline,
+    const MapEntry(
+      RobotModuleType.videoTransmission,
+      ModuleAvailability.online,
+    ),
   );
+  expect(offline, isNotNull);
+  expect(recovered, isNotNull);
+  final transitions = [offline, recovered].whereType<ModuleStatusTransition>();
+  final events = transitions.map((transition) => engine.moduleEvent(transition, now));
+  final eventList = events.toList(growable: false);
+  expect(eventList, hasLength(2));
+  final offlineEvent = eventList[0];
+  final recoveryEvent = eventList[1];
+  expect(offlineEvent.type, NotificationEventType.moduleDisconnected);
+  expect(offlineEvent.headline, '图传模块离线');
+  expect(offlineEvent.dedupKey, 'module-offline-videoTransmission');
+  expect(recoveryEvent.type, NotificationEventType.moduleRecovered);
+  expect(recoveryEvent.headline, '图传模块恢复在线');
+  expect(recoveryEvent.recoveryKey, offlineEvent.dedupKey);
 }
 
 List<RuleNotificationEvent> _handleKillLine(

@@ -8,6 +8,7 @@ import '../../settings/domain/kill_estimate_config.dart';
 import '../../settings/domain/notification_preferences.dart';
 import 'dashboard_notification_models.dart';
 import 'kill_line_notification_tracker.dart';
+import 'module_status_monitor.dart';
 import 'notification_protocol_tracker.dart';
 import 'notification_rule_models.dart';
 
@@ -19,6 +20,8 @@ class NotificationRuleEngine {
   List<int>? _previousEnemyHealth;
   final NotificationProtocolTracker _protocol = NotificationProtocolTracker();
   final KillLineNotificationTracker _killLines = KillLineNotificationTracker();
+  final ModuleStatusMonitorController _legacyModuleMonitor =
+      ModuleStatusMonitorController();
   final Map<int, _DeathRecord> _enemyDeaths = {};
   final Map<int, int> _enemyBuybackCounts = {};
 
@@ -57,18 +60,37 @@ class NotificationRuleEngine {
     return _protocol.observeDeployStatus(status);
   }
 
-  /// 检测本机各模块在线状态变化。
+  /// 将模块状态转换转发为通知事件。
+  RuleNotificationEvent moduleEvent(
+    ModuleStatusTransition transition,
+    DateTime timestamp,
+  ) {
+    return _protocol.moduleEvent(transition, timestamp);
+  }
+
+  /// 兼容旧运行时；新运行时应从模块状态监控器传入转换。
+  @Deprecated('Use moduleEvent with a ModuleStatusTransition instead.')
   List<RuleNotificationEvent> handleModuleStatus(
     List<int> statuses,
     DateTime timestamp,
   ) {
-    return _protocol.handleModuleStatus(statuses, timestamp);
+    final values = <RobotModuleType, int>{
+      for (var index = 0;
+          index < statuses.length && index < RobotModuleType.values.length;
+          index++)
+        RobotModuleType.values[index]: statuses[index],
+    };
+    return _legacyModuleMonitor
+        .observe(ModuleStatusReading.fromProtocolValues(values))
+        .map((transition) => moduleEvent(transition, timestamp))
+        .toList(growable: false);
   }
 
   /// 清理跨比赛状态，避免上一场的死亡和冷却泄漏。
   void resetMatch() {
     _previousAllyHealth = null;
     _previousEnemyHealth = null;
+    _legacyModuleMonitor.reset();
     _protocol.resetMatch();
     _killLines.reset();
     _enemyDeaths.clear();
