@@ -51,3 +51,29 @@ DONE_WITH_CONCERNS
 - 验证：`flutter analyze`，exit 0，`No issues found!`。
 - `flutter test test/module_status_monitor_test.dart test/notification_rule_engine_test.dart --reporter expanded`：exit 0，31/31 通过。
 - `flutter test test/notification_runtime_test.dart --reporter expanded`：exit 0，1/1 通过。
+
+## 第二次审查修复（共享 Provider 实例）
+
+### RED
+
+- 命令：`flutter test test/module_status_monitor_test.dart test/notification_rule_engine_test.dart test/notification_runtime_test.dart --reporter expanded`
+- 结果：exit 1；前 32 项通过，但新运行时测试错误地将完整 Proto3 快照产生的多个模块离线事件当作单一事件，`events.single` 抛出 `Bad state: Too many elements`。
+
+### GREEN 与分析
+
+- GREEN 命令：`flutter test test/module_status_monitor_test.dart test/notification_rule_engine_test.dart test/notification_runtime_test.dart --reporter expanded`
+- 结果：exit 0，33/33 通过。
+- 分析命令：`flutter analyze`
+- 结果：exit 0，`No issues found!`。
+
+### 修改摘要与自审
+
+- 通知运行时由 `moduleStatusMonitorProvider.notifier` 注入唯一的模块状态控制器，不再自行创建实例。
+- 运行时模块读数桥接函数只观察该注入控制器并将转换传给规则引擎；比赛重置作用于同一注入实例。
+- 回归测试验证图传离线 key、共享注入控制器可观察的状态以及 reset 后状态清空；完整 Proto3 快照允许产生多个明确离线事件。
+- 规则引擎和协议跟踪器均未保存模块状态；新增函数均少于 50 行，没有空断言。
+
+### 提交
+
+- 共享 Provider 注入修复：`d408e25 fix: share module status monitor with runtime`
+- 本报告：随后的文档提交。
