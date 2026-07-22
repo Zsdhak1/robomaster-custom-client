@@ -42,7 +42,19 @@ void _registerKillLineTests() {
 }
 
 void _registerRespawnTests() {
-  test('classifies buyback and free respawn', _testRespawnClassification);
+  test('classifies a normal free respawn', _testNormalFreeRespawn);
+  test(
+    'classifies supply-zone accelerated free respawn',
+    _testSupplyZoneAcceleratedRespawn,
+  );
+  test(
+    'classifies low-base-health accelerated free respawn',
+    _testLowBaseHealthAcceleratedRespawn,
+  );
+  test('classifies a paid respawn', _testPaidRespawn);
+  test('uses protocol robot number in enemy respawn title', _testRespawnTitle);
+  test('applies tolerance before classifying paid respawn', _testRespawnTolerance);
+  test('keeps respawn method uncertain when timing is missing', _testUncertainRespawn);
   test('detects ally respawn', _testAllyRespawn);
   test('calculates configurable free respawn duration', _testRespawnFormula);
 }
@@ -207,34 +219,78 @@ void _testEngineerCollisionBoundaries() {
   expect(roundedToZero, isEmpty);
 }
 
-void _testRespawnClassification() {
+void _testNormalFreeRespawn() {
+  final event = _enemyRespawnAfter(const Duration(seconds: 10));
+
+  expect(event.type, NotificationEventType.enemyRespawned);
+  expect(event.headline, '敌方 1 号机器人复活');
+  expect(event.detail, contains('敌方复活用时 10 秒'));
+  expect(event.detail, contains('推断为普通免费复活'));
+}
+
+void _testSupplyZoneAcceleratedRespawn() {
+  final event = _enemyRespawnAfter(const Duration(seconds: 4));
+
+  expect(event.type, NotificationEventType.enemyRespawned);
+  expect(event.detail, contains('推断为补给区加速免费复活'));
+}
+
+void _testLowBaseHealthAcceleratedRespawn() {
   final engine = NotificationRuleEngine();
-  const respawn = RespawnRuleConfig(toleranceMilliseconds: 0);
+  const config = RespawnRuleConfig(toleranceMilliseconds: 0);
   final start = DateTime(2026, 7, 13, 12);
-  _handle(engine, _sample(start), respawn);
+  _recordEnemyDeath(engine, start, config);
   _handle(
     engine,
     _sample(
-      start.add(const Duration(seconds: 1)),
-      enemy: [0, 0, 300, 300, 600],
+      start.add(const Duration(seconds: 2)),
+      enemy: const [0, 300, 300, 300, 600],
+      enemyBaseHealth: 2000,
     ),
-    respawn,
+    config,
   );
-  final early = _handle(
-    engine,
-    _sample(
-      start.add(const Duration(seconds: 6)),
-      enemy: [500, 0, 300, 300, 600],
-    ),
-    respawn,
+
+  final event = _respawnEnemy(engine, start, const Duration(seconds: 4), config);
+
+  expect(event.type, NotificationEventType.enemyRespawned);
+  expect(event.detail, contains('推断为基地低血量加速免费复活'));
+}
+
+void _testPaidRespawn() {
+  final event = _enemyRespawnAfter(const Duration(seconds: 2));
+
+  expect(event.type, NotificationEventType.enemyBoughtRespawn);
+  expect(event.headline, '敌方 1 号机器人复活');
+  expect(event.detail, contains('敌方复活用时 2 秒'));
+  expect(event.detail, contains('推断为付费复活'));
+}
+
+void _testRespawnTitle() {
+  final event = _enemyRespawnAfter(
+    const Duration(seconds: 10),
+    targetIndex: 4,
   );
-  expect(early.single.type, NotificationEventType.enemyBoughtRespawn);
-  final normal = _handle(
-    engine,
-    _sample(start.add(const Duration(seconds: 12))),
-    respawn,
+
+  expect(event.headline, '敌方 7 号机器人复活');
+}
+
+void _testRespawnTolerance() {
+  const config = RespawnRuleConfig(toleranceMilliseconds: 1500);
+  final event = _enemyRespawnAfter(const Duration(seconds: 1), config: config);
+
+  expect(event.type, NotificationEventType.enemyRespawned);
+  expect(event.detail, contains('推断为补给区加速免费复活'));
+}
+
+void _testUncertainRespawn() {
+  final event = _enemyRespawnAfter(
+    const Duration(seconds: 2),
+    remainingMatchSeconds: null,
   );
-  expect(normal.single.type, NotificationEventType.enemyRespawned);
+
+  expect(event.type, NotificationEventType.enemyRespawned);
+  expect(event.headline, '敌方 1 号机器人复活');
+  expect(event.detail, '敌方复活用时 2 秒，复活方式不确定');
 }
 
 void _testAllyRespawn() {
@@ -255,13 +311,76 @@ void _testAllyRespawn() {
 
 void _testRespawnFormula() {
   const config = RespawnRuleConfig();
+  final bounds = expectedFreeRespawnBounds(
+    config: config,
+    remainingMatchSeconds: 320,
+    priorBuybackCount: 1,
+  );
   final duration = expectedFreeRespawnDuration(
     config: config,
     remainingMatchSeconds: 320,
     enemyBaseHealth: 1500,
     priorBuybackCount: 1,
   );
-  expect(duration, const Duration(seconds: 10));
+  expect(bounds?.normal, const Duration(seconds: 40));
+  expect(bounds?.fastest, const Duration(seconds: 10));
+  expect(duration, const Duration(seconds: 40));
+}
+
+RuleNotificationEvent _enemyRespawnAfter(
+  Duration elapsed, {
+  RespawnRuleConfig config = const RespawnRuleConfig(
+    toleranceMilliseconds: 0,
+  ),
+  int? remainingMatchSeconds = 420,
+  int targetIndex = 0,
+}) {
+  final engine = NotificationRuleEngine();
+  final start = DateTime(2026, 7, 13, 12);
+  _recordEnemyDeath(
+    engine,
+    start,
+    config,
+    remainingMatchSeconds: remainingMatchSeconds,
+    targetIndex: targetIndex,
+  );
+  return _respawnEnemy(engine, start, elapsed, config);
+}
+
+void _recordEnemyDeath(
+  NotificationRuleEngine engine,
+  DateTime start,
+  RespawnRuleConfig config, {
+  int? remainingMatchSeconds = 420,
+  int targetIndex = 0,
+}) {
+  final enemy = List<int>.from(const [500, 300, 300, 300, 600]);
+  enemy[targetIndex] = 0;
+  _handle(engine, _sample(start), config);
+  _handle(
+    engine,
+    _sample(
+      start.add(const Duration(seconds: 1)),
+      enemy: enemy,
+      remainingMatchSeconds: remainingMatchSeconds,
+    ),
+    config,
+  );
+}
+
+RuleNotificationEvent _respawnEnemy(
+  NotificationRuleEngine engine,
+  DateTime start,
+  Duration elapsed,
+  RespawnRuleConfig config,
+) {
+  final enemy = List<int>.from(const [500, 300, 300, 300, 600]);
+  final events = _handle(
+    engine,
+    _sample(start.add(const Duration(seconds: 1)).add(elapsed), enemy: enemy),
+    config,
+  );
+  return events.single;
 }
 
 void _testTransitions() {
@@ -333,6 +452,8 @@ UnitHealthSample _sample(
   List<int> enemy = const [500, 300, 300, 300, 600],
   int selectedRobotId = 1,
   CombatBuffLevels combatBuffs = const CombatBuffLevels(),
+  int? remainingMatchSeconds = 420,
+  int? enemyBaseHealth = 5000,
 }) {
   return UnitHealthSample(
     allyHealth: ally,
@@ -340,8 +461,8 @@ UnitHealthSample _sample(
     selectedRobotId: selectedRobotId,
     combatBuffs: combatBuffs,
     timestamp: timestamp,
-    remainingMatchSeconds: 420,
-    enemyBaseHealth: 5000,
+    remainingMatchSeconds: remainingMatchSeconds,
+    enemyBaseHealth: enemyBaseHealth,
   );
 }
 

@@ -82,7 +82,7 @@ class NotificationRuleEngine {
     final count = math.min(sample.allyHealth.length, previous.length);
     for (var index = 0; index < count; index++) {
       if (previous[index] == 0 && sample.allyHealth[index] > 0) {
-        events.add(_respawnEvent(sample, index, enemy: false));
+        events.add(_allyRespawnEvent(sample, index));
       }
     }
     return events;
@@ -100,9 +100,9 @@ class NotificationRuleEngine {
       final before = previous[index];
       final current = sample.enemyHealth[index];
       if (before > 0 && current == 0) _recordEnemyDeath(index, sample, config);
+      if (current == 0) _trackEnemyBaseHealth(index, sample, config);
       if (before == 0 && current > 0 && config.enabled) {
-        final event = _classifyEnemyRespawn(index, sample, config);
-        if (event != null) events.add(event);
+        events.add(_classifyEnemyRespawn(index, sample, config));
       }
     }
     return events;
@@ -114,99 +114,152 @@ class NotificationRuleEngine {
     RespawnRuleConfig config,
   ) {
     final buybacks = _enemyBuybackCounts[index] ?? 0;
-    final expected = expectedFreeRespawnDuration(
+    final bounds = expectedFreeRespawnBounds(
       config: config,
       remainingMatchSeconds: sample.remainingMatchSeconds,
-      enemyBaseHealth: sample.enemyBaseHealth,
       priorBuybackCount: buybacks,
     );
     _enemyDeaths[index] = _DeathRecord(
       at: sample.timestamp,
-      expectedDuration: expected,
+      normalDuration: bounds?.normal,
+      fastestDuration: bounds?.fastest,
+      baseLowDuringDeath: _isEnemyBaseLow(sample, config),
     );
   }
 
-  RuleNotificationEvent? _classifyEnemyRespawn(
+  void _trackEnemyBaseHealth(
+    int index,
+    UnitHealthSample sample,
+    RespawnRuleConfig config,
+  ) {
+    final death = _enemyDeaths[index];
+    if (death == null || death.baseLowDuringDeath) return;
+    if (!_isEnemyBaseLow(sample, config)) return;
+    _enemyDeaths[index] = death.copyWith(baseLowDuringDeath: true);
+  }
+
+  bool _isEnemyBaseLow(UnitHealthSample sample, RespawnRuleConfig config) {
+    final baseHealth = sample.enemyBaseHealth;
+    return baseHealth != null && baseHealth <= config.lowBaseHealthThreshold;
+  }
+
+  RuleNotificationEvent _classifyEnemyRespawn(
     int index,
     UnitHealthSample sample,
     RespawnRuleConfig config,
   ) {
     final death = _enemyDeaths.remove(index);
-    if (death == null) return _respawnEvent(sample, index, enemy: true);
+    if (death == null) return _enemyRespawnEvent(sample, index, null, null);
     final elapsed = sample.timestamp.difference(death.at);
-    final expected = death.expectedDuration;
-    if (expected == null) return _uncertainRespawn(index, sample, config);
     final tolerance = Duration(milliseconds: config.toleranceMilliseconds);
-    final boughtBack = elapsed + tolerance < expected;
-    if (!boughtBack || !config.buybackDetectionEnabled) {
-      return _respawnEvent(sample, index, enemy: true, elapsed: elapsed);
+    final method = _respawnMethod(death, elapsed, tolerance);
+    if (method == null || !config.buybackDetectionEnabled) {
+      return _enemyRespawnEvent(sample, index, elapsed, null);
     }
-    _enemyBuybackCounts[index] = (_enemyBuybackCounts[index] ?? 0) + 1;
-    return _buybackEvent(sample, index, elapsed, expected);
-  }
-
-  RuleNotificationEvent? _uncertainRespawn(
-    int index,
-    UnitHealthSample sample,
-    RespawnRuleConfig config,
-  ) {
-    if (!config.buybackDetectionEnabled ||
-        config.uncertainBehavior == UncertainBuybackBehavior.suppress) {
-      return _respawnEvent(sample, index, enemy: true);
+    if (method == _EnemyRespawnMethod.paid) {
+      _enemyBuybackCounts[index] = (_enemyBuybackCounts[index] ?? 0) + 1;
     }
-    return RuleNotificationEvent(
-      type: NotificationEventType.enemyBoughtRespawn,
-      headline:
-          '${notificationRobotName(index, sample.selectedRobotId, enemy: true)}疑似买活',
-      detail: '缺少完整比赛时间，无法确认是否早于免费复活时刻',
-      dedupKey: 'enemy-buyback-$index',
-      occurredAt: sample.timestamp,
-    );
+    return _enemyRespawnEvent(sample, index, elapsed, method, death);
   }
 
-  RuleNotificationEvent _respawnEvent(
-    UnitHealthSample sample,
-    int index, {
-    required bool enemy,
-    Duration? elapsed,
-  }) {
-    final name = notificationRobotName(
-      index,
-      sample.selectedRobotId,
-      enemy: enemy,
-    );
-    final prefix = enemy ? '敌方' : '己方';
-    final elapsedText = elapsed == null ? '' : '，读秒 ${elapsed.inSeconds} 秒';
-    return RuleNotificationEvent(
-      type: enemy
-          ? NotificationEventType.enemyRespawned
-          : NotificationEventType.allyRespawned,
-      headline: '$name已复活',
-      detail: '$prefix机器人血量恢复$elapsedText',
-      dedupKey: '${enemy ? 'enemy' : 'ally'}-respawn-$index',
-      occurredAt: sample.timestamp,
-    );
-  }
-
-  RuleNotificationEvent _buybackEvent(
-    UnitHealthSample sample,
-    int index,
+  _EnemyRespawnMethod? _respawnMethod(
+    _DeathRecord death,
     Duration elapsed,
-    Duration expected,
+    Duration tolerance,
+  ) {
+    final fastest = death.fastestDuration;
+    final normal = death.normalDuration;
+    if (fastest == null || normal == null) return null;
+    final toleratedElapsed = elapsed + tolerance;
+    if (toleratedElapsed < fastest) return _EnemyRespawnMethod.paid;
+    if (toleratedElapsed < normal) return _EnemyRespawnMethod.accelerated;
+    return _EnemyRespawnMethod.normal;
+  }
+
+  RuleNotificationEvent _allyRespawnEvent(
+    UnitHealthSample sample,
+    int index,
   ) {
     final name = notificationRobotName(
       index,
       sample.selectedRobotId,
-      enemy: true,
+      enemy: false,
     );
     return RuleNotificationEvent(
-      type: NotificationEventType.enemyBoughtRespawn,
-      headline: '$name买活',
-      detail: '战亡 ${elapsed.inSeconds} 秒恢复，免费复活预计需 ${expected.inSeconds} 秒',
-      dedupKey: 'enemy-buyback-$index',
+      type: NotificationEventType.allyRespawned,
+      headline: '$name已复活',
+      detail: '己方机器人血量恢复',
+      dedupKey: 'ally-respawn-$index',
       occurredAt: sample.timestamp,
     );
   }
+
+  RuleNotificationEvent _enemyRespawnEvent(
+    UnitHealthSample sample,
+    int index,
+    Duration? elapsed,
+    _EnemyRespawnMethod? method, [
+    _DeathRecord? death,
+  ]) {
+    final paid = method == _EnemyRespawnMethod.paid;
+    final detail = _enemyRespawnDetail(elapsed, method, death);
+    final robotId = notificationRobotBaseIds[index];
+    return RuleNotificationEvent(
+      type: paid
+          ? NotificationEventType.enemyBoughtRespawn
+          : NotificationEventType.enemyRespawned,
+      headline: '敌方 $robotId 号机器人复活',
+      detail: detail,
+      dedupKey: paid ? 'enemy-buyback-$index' : 'enemy-respawn-$index',
+      occurredAt: sample.timestamp,
+    );
+  }
+
+  String _enemyRespawnDetail(
+    Duration? elapsed,
+    _EnemyRespawnMethod? method,
+    _DeathRecord? death,
+  ) {
+    final seconds = elapsed?.inSeconds;
+    if (seconds == null || method == null) {
+      final elapsedText = seconds == null ? '用时未知' : '用时 $seconds 秒';
+      return '敌方复活$elapsedText，复活方式不确定';
+    }
+    final inference = switch (method) {
+      _EnemyRespawnMethod.paid => '付费复活',
+      _EnemyRespawnMethod.normal => '普通免费复活',
+      _EnemyRespawnMethod.accelerated => death?.baseLowDuringDeath == true
+          ? '基地低血量加速免费复活'
+          : '补给区加速免费复活',
+    };
+    return '敌方复活用时 $seconds 秒，推断为$inference';
+  }
+}
+
+/// 按普通和加速规则分别计算从战亡到免费复活的预计时长。
+RespawnDurationBounds? expectedFreeRespawnBounds({
+  required RespawnRuleConfig config,
+  required int? remainingMatchSeconds,
+  required int priorBuybackCount,
+}) {
+  if (remainingMatchSeconds == null) return null;
+  final elapsedMatch = (config.matchDurationSeconds - remainingMatchSeconds)
+      .clamp(0, config.matchDurationSeconds);
+  final timeProgress = elapsedMatch ~/ config.timeDivisor;
+  final buybackPenalty = priorBuybackCount * config.progressPenaltyPerBuyback;
+  final requiredProgress = config.baseProgress + timeProgress + buybackPenalty;
+  return RespawnDurationBounds(
+    normal: _respawnDuration(requiredProgress, config.normalProgressPerSecond),
+    fastest: _respawnDuration(
+      requiredProgress,
+      config.acceleratedProgressPerSecond,
+    ),
+  );
+}
+
+Duration _respawnDuration(int requiredProgress, int progressPerSecond) {
+  final milliseconds = (requiredProgress * 1000 / progressPerSecond).ceil();
+  return Duration(milliseconds: milliseconds);
 }
 
 /// 按规则档案计算从战亡到免费复活的预计时长。
@@ -216,25 +269,34 @@ Duration? expectedFreeRespawnDuration({
   required int? enemyBaseHealth,
   required int priorBuybackCount,
 }) {
-  if (remainingMatchSeconds == null) return null;
-  final elapsedMatch = (config.matchDurationSeconds - remainingMatchSeconds)
-      .clamp(0, config.matchDurationSeconds);
-  final timeProgress = elapsedMatch ~/ config.timeDivisor;
-  final buybackPenalty = priorBuybackCount * config.progressPenaltyPerBuyback;
-  final requiredProgress = config.baseProgress + timeProgress + buybackPenalty;
-  final accelerated =
-      enemyBaseHealth != null &&
-      enemyBaseHealth <= config.lowBaseHealthThreshold;
-  final rate = accelerated
-      ? config.acceleratedProgressPerSecond
-      : config.normalProgressPerSecond;
-  final milliseconds = (requiredProgress * 1000 / rate).ceil();
-  return Duration(milliseconds: milliseconds);
+  return expectedFreeRespawnBounds(
+    config: config,
+    remainingMatchSeconds: remainingMatchSeconds,
+    priorBuybackCount: priorBuybackCount,
+  )?.normal;
 }
 
 class _DeathRecord {
-  const _DeathRecord({required this.at, required this.expectedDuration});
+  const _DeathRecord({
+    required this.at,
+    required this.normalDuration,
+    required this.fastestDuration,
+    required this.baseLowDuringDeath,
+  });
 
   final DateTime at;
-  final Duration? expectedDuration;
+  final Duration? normalDuration;
+  final Duration? fastestDuration;
+  final bool baseLowDuringDeath;
+
+  _DeathRecord copyWith({required bool baseLowDuringDeath}) {
+    return _DeathRecord(
+      at: at,
+      normalDuration: normalDuration,
+      fastestDuration: fastestDuration,
+      baseLowDuringDeath: baseLowDuringDeath,
+    );
+  }
 }
+
+enum _EnemyRespawnMethod { paid, accelerated, normal }

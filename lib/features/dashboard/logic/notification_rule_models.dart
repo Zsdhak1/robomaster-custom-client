@@ -15,6 +15,18 @@ const List<String> notificationRobotRoleLabels = [
 /// 规则引擎支持的机器人数量。
 const int notificationRobotCount = 5;
 
+/// 敌方免费复活在普通速率和加快速率下的预计时长边界。
+class RespawnDurationBounds {
+  /// 创建免费复活时长边界。
+  const RespawnDurationBounds({required this.normal, required this.fastest});
+
+  /// 普通进度速率对应的免费复活时长。
+  final Duration normal;
+
+  /// 加速进度速率对应的最快免费复活时长。
+  final Duration fastest;
+}
+
 /// 单次全局机器人血量快照。
 class UnitHealthSample {
   /// 创建血量快照。
