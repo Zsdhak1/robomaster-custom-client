@@ -30,10 +30,11 @@ void main() {
   _testDeploymentCountdown();
   _testRuntimeModulePanel();
   _testRuntimeMqttSession();
-  _testRuntimeMqttGenerationFence();
+  _testRejectsOldMqttGeneration();
+  _testAcceptsCachedCurrentMqttGeneration();
 }
 
-void _testRuntimeMqttGenerationFence() {
+void _testRejectsOldMqttGeneration() {
   test(
     'cached previous-generation messages cannot restore old match state',
     () async {
@@ -66,6 +67,44 @@ void _testRuntimeMqttGenerationFence() {
         harness.notificationState.visible.where(
           (item) =>
               item.eventType == NotificationEventType.enemyRequestedLevelFour,
+        ),
+        isNotEmpty,
+      );
+    },
+  );
+}
+
+void _testAcceptsCachedCurrentMqttGeneration() {
+  test(
+    'current-generation cache remains valid before runtime starts',
+    () async {
+      final beforeRuntime = DateTime.now().subtract(
+        const Duration(seconds: 10),
+      );
+      final mqtt = _CachedSessionMqttService([
+        _mqttMessage(
+          GameStatus(currentStage: stageInMatch, stageCountdownSec: 420),
+          beforeRuntime,
+          2,
+        ),
+        _mqttMessage(
+          _unitStatus(500),
+          beforeRuntime.add(const Duration(seconds: 1)),
+          2,
+        ),
+        _mqttMessage(
+          _unitStatus(1),
+          beforeRuntime.add(const Duration(seconds: 2)),
+          2,
+        ),
+      ]);
+      final harness = await _RuntimeHarness.start(mqttService: mqtt);
+      addTearDown(harness.dispose);
+      await _flushEvents();
+
+      expect(
+        harness.notificationState.visible.where(
+          (item) => item.eventType == NotificationEventType.enemyKillLine,
         ),
         isNotEmpty,
       );

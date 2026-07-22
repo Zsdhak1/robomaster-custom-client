@@ -153,10 +153,8 @@ class _NotificationRuntime {
   void _handleEnvelope(ProtobufEnvelope envelope) {
     final accept = shouldAcceptNotificationEnvelope(
       mqttState: _mqttState,
-      connectedAt: _mqttConnectedAt,
       connectedGeneration: _mqttGeneration,
       envelopeGeneration: envelope.connectionGeneration,
-      envelopeTimestamp: envelope.timestamp,
     );
     if (accept == false) return;
     _lastMqttMessageAt = envelope.timestamp;
@@ -497,18 +495,14 @@ int? enemyBaseHealthFromProtocol(GlobalUnitStatus status) {
 /// 判断信封是否属于当前已连接的 MQTT 会话。
 bool shouldAcceptNotificationEnvelope({
   required MqttConnectionState? mqttState,
-  required DateTime? connectedAt,
   required int? connectedGeneration,
   required int envelopeGeneration,
-  required DateTime envelopeTimestamp,
 }) {
   if (mqttState != MqttConnectionState.connected ||
-      connectedAt == null ||
       connectedGeneration == null) {
     return false;
   }
-  if (envelopeGeneration != connectedGeneration) return false;
-  return envelopeTimestamp.isBefore(connectedAt) == false;
+  return envelopeGeneration == connectedGeneration;
 }
 
 /// 清理规则引擎与共享模块面板持有的比赛级状态。

@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:robomaster_custom_client_1/core/responsive/design_constants.dart';
 import 'package:robomaster_custom_client_1/core/theme/app_theme.dart';
 import 'package:robomaster_custom_client_1/core/window/desktop_window_frame.dart';
+import 'package:robomaster_custom_client_1/features/settings/domain/combat_notification_rules.dart';
 import 'package:robomaster_custom_client_1/features/settings/domain/notification_preferences.dart';
 import 'package:robomaster_custom_client_1/features/settings/logic/notification_test_provider.dart';
 import 'package:robomaster_custom_client_1/features/settings/presentation/notification_rules_settings_screen.dart';
@@ -28,6 +29,22 @@ void main() {
 
 void _testEventDescriptionSemantics() {
   test('event descriptions match current respawn and module semantics', () {
+    expect(notificationRespawnSubtitle, '根据血量清零后的恢复时间区分普通免费、加速免费、付费和方式不确定');
+    expect(
+      notificationUncertainBehaviorDescription,
+      '缺少比赛时间等关键数据时，选择不通知或显示“复活方式不确定”',
+    );
+    expect(
+      uncertainBuybackLabel(UncertainBuybackBehavior.suspected),
+      '显示方式不确定',
+    );
+    expect(notificationNormalProgressRateDescription, '用于计算普通免费复活的预期完成时间');
+    expect(notificationAcceleratedProgressRate, '加速免费复活进度速度');
+    expect(notificationAcceleratedProgressRateDescription, '用于计算加速免费复活的预期完成时间');
+    expect(
+      notificationLowBaseThresholdDescription,
+      '敌方基地血量不高于该值时，将加速免费复活原因标记为基地低血量',
+    );
     expect(
       notificationEventDescription(NotificationEventType.enemyRespawned),
       '敌方机器人完成普通免费、加速免费或方式不确定的复活时触发',

@@ -257,58 +257,36 @@ void _registerProtocolScalarPresenceTests() {
 }
 
 void _registerMqttSessionFenceTests() {
-  test('rejects disconnected and stale envelopes but accepts this session', () {
-    final connectedAt = DateTime(2026, 7, 22, 12);
-
+  test('uses connection generation as the notification session boundary', () {
     expect(
       shouldAcceptNotificationEnvelope(
         mqttState: MqttConnectionState.disconnected,
-        connectedAt: connectedAt,
         connectedGeneration: 2,
         envelopeGeneration: 2,
-        envelopeTimestamp: connectedAt,
       ),
       isFalse,
     );
     expect(
       shouldAcceptNotificationEnvelope(
         mqttState: MqttConnectionState.connected,
-        connectedAt: null,
-        connectedGeneration: 2,
+        connectedGeneration: null,
         envelopeGeneration: 2,
-        envelopeTimestamp: connectedAt,
       ),
       isFalse,
     );
     expect(
       shouldAcceptNotificationEnvelope(
         mqttState: MqttConnectionState.connected,
-        connectedAt: connectedAt,
         connectedGeneration: 2,
         envelopeGeneration: 2,
-        envelopeTimestamp: connectedAt.subtract(
-          const Duration(microseconds: 1),
-        ),
-      ),
-      isFalse,
-    );
-    expect(
-      shouldAcceptNotificationEnvelope(
-        mqttState: MqttConnectionState.connected,
-        connectedAt: connectedAt,
-        connectedGeneration: 2,
-        envelopeGeneration: 2,
-        envelopeTimestamp: connectedAt,
       ),
       isTrue,
     );
     expect(
       shouldAcceptNotificationEnvelope(
         mqttState: MqttConnectionState.connected,
-        connectedAt: connectedAt,
         connectedGeneration: 2,
         envelopeGeneration: 1,
-        envelopeTimestamp: connectedAt.add(const Duration(seconds: 1)),
       ),
       isFalse,
     );
