@@ -49,4 +49,27 @@ No issues found!
 
 ## Concerns
 
-无功能性 concerns。初始 batch wrapper 无回显和本地 Dart telemetry 写入权限问题已记录，最终协调验证通过。
+初始 batch wrapper 无回显和本地 Dart telemetry 写入权限问题已记录，最终协调验证通过。
+
+## 审查修复：Combat Buff 输入边界
+
+审查发现实时 Buff 输入会接受任意机器人 ID、过大持续时间和异常等级，且过期项只在快照中跳过而未物理删除。已在 `0514479 fix: bound combat Buff tracker inputs` 修复：
+
+- 仅接受机器人 ID `1..7` 与 `101..107`，两种 Buff 类型合计最多 28 个键。
+- 仅接受等级 `-1000..1000`，保留现有 `150` 与负防御/易伤语义；超界整条忽略，不钳制。
+- 仅接受剩余时间 `0..3600` 秒；`0` 仍删除，超界忽略。
+- `snapshot` 先收集过期键、遍历结束后删除，避免迭代 Map 时修改；删除后旧时间戳样本不再受已过期记录的乱序保护。
+
+本轮 RED 新增非法 ID、等级、持续时间、边界保留和过期删除可观察行为测试。初次本机 RED 命令仍在 30 秒无回显；协调 agent 最终复验：
+
+```text
+flutter test test/combat_buff_tracker_test.dart test/notification_runtime_test.dart test/notification_rule_engine_test.dart --reporter expanded
+47/47 passed
+
+flutter analyze
+No issues found!
+```
+
+## 最终 Concerns
+
+`notification_providers.dart` 目前约 513 行，存在 Minor 级可维护性 concern；按本次审查要求未进行大范围拆分，应在整个分支的后续审查中处理。
