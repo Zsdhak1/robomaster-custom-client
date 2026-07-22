@@ -107,6 +107,22 @@ const String topicRobotPosition = 'RobotPosition';
 /// 增益效果主题。
 const String topicBuff = 'Buff';
 
+/// 机器人模块状态字段中表示离线的协议值。
+const int moduleStatusOffline = 0;
+
+/// 机器人模块状态字段中表示在线的协议值。
+const int moduleStatusOnline = 1;
+
+/// 部分设备使用的第二个离线协议值。
+const int moduleStatusAlternateOffline = 2;
+
+/// 可识别的机器人模块状态协议值。
+const Set<int> knownModuleStatusValues = {
+  moduleStatusOffline,
+  moduleStatusOnline,
+  moduleStatusAlternateOffline,
+};
+
 /// 判罚信息主题。
 const String topicPenaltyInfo = 'PenaltyInfo';
 
@@ -227,6 +243,7 @@ const Set<String> notificationRequiredTopics = {
   topicEvent,
   topicDeployModeStatusSync,
   topicRobotModuleStatus,
+  topicBuff,
 };
 
 // ============================================================

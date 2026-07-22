@@ -6,6 +6,7 @@ import 'dart:math' as math;
 import '../../settings/domain/combat_notification_rules.dart';
 import '../../settings/domain/kill_estimate_config.dart';
 import '../../settings/domain/notification_preferences.dart';
+import 'combat_buff_tracker.dart';
 import 'dashboard_notification_models.dart';
 import 'kill_line_notification_tracker.dart';
 import 'module_status_monitor.dart';
@@ -20,6 +21,7 @@ class NotificationRuleEngine {
   List<int>? _previousEnemyHealth;
   final NotificationProtocolTracker _protocol = NotificationProtocolTracker();
   final KillLineNotificationTracker _killLines = KillLineNotificationTracker();
+  final CombatBuffTracker _combatBuffs = CombatBuffTracker();
   final Map<int, _DeathRecord> _enemyDeaths = {};
   final Map<int, int> _enemyBuybackCounts = {};
 
@@ -66,12 +68,21 @@ class NotificationRuleEngine {
     return _protocol.moduleEvent(transition, timestamp);
   }
 
+  /// 记录从协议信封接收的战斗 Buff。
+  void observeBuff(CombatBuffSample sample) => _combatBuffs.observe(sample);
+
+  /// 返回指定协议时刻仍有效的战斗 Buff。
+  CombatBuffLevels combatBuffsAt(DateTime timestamp) {
+    return _combatBuffs.snapshot(timestamp);
+  }
+
   /// 清理跨比赛状态，避免上一场的死亡和冷却泄漏。
   void resetMatch() {
     _previousAllyHealth = null;
     _previousEnemyHealth = null;
     _protocol.resetMatch();
     _killLines.reset();
+    _combatBuffs.reset();
     _enemyDeaths.clear();
     _enemyBuybackCounts.clear();
   }
@@ -179,10 +190,7 @@ class NotificationRuleEngine {
     return _EnemyRespawnMethod.normal;
   }
 
-  RuleNotificationEvent _allyRespawnEvent(
-    UnitHealthSample sample,
-    int index,
-  ) {
+  RuleNotificationEvent _allyRespawnEvent(UnitHealthSample sample, int index) {
     final name = notificationRobotName(
       index,
       sample.selectedRobotId,
@@ -231,9 +239,8 @@ class NotificationRuleEngine {
     final inference = switch (method) {
       _EnemyRespawnMethod.paid => '付费复活',
       _EnemyRespawnMethod.normal => '普通免费复活',
-      _EnemyRespawnMethod.accelerated => death?.baseLowDuringDeath == true
-          ? '基地低血量加速免费复活'
-          : '补给区加速免费复活',
+      _EnemyRespawnMethod.accelerated =>
+        death?.baseLowDuringDeath == true ? '基地低血量加速免费复活' : '补给区加速免费复活',
     };
     return '敌方复活用时 $seconds 秒，推断为$inference';
   }

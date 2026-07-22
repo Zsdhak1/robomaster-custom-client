@@ -6,9 +6,13 @@ import 'package:robomaster_custom_client_1/features/custom_video/logic/custom_vi
 import 'package:robomaster_custom_client_1/features/dashboard/logic/dashboard_notification_controller.dart';
 import 'package:robomaster_custom_client_1/features/dashboard/logic/dashboard_notification_models.dart';
 import 'package:robomaster_custom_client_1/features/dashboard/logic/deployment_navigation_controller.dart';
+import 'package:robomaster_custom_client_1/features/dashboard/logic/module_status_monitor.dart';
 import 'package:robomaster_custom_client_1/features/dashboard/logic/notification_providers.dart';
+import 'package:robomaster_custom_client_1/features/dashboard/logic/notification_rule_engine.dart';
+import 'package:robomaster_custom_client_1/features/dashboard/presentation/widgets/module_status_panel.dart';
 import 'package:robomaster_custom_client_1/features/settings/domain/combat_notification_rules.dart';
 import 'package:robomaster_custom_client_1/features/settings/domain/notification_preferences.dart';
+import 'package:robomaster_custom_client_1/generated/robomaster_custom_client.pb.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -17,6 +21,36 @@ void main() {
   });
   _testGlobalNotifications();
   _testDeploymentCountdown();
+  _testRuntimeModulePanel();
+}
+
+void _testRuntimeModulePanel() {
+  testWidgets('protocol module updates are visible in the shared panel', (
+    tester,
+  ) async {
+    final monitor = ModuleStatusMonitorController();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [moduleStatusMonitorProvider.overrideWith((ref) => monitor)],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: SizedBox(height: 300, child: ModuleStatusPanel()),
+          ),
+        ),
+      ),
+    );
+
+    moduleStatusEventsFromReading(
+      monitor: monitor,
+      engine: NotificationRuleEngine(),
+      status: RobotModuleStatus(videoTransmission: 0),
+      timestamp: DateTime(2026, 7, 22, 12),
+    );
+    await tester.pump();
+
+    expect(find.text('模块状态'), findsOneWidget);
+    expect(find.text('图传模块'), findsOneWidget);
+  });
 }
 
 void _testGlobalNotifications() {

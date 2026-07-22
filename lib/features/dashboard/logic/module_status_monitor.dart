@@ -3,6 +3,8 @@ library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/constants/protocol_constants.dart';
+
 /// RoboMaster 协议中的本机模块类型。
 enum RobotModuleType {
   powerManager,
@@ -25,7 +27,7 @@ enum ModuleAvailability {
 
   /// 将协议值归一化；只有值 1 表示在线。
   static ModuleAvailability fromProtocolValue(int value) {
-    return value == 1 ? online : offline;
+    return value == moduleStatusOnline ? online : offline;
   }
 }
 
@@ -36,10 +38,12 @@ class ModuleStatusReading {
   factory ModuleStatusReading.fromProtocolValues(
     Map<RobotModuleType, int> values,
   ) {
-    return ModuleStatusReading(Map.unmodifiable({
-      for (final entry in values.entries)
-        entry.key: ModuleAvailability.fromProtocolValue(entry.value),
-    }));
+    return ModuleStatusReading(
+      Map.unmodifiable({
+        for (final entry in values.entries)
+          entry.key: ModuleAvailability.fromProtocolValue(entry.value),
+      }),
+    );
   }
 
   final Map<RobotModuleType, ModuleAvailability> statuses;
@@ -118,9 +122,10 @@ class ModuleStatusMonitorController
 
 /// 供仪表盘模块面板和协议运行时共享的模块状态。
 final moduleStatusMonitorProvider =
-    StateNotifierProvider<ModuleStatusMonitorController, ModuleStatusMonitorState>(
-      (ref) => ModuleStatusMonitorController(),
-    );
+    StateNotifierProvider<
+      ModuleStatusMonitorController,
+      ModuleStatusMonitorState
+    >((ref) => ModuleStatusMonitorController());
 
 /// 面向通知文案的模块名称。
 extension RobotModuleTypeLabel on RobotModuleType {

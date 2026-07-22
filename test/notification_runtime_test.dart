@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:robomaster_custom_client_1/core/constants/protocol_constants.dart';
+import 'package:robomaster_custom_client_1/features/dashboard/logic/combat_buff_tracker.dart';
 import 'package:robomaster_custom_client_1/features/dashboard/logic/module_status_monitor.dart';
 import 'package:robomaster_custom_client_1/features/dashboard/logic/mqtt_notification_tracker.dart';
 import 'package:robomaster_custom_client_1/features/dashboard/logic/notification_providers.dart';
@@ -8,6 +10,137 @@ import 'package:robomaster_custom_client_1/generated/robomaster_custom_client.pb
 import 'package:robomaster_custom_client_1/services/mqtt_service.dart';
 
 void main() {
+  test('notification runtime requires Buff topic', () {
+    expect(notificationRequiredTopics, contains(topicBuff));
+  });
+
+  test('module mapper ignores absent protobuf fields', () {
+    final reading = moduleStatusReadingFromProtocol(
+      RobotModuleStatus(videoTransmission: 0, armor: 1),
+    );
+
+    expect(reading.statuses.keys, {
+      RobotModuleType.videoTransmission,
+      RobotModuleType.armor,
+    });
+    expect(reading.statuses, isNot(contains(RobotModuleType.bigShooter)));
+  });
+
+  test('module mapper treats protocol value two as offline', () {
+    final reading = moduleStatusReadingFromProtocol(
+      RobotModuleStatus(armor: 2),
+    );
+
+    expect(reading.statuses[RobotModuleType.armor], ModuleAvailability.offline);
+  });
+
+  test('module mapper ignores unknown protocol values', () {
+    final reading = moduleStatusReadingFromProtocol(
+      RobotModuleStatus(armor: 3),
+    );
+
+    expect(reading.statuses, isEmpty);
+  });
+
+  test('rule engine snapshots Buffs at the supplied envelope timestamp', () {
+    final engine = NotificationRuleEngine();
+    final receivedAt = DateTime(2026, 7, 22, 12);
+    engine.observeBuff(
+      CombatBuffSample(
+        robotId: 1,
+        buffType: combatAttackBuffType,
+        level: 150,
+        leftSeconds: 2,
+        receivedAt: receivedAt,
+      ),
+    );
+
+    expect(
+      engine
+          .combatBuffsAt(receivedAt.add(const Duration(seconds: 1)))
+          .attack[1],
+      150,
+    );
+    expect(
+      engine.combatBuffsAt(receivedAt.add(const Duration(seconds: 2))).attack,
+      isEmpty,
+    );
+  });
+
+  test('Buff protocol mapper preserves the envelope timestamp', () {
+    final engine = NotificationRuleEngine();
+    final receivedAt = DateTime(2026, 7, 22, 12);
+
+    observeBuffFromProtocol(
+      engine: engine,
+      buff: Buff(
+        robotId: 1,
+        buffType: combatAttackBuffType,
+        buffLevel: 150,
+        buffLeftTime: 2,
+      ),
+      timestamp: receivedAt,
+    );
+
+    expect(engine.combatBuffsAt(receivedAt).attack[1], 150);
+  });
+
+  test('notification match reset clears Buff and shared module state', () {
+    final engine = NotificationRuleEngine();
+    final monitor = ModuleStatusMonitorController();
+    final now = DateTime(2026, 7, 22, 12);
+    engine.observeBuff(
+      CombatBuffSample(
+        robotId: 1,
+        buffType: combatAttackBuffType,
+        level: 150,
+        leftSeconds: 10,
+        receivedAt: now,
+      ),
+    );
+    monitor.observe(
+      const ModuleStatusReading({
+        RobotModuleType.armor: ModuleAvailability.offline,
+      }),
+    );
+
+    resetNotificationMatchState(engine: engine, moduleMonitor: monitor);
+
+    expect(engine.combatBuffsAt(now).attack, isEmpty);
+    expect(engine.combatBuffsAt(now).defense, isEmpty);
+    expect(monitor.state.statuses, isEmpty);
+  });
+
+  test('match reset detects a new round and every in-match exit', () {
+    final inMatch = GameStatus(currentRound: 1, currentStage: stageInMatch);
+
+    expect(
+      shouldResetNotificationMatch(
+        inMatch,
+        GameStatus(currentRound: 2, currentStage: stageInMatch),
+      ),
+      isTrue,
+    );
+    expect(
+      shouldResetNotificationMatch(
+        inMatch,
+        GameStatus(currentRound: 1, currentStage: stageSettlement),
+      ),
+      isTrue,
+    );
+  });
+
+  test('match reset detects disconnect and selected identity changes', () {
+    expect(
+      shouldResetNotificationMatchForMqttTransition(
+        MqttConnectionState.connected,
+        MqttConnectionState.disconnected,
+      ),
+      isTrue,
+    );
+    expect(shouldResetNotificationMatchForIdentity(1, 101), isTrue);
+  });
+
   test(
     'MQTT tracker ignores startup and reports disconnect then reconnect',
     () {
@@ -46,16 +179,21 @@ void main() {
 
     expect(events, hasLength(1));
     expect(
-      events.any((event) =>
-          event.type == NotificationEventType.moduleDisconnected &&
-          event.dedupKey == 'module-offline-videoTransmission'),
+      events.any(
+        (event) =>
+            event.type == NotificationEventType.moduleDisconnected &&
+            event.dedupKey == 'module-offline-videoTransmission',
+      ),
       isTrue,
     );
     expect(
       monitor.state.statuses[RobotModuleType.videoTransmission],
       ModuleAvailability.offline,
     );
-    expect(monitor.state.statuses[RobotModuleType.armor], ModuleAvailability.online);
+    expect(
+      monitor.state.statuses[RobotModuleType.armor],
+      ModuleAvailability.online,
+    );
     expect(monitor.state.statuses, hasLength(2));
     expect(monitor.state.statuses, isNot(contains(RobotModuleType.bigShooter)));
     monitor.reset();
@@ -88,7 +226,13 @@ void main() {
       timestamp: timestamp.add(const Duration(seconds: 1)),
     );
 
-    expect(monitor.state.statuses[RobotModuleType.armor], ModuleAvailability.offline);
-    expect(monitor.state.statuses[RobotModuleType.videoTransmission], ModuleAvailability.online);
+    expect(
+      monitor.state.statuses[RobotModuleType.armor],
+      ModuleAvailability.offline,
+    );
+    expect(
+      monitor.state.statuses[RobotModuleType.videoTransmission],
+      ModuleAvailability.online,
+    );
   });
 }

@@ -20,6 +20,7 @@ import '../../settings/domain/notification_preferences.dart';
 import '../../settings/domain/notification_rule_profile.dart';
 import '../../settings/logic/kill_estimate_provider.dart';
 import '../../settings/logic/notification_profile_provider.dart';
+import 'combat_buff_tracker.dart';
 import 'connection_quality_evaluator.dart';
 import 'dashboard_notification_controller.dart';
 import 'dashboard_notification_models.dart';
@@ -92,8 +93,10 @@ class _NotificationRuntime {
   DateTime? _lastMqttMessageAt;
   CustomVideoStats? _customStats;
   GameStatus? _gameStatus;
+  int? _selectedRobotId;
 
   void start() {
+    _selectedRobotId = ref.read(selectedRobotIdProvider);
     ref
       ..listen(mqttConnectionStateProvider, (_, next) {
         next.whenData(_handleMqttState);
@@ -103,6 +106,13 @@ class _NotificationRuntime {
       })
       ..listen(customVideoStatsProvider, (_, next) {
         next.whenData((stats) => _customStats = stats);
+      })
+      ..listen(selectedRobotIdProvider, (_, next) {
+        final previous = _selectedRobotId;
+        _selectedRobotId = next;
+        if (shouldResetNotificationMatchForIdentity(previous, next)) {
+          _resetMatchState();
+        }
       });
     _qualityTimer = Timer.periodic(
       _qualitySampleInterval,
@@ -112,10 +122,14 @@ class _NotificationRuntime {
 
   void _handleMqttState(MqttConnectionState next) {
     if (next == MqttConnectionState.connecting) return;
+    final previous = _mqttState;
     _mqttState = next;
     final now = DateTime.now();
     if (next == MqttConnectionState.connected) {
       _mqttConnectedAt = now;
+    }
+    if (shouldResetNotificationMatchForMqttTransition(previous, next)) {
+      _resetMatchState();
     }
     _emitNullable(_mqttTracker.handle(next, now));
   }
@@ -147,21 +161,24 @@ class _NotificationRuntime {
         )) {
           _emit(event);
         }
+      case final Buff buff:
+        observeBuffFromProtocol(
+          engine: _engine,
+          buff: buff,
+          timestamp: envelope.timestamp,
+        );
     }
   }
 
   void _handleGameStatus(GameStatus status) {
     final previous = _gameStatus;
     _gameStatus = status;
-    final newRound =
-        previous != null && previous.currentRound != status.currentRound;
-    final returnedToPrematch =
-        status.currentStage < 4 &&
-        previous != null &&
-        previous.currentStage >= 4;
-    if (!newRound && !returnedToPrematch) return;
-    _engine.resetMatch();
-    moduleMonitor.reset();
+    if (!shouldResetNotificationMatch(previous, status)) return;
+    _resetMatchState();
+  }
+
+  void _resetMatchState() {
+    resetNotificationMatchState(engine: _engine, moduleMonitor: moduleMonitor);
     _quality.reset();
     ref.read(deploymentNavigationProvider.notifier).resetMatch();
   }
@@ -180,6 +197,7 @@ class _NotificationRuntime {
       timestamp: timestamp,
       remainingMatchSeconds: _gameStatus?.stageCountdownSec,
       enemyBaseHealth: status.enemyBaseHealth,
+      combatBuffs: _engine.combatBuffsAt(timestamp),
     );
     final profile = ref.read(activeNotificationProfileProvider);
     final events = _engine.handleUnitHealth(
@@ -304,62 +322,81 @@ ConnectionQualityRuleConfig _sensitivityAdjustedQualityConfig(
   );
 }
 
-ModuleStatusReading _moduleReading(RobotModuleStatus status) {
-  final fields = <({RobotModuleType type, bool present, int value})>[
-    _moduleField(
-      RobotModuleType.powerManager,
-      status.hasPowerManager(),
-      status.powerManager,
-    ),
-    _moduleField(RobotModuleType.rfid, status.hasRfid(), status.rfid),
-    _moduleField(
-      RobotModuleType.lightStrip,
-      status.hasLightStrip(),
-      status.lightStrip,
-    ),
-    _moduleField(
-      RobotModuleType.smallShooter,
-      status.hasSmallShooter(),
-      status.smallShooter,
-    ),
-    _moduleField(
-      RobotModuleType.bigShooter,
-      status.hasBigShooter(),
-      status.bigShooter,
-    ),
-    _moduleField(RobotModuleType.uwb, status.hasUwb(), status.uwb),
-    _moduleField(RobotModuleType.armor, status.hasArmor(), status.armor),
-    _moduleField(
-      RobotModuleType.videoTransmission,
-      status.hasVideoTransmission(),
-      status.videoTransmission,
-    ),
-    _moduleField(
-      RobotModuleType.capacitor,
-      status.hasCapacitor(),
-      status.capacitor,
-    ),
-    _moduleField(
-      RobotModuleType.mainController,
-      status.hasMainController(),
-      status.mainController,
-    ),
-    _moduleField(
-      RobotModuleType.laserDetectionModule,
-      status.hasLaserDetectionModule(),
-      status.laserDetectionModule,
-    ),
-  ];
+/// 将 Protobuf 模块字段映射为只包含已知、明确携带状态的读数。
+ModuleStatusReading moduleStatusReadingFromProtocol(RobotModuleStatus status) {
   return ModuleStatusReading.fromProtocolValues({
-    for (final field in fields) if (field.present) field.type: field.value,
+    for (final field in _moduleProtocolFields(status))
+      if (field.present && knownModuleStatusValues.contains(field.value))
+        field.type: field.value,
   });
 }
 
-({RobotModuleType type, bool present, int value}) _moduleField(
+typedef _ModuleProtocolField = ({
   RobotModuleType type,
   bool present,
   int value,
-) => (type: type, present: present, value: value);
+});
+
+List<_ModuleProtocolField> _moduleProtocolFields(RobotModuleStatus status) {
+  return [..._powerModuleFields(status), ..._controlModuleFields(status)];
+}
+
+List<_ModuleProtocolField> _powerModuleFields(RobotModuleStatus status) {
+  return [
+    (
+      type: RobotModuleType.powerManager,
+      present: status.hasPowerManager(),
+      value: status.powerManager,
+    ),
+    (type: RobotModuleType.rfid, present: status.hasRfid(), value: status.rfid),
+    (
+      type: RobotModuleType.lightStrip,
+      present: status.hasLightStrip(),
+      value: status.lightStrip,
+    ),
+    (
+      type: RobotModuleType.smallShooter,
+      present: status.hasSmallShooter(),
+      value: status.smallShooter,
+    ),
+    (
+      type: RobotModuleType.bigShooter,
+      present: status.hasBigShooter(),
+      value: status.bigShooter,
+    ),
+    (type: RobotModuleType.uwb, present: status.hasUwb(), value: status.uwb),
+  ];
+}
+
+List<_ModuleProtocolField> _controlModuleFields(RobotModuleStatus status) {
+  return [
+    (
+      type: RobotModuleType.armor,
+      present: status.hasArmor(),
+      value: status.armor,
+    ),
+    (
+      type: RobotModuleType.videoTransmission,
+      present: status.hasVideoTransmission(),
+      value: status.videoTransmission,
+    ),
+    (
+      type: RobotModuleType.capacitor,
+      present: status.hasCapacitor(),
+      value: status.capacitor,
+    ),
+    (
+      type: RobotModuleType.mainController,
+      present: status.hasMainController(),
+      value: status.mainController,
+    ),
+    (
+      type: RobotModuleType.laserDetectionModule,
+      present: status.hasLaserDetectionModule(),
+      value: status.laserDetectionModule,
+    ),
+  ];
+}
 
 /// 使用调用方注入的监控器处理模块读数并映射通知事件。
 List<RuleNotificationEvent> moduleStatusEventsFromReading({
@@ -369,9 +406,57 @@ List<RuleNotificationEvent> moduleStatusEventsFromReading({
   required DateTime timestamp,
 }) {
   return monitor
-      .observe(_moduleReading(status))
+      .observe(moduleStatusReadingFromProtocol(status))
       .map((transition) => engine.moduleEvent(transition, timestamp))
       .toList(growable: false);
+}
+
+/// 将 Buff 协议字段连同信封时间写入规则引擎。
+void observeBuffFromProtocol({
+  required NotificationRuleEngine engine,
+  required Buff buff,
+  required DateTime timestamp,
+}) {
+  engine.observeBuff(
+    CombatBuffSample(
+      robotId: buff.robotId,
+      buffType: buff.buffType,
+      level: buff.buffLevel,
+      leftSeconds: buff.buffLeftTime,
+      receivedAt: timestamp,
+    ),
+  );
+}
+
+/// 判定比赛状态变化是否必须清理比赛级通知状态。
+bool shouldResetNotificationMatch(GameStatus? previous, GameStatus current) {
+  if (previous == null) return false;
+  return previous.currentRound != current.currentRound ||
+      (previous.currentStage == stageInMatch &&
+          current.currentStage != stageInMatch);
+}
+
+/// 判定 MQTT 从已连接状态离开时是否必须清理比赛级通知状态。
+bool shouldResetNotificationMatchForMqttTransition(
+  MqttConnectionState? previous,
+  MqttConnectionState current,
+) {
+  return previous == MqttConnectionState.connected &&
+      current != MqttConnectionState.connected;
+}
+
+/// 判定操作身份变化是否必须清理比赛级通知状态。
+bool shouldResetNotificationMatchForIdentity(int? previous, int current) {
+  return previous != null && previous != current;
+}
+
+/// 清理规则引擎与共享模块面板持有的比赛级状态。
+void resetNotificationMatchState({
+  required NotificationRuleEngine engine,
+  required ModuleStatusMonitorController moduleMonitor,
+}) {
+  engine.resetMatch();
+  moduleMonitor.reset();
 }
 
 /// 按当前通知偏好播放系统声音和 Android 震动，失败时静默降级。
