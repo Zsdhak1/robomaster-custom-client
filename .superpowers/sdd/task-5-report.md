@@ -77,3 +77,29 @@ DONE_WITH_CONCERNS
 
 - 共享 Provider 注入修复：`d408e25 fix: share module status monitor with runtime`
 - 本报告：随后的文档提交。
+
+## 第三次审查修复（Proto3 字段存在性）
+
+### 根因与 RED
+
+- 根因：`RobotModuleStatus` 的 Proto3 标量字段在未携带时读取为默认值 `0`，旧 mapper 无条件读取全部 11 个字段，错误地将缺失字段转为离线。
+- RED 命令：`flutter test test/notification_runtime_test.dart --reporter expanded`
+- RED 断言：只构造 `RobotModuleStatus(videoTransmission: 0, armor: 1)` 时，仅图传产生离线事件；未携带的 `bigShooter` 不写入状态。旧实现会产生 11 个离线事件，因而失败。
+
+### GREEN 与分析
+
+- GREEN 命令：`flutter test test/module_status_monitor_test.dart test/notification_rule_engine_test.dart test/notification_runtime_test.dart --reporter expanded`
+- 结果：exit 0，35/35 通过。
+- 分析命令：`flutter analyze`
+- 结果：exit 0，`No issues found!`。
+
+### 修改摘要与自审
+
+- mapper 对每个 `RobotModuleStatus` 字段使用对应的 `hasX()` presence API；显式值 `0` 仍保留并映射为离线，未携带字段不会猜测为离线。
+- 测试验证 `videoTransmission: 0` 和 `armor: 1` 的 presence，未设置的 `bigShooter` 为 absent；验证后续缺失字段不会覆盖既有离线状态。
+- `_moduleReading` 拆分为恰好 50 行以内的纯函数及小型 record 辅助函数；无空断言、无第二状态源、未修改平台生成文件。
+
+### 提交
+
+- Proto3 presence 修复：`4c316cf fix: respect module status field presence`
+- 本报告：随后的文档提交。
