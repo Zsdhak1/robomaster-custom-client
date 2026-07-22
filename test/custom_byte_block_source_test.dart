@@ -17,20 +17,21 @@ import 'package:robomaster_custom_client_1/services/mqtt_service.dart';
 class _FakeMqttService implements MqttService {
   _FakeMqttService();
 
-  final _controller =
-      StreamController<({String topic, Uint8List payload})>.broadcast();
+  final _controller = StreamController<MqttInboundMessage>.broadcast();
   final _subscribed = <String>{};
 
   @override
   MqttConnectionState get state => MqttConnectionState.connected;
 
   @override
+  int get connectionGeneration => 0;
+
+  @override
   Stream<MqttConnectionState> get stateStream =>
       Stream.value(MqttConnectionState.connected);
 
   @override
-  Stream<({String topic, Uint8List payload})> get messageStream =>
-      _controller.stream;
+  Stream<MqttInboundMessage> get messageStream => _controller.stream;
 
   @override
   String clientId = 'test';
@@ -53,8 +54,12 @@ class _FakeMqttService implements MqttService {
   @override
   void dispose() => _controller.close();
 
-  void emit(String topic, Uint8List payload) =>
-      _controller.add((topic: topic, payload: payload));
+  void emit(String topic, Uint8List payload) => _controller.add((
+    topic: topic,
+    payload: payload,
+    receivedAt: DateTime.now(),
+    connectionGeneration: connectionGeneration,
+  ));
 }
 
 void main() {
@@ -76,31 +81,34 @@ void main() {
       );
     }
 
-    test('stripPrefix removes 0x0A+varint prefix and trailing padding',
-        () async {
-      final mqtt = _FakeMqttService();
-      final source = build(mqtt);
-      final chunks = <Uint8List>[];
-      final sub = source.chunkStream.listen(chunks.add);
-      source.start();
-      expect(mqtt._subscribed, contains(topicCustomByteBlock));
+    test(
+      'stripPrefix removes 0x0A+varint prefix and trailing padding',
+      () async {
+        final mqtt = _FakeMqttService();
+        final source = build(mqtt);
+        final chunks = <Uint8List>[];
+        final sub = source.chunkStream.listen(chunks.add);
+        source.start();
+        expect(mqtt._subscribed, contains(topicCustomByteBlock));
 
-      // 数据 = 0x0A 0x04 <4 字节载荷> <填充>，声明长度为 4。
-      mqtt.emit(
-        topicCustomByteBlock,
-        CustomByteBlock(data: [0x0A, 0x04, 0xAA, 0xBB, 0xCC, 0xDD, 0, 0])
-            .writeToBuffer(),
-      );
-      await Future<void>.delayed(Duration.zero);
+        // 数据 = 0x0A 0x04 <4 字节载荷> <填充>，声明长度为 4。
+        mqtt.emit(
+          topicCustomByteBlock,
+          CustomByteBlock(
+            data: [0x0A, 0x04, 0xAA, 0xBB, 0xCC, 0xDD, 0, 0],
+          ).writeToBuffer(),
+        );
+        await Future<void>.delayed(Duration.zero);
 
-      expect(chunks.length, 1);
-      expect(chunks.first, [0xAA, 0xBB, 0xCC, 0xDD]);
-      expect(source.packetsWithPrefix, 1);
-      expect(source.lastDeclaredLength, 4);
+        expect(chunks.length, 1);
+        expect(chunks.first, [0xAA, 0xBB, 0xCC, 0xDD]);
+        expect(source.packetsWithPrefix, 1);
+        expect(source.lastDeclaredLength, 4);
 
-      await sub.cancel();
-      source.dispose();
-    });
+        await sub.cancel();
+        source.dispose();
+      },
+    );
 
     test('stripPrefix decodes a 2-byte varint length (150)', () async {
       final mqtt = _FakeMqttService();
@@ -156,8 +164,9 @@ void main() {
 
       mqtt.emit(
         topicCustomByteBlock,
-        CustomByteBlock(data: [0x0A, 0x04, 0xAA, 0xBB, 0xCC, 0xDD])
-            .writeToBuffer(),
+        CustomByteBlock(
+          data: [0x0A, 0x04, 0xAA, 0xBB, 0xCC, 0xDD],
+        ).writeToBuffer(),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -182,8 +191,9 @@ void main() {
 
       mqtt.emit(
         topicCustomByteBlock,
-        CustomByteBlock(data: [0xAA, 0xBB, 0x11, 0x22, 0x33, 0, 0])
-            .writeToBuffer(),
+        CustomByteBlock(
+          data: [0xAA, 0xBB, 0x11, 0x22, 0x33, 0, 0],
+        ).writeToBuffer(),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -201,10 +211,14 @@ void main() {
       source.start();
 
       mqtt
-        ..emit('SomeOtherTopic',
-            CustomByteBlock(data: [0x0A, 0x01, 0xAB]).writeToBuffer())
-        ..emit(topicCustomByteBlock,
-            CustomByteBlock(data: <int>[]).writeToBuffer());
+        ..emit(
+          'SomeOtherTopic',
+          CustomByteBlock(data: [0x0A, 0x01, 0xAB]).writeToBuffer(),
+        )
+        ..emit(
+          topicCustomByteBlock,
+          CustomByteBlock(data: <int>[]).writeToBuffer(),
+        );
       await Future<void>.delayed(Duration.zero);
 
       expect(chunks, isEmpty);
@@ -254,7 +268,13 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       // 8 字节 seq 之后的主体会被 verbatim 原样转发。
-      expect(chunks.map((c) => c.first).toList(), [0xA0, 0xA1, 0xA2, 0xA5, 0xA6]);
+      expect(chunks.map((c) => c.first).toList(), [
+        0xA0,
+        0xA1,
+        0xA2,
+        0xA5,
+        0xA6,
+      ]);
       expect(source.lastSequence, 6);
       expect(source.seqPacketsSeen, 5);
       expect(source.packetsLost, 2); // 3 和 4

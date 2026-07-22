@@ -57,7 +57,14 @@ final mqttMessageProvider = StreamProvider<ProtobufEnvelope>((ref) {
   final mqtt = ref.watch(mqttServiceProvider);
   final parser = ref.watch(protobufParserProvider);
 
-  return mqtt.messageStream.map((msg) => parser.parse(msg.topic, msg.payload));
+  return mqtt.messageStream.map(
+    (msg) => parser.parse(
+      msg.topic,
+      msg.payload,
+      receivedAt: msg.receivedAt,
+      connectionGeneration: msg.connectionGeneration,
+    ),
+  );
 });
 
 /// 来自 UDP 3334 的已重组 HEVC 视频帧流。

@@ -245,11 +245,12 @@ String notificationEventDescription(NotificationEventType type) =>
       NotificationEventType.allyAssemblyCompleted => '协议上报己方机器人装配完成时触发',
       NotificationEventType.allyRespawned => '己方机器人血量从零恢复为正值时触发',
       NotificationEventType.heroDeployAutoNavigation => '英雄进入部署模式并启动自动跳转倒计时时触发',
-      NotificationEventType.enemyRespawned => '敌方机器人完成正常免费复活时触发',
-      NotificationEventType.enemyBoughtRespawn => '敌方机器人早于免费复活时刻恢复或被判定疑似买活时触发',
+      NotificationEventType.enemyRespawned => '敌方机器人完成普通免费、加速免费或方式不确定的复活时触发',
+      NotificationEventType.enemyBoughtRespawn =>
+        '敌方机器人恢复时间早于免费复活阈值并推断为付费复活时触发',
       NotificationEventType.enemyKillLine => '敌方机器人首次进入当前斩杀线阈值时触发',
       NotificationEventType.enemyRequestedLevelFour => '协议上报敌方申请四级装配时触发',
-      NotificationEventType.moduleDisconnected => '机器人模块状态从在线变为离线时触发',
+      NotificationEventType.moduleDisconnected => '机器人模块首次明确上报离线，或状态从在线变为离线时触发',
       NotificationEventType.moduleRecovered => '离线模块重新恢复在线时触发',
     };
 

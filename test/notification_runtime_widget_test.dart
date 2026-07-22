@@ -30,6 +30,47 @@ void main() {
   _testDeploymentCountdown();
   _testRuntimeModulePanel();
   _testRuntimeMqttSession();
+  _testRuntimeMqttGenerationFence();
+}
+
+void _testRuntimeMqttGenerationFence() {
+  test(
+    'cached previous-generation messages cannot restore old match state',
+    () async {
+      final now = DateTime.now();
+      final mqtt = _CachedSessionMqttService([
+        _mqttMessage(
+          GameStatus(currentStage: stageInMatch, stageCountdownSec: 420),
+          now.add(const Duration(seconds: 1)),
+          1,
+        ),
+        _mqttMessage(_unitStatus(500), now.add(const Duration(seconds: 2)), 2),
+        _mqttMessage(_unitStatus(1), now.add(const Duration(seconds: 3)), 2),
+        _mqttMessage(
+          Event(eventId: 14),
+          now.add(const Duration(seconds: 4)),
+          2,
+        ),
+      ]);
+      final harness = await _RuntimeHarness.start(mqttService: mqtt);
+      addTearDown(harness.dispose);
+      await _flushEvents();
+
+      expect(
+        harness.notificationState.visible.where(
+          (item) => item.eventType == NotificationEventType.enemyKillLine,
+        ),
+        isEmpty,
+      );
+      expect(
+        harness.notificationState.visible.where(
+          (item) =>
+              item.eventType == NotificationEventType.enemyRequestedLevelFour,
+        ),
+        isNotEmpty,
+      );
+    },
+  );
 }
 
 void _testRuntimeMqttSession() {
@@ -73,13 +114,17 @@ class _RuntimeHarness {
     this.runtimeSubscription,
   );
 
-  static Future<_RuntimeHarness> start() async {
+  static Future<_RuntimeHarness> start({MqttService? mqttService}) async {
     final connections = StreamController<MqttConnectionState>.broadcast();
     final messages = StreamController<ProtobufEnvelope>.broadcast();
     final container = ProviderContainer(
       overrides: [
-        mqttConnectionStateProvider.overrideWith((ref) => connections.stream),
-        mqttMessageProvider.overrideWith((ref) => messages.stream),
+        if (mqttService != null)
+          mqttServiceProvider.overrideWithValue(mqttService),
+        if (mqttService == null)
+          mqttConnectionStateProvider.overrideWith((ref) => connections.stream),
+        if (mqttService == null)
+          mqttMessageProvider.overrideWith((ref) => messages.stream),
         customVideoStatsProvider.overrideWith((ref) => const Stream.empty()),
         deploymentNavigationProvider.overrideWith(
           (ref) => _deploymentController(),
@@ -91,7 +136,9 @@ class _RuntimeHarness {
       (_, _) {},
       fireImmediately: true,
     );
-    connections.add(MqttConnectionState.connected);
+    if (mqttService == null) {
+      connections.add(MqttConnectionState.connected);
+    }
     await _flushEvents();
     final runtimeSubscription = container.listen(
       dashboardNotificationProvider,
@@ -153,9 +200,39 @@ class _RuntimeHarness {
   }
 }
 
+class _CachedSessionMqttService extends MqttService {
+  _CachedSessionMqttService(this.cached) : super(clientId: 'session-test');
+
+  final List<MqttInboundMessage> cached;
+  final StreamController<MqttInboundMessage> _messages =
+      StreamController<MqttInboundMessage>();
+
+  @override
+  MqttConnectionState get state => MqttConnectionState.connected;
+
+  @override
+  int get connectionGeneration => 2;
+
+  @override
+  Stream<MqttConnectionState> get stateStream =>
+      Stream.value(MqttConnectionState.connected);
+
+  @override
+  Stream<MqttInboundMessage> get messageStream async* {
+    yield* Stream.fromIterable(cached);
+    yield* _messages.stream;
+  }
+
+  void emit(MqttInboundMessage message) => _messages.add(message);
+
+  @override
+  void dispose() => _messages.close();
+}
+
 Future<void> _flushEvents() async {
-  await Future<void>.delayed(Duration.zero);
-  await Future<void>.delayed(Duration.zero);
+  for (var index = 0; index < 12; index++) {
+    await Future<void>.delayed(Duration.zero);
+  }
 }
 
 GlobalUnitStatus _unitStatus(int enemyHeroHealth) {
@@ -183,6 +260,31 @@ ProtobufEnvelope _envelope(Object message, DateTime timestamp) {
         : message as GlobalUnitStatus,
     rawBytes: Uint8List(0),
     timestamp: timestamp,
+  );
+}
+
+MqttInboundMessage _mqttMessage(
+  Object message,
+  DateTime receivedAt,
+  int connectionGeneration,
+) {
+  final payload = switch (message) {
+    final GameStatus status => status.writeToBuffer(),
+    final GlobalUnitStatus status => status.writeToBuffer(),
+    final Event event => event.writeToBuffer(),
+    _ => throw ArgumentError.value(message, 'message'),
+  };
+  final topic = switch (message) {
+    GameStatus() => topicGameStatus,
+    GlobalUnitStatus() => topicGlobalUnitStatus,
+    Event() => topicEvent,
+    _ => throw ArgumentError.value(message, 'message'),
+  };
+  return (
+    topic: topic,
+    payload: Uint8List.fromList(payload),
+    receivedAt: receivedAt,
+    connectionGeneration: connectionGeneration,
   );
 }
 

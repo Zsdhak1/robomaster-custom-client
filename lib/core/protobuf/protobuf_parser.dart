@@ -25,6 +25,7 @@ class ProtobufEnvelope {
     required this.messageType,
     required this.rawBytes,
     required this.timestamp,
+    this.connectionGeneration = 0,
     this.protobufMessage,
   });
 
@@ -40,6 +41,9 @@ class ProtobufEnvelope {
   /// 接收时间戳。
   final DateTime timestamp;
 
+  /// 产生该消息的 MQTT 连接代次；非实时 MQTT 数据使用 0。
+  final int connectionGeneration;
+
   /// 已解析的 Protobuf 消息实例；类型未识别时为 null。
   final GeneratedMessage? protobufMessage;
 
@@ -49,7 +53,8 @@ class ProtobufEnvelope {
   @override
   String toString() =>
       'ProtobufEnvelope(topic: $topic, type: $messageType, '
-      'recognized: $isRecognized, bytes: ${rawBytes.length})';
+      'generation: $connectionGeneration, recognized: $isRecognized, '
+      'bytes: ${rawBytes.length})';
 }
 
 /// 按主题名解析 MQTT 载荷。
@@ -84,8 +89,7 @@ class ProtobufParser {
     topicCustomByteBlock: CustomByteBlock.new,
     topicAssemblyCommand: AssemblyCommand.new,
     topicTechCoreMotionStateSync: TechCoreMotionStateSync.new,
-    topicRobotPerformanceSelectionCommand:
-        RobotPerformanceSelectionCommand.new,
+    topicRobotPerformanceSelectionCommand: RobotPerformanceSelectionCommand.new,
     topicRobotPerformanceSelectionSync: RobotPerformanceSelectionSync.new,
     topicCommonCommand: CommonCommand.new,
     topicHeroDeployModeEventCommand: HeroDeployModeEventCommand.new,
@@ -105,8 +109,14 @@ class ProtobufParser {
   ///
   /// 如果 [topic] 未识别，则返回 [ProtobufEnvelope.protobufMessage] 为 null
   /// 的信封，并记录原始字节摘要。
-  ProtobufEnvelope parse(String topic, Uint8List payload) {
+  ProtobufEnvelope parse(
+    String topic,
+    Uint8List payload, {
+    DateTime? receivedAt,
+    int connectionGeneration = 0,
+  }) {
     final factory = messageFactories[topic];
+    final timestamp = receivedAt ?? DateTime.now();
 
     if (factory == null) {
       logger?.call(
@@ -116,7 +126,8 @@ class ProtobufParser {
         topic: topic,
         messageType: _unknownMessageType,
         rawBytes: payload,
-        timestamp: DateTime.now(),
+        timestamp: timestamp,
+        connectionGeneration: connectionGeneration,
       );
     }
 
@@ -127,7 +138,8 @@ class ProtobufParser {
         messageType: topic,
         protobufMessage: message,
         rawBytes: payload,
-        timestamp: DateTime.now(),
+        timestamp: timestamp,
+        connectionGeneration: connectionGeneration,
       );
     } on Exception catch (e, stackTrace) {
       logger?.call(
@@ -138,20 +150,18 @@ class ProtobufParser {
         topic: topic,
         messageType: topic,
         rawBytes: payload,
-        timestamp: DateTime.now(),
+        timestamp: timestamp,
+        connectionGeneration: connectionGeneration,
       );
     }
   }
 
   /// 返回 [data] 前 [_maxHexBytes] 字节的十六进制摘要。
   static String _hexSummary(Uint8List data) {
-    final slice =
-        data.length > _maxHexBytes ? data.sublist(0, _maxHexBytes) : data;
-    final hex = slice
-        .map((b) => b.toRadixString(16).padLeft(2, '0'))
-        .join(' ');
-    return data.length > _maxHexBytes
-        ? '$hex... (${data.length} bytes)'
-        : hex;
+    final slice = data.length > _maxHexBytes
+        ? data.sublist(0, _maxHexBytes)
+        : data;
+    final hex = slice.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ');
+    return data.length > _maxHexBytes ? '$hex... (${data.length} bytes)' : hex;
   }
 }

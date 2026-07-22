@@ -20,9 +20,27 @@ void main() {
   _testProfileCopy();
   _testManualNotificationRequests();
   _testSettingDescriptions();
+  _testEventDescriptionSemantics();
   _testEmbeddedNavigation();
   _testOpaqueEmbeddedTransition();
   _testWindowsBackButtonHitTarget();
+}
+
+void _testEventDescriptionSemantics() {
+  test('event descriptions match current respawn and module semantics', () {
+    expect(
+      notificationEventDescription(NotificationEventType.enemyRespawned),
+      '敌方机器人完成普通免费、加速免费或方式不确定的复活时触发',
+    );
+    expect(
+      notificationEventDescription(NotificationEventType.enemyBoughtRespawn),
+      '敌方机器人恢复时间早于免费复活阈值并推断为付费复活时触发',
+    );
+    expect(
+      notificationEventDescription(NotificationEventType.moduleDisconnected),
+      '机器人模块首次明确上报离线，或状态从在线变为离线时触发',
+    );
+  });
 }
 
 void _testDirectoryNavigation() {

@@ -45,7 +45,7 @@ class CustomByteBlockSource {
   final int Function() _payloadBytes;
   final bool Function() _seqHeaderEnabled;
 
-  StreamSubscription<({String topic, Uint8List payload})>? _mqttSub;
+  StreamSubscription<MqttInboundMessage>? _mqttSub;
   final _chunkController = StreamController<Uint8List>.broadcast();
 
   /// 跟踪前置序列号，用于丢包报告。
@@ -118,10 +118,15 @@ class CustomByteBlockSource {
     _chunkController.close();
   }
 
-  void _onMqttMessage(({String topic, Uint8List payload}) msg) {
+  void _onMqttMessage(MqttInboundMessage msg) {
     if (msg.topic != topicCustomByteBlock) return;
 
-    final envelope = _parser.parse(msg.topic, msg.payload);
+    final envelope = _parser.parse(
+      msg.topic,
+      msg.payload,
+      receivedAt: msg.receivedAt,
+      connectionGeneration: msg.connectionGeneration,
+    );
     final message = envelope.protobufMessage;
     if (message is! CustomByteBlock) return;
 

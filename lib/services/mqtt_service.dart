@@ -29,6 +29,14 @@ enum MqttConnectionState {
   error,
 }
 
+/// MQTT 接收边界产生的消息，保留原始接收时刻和所属连接代次。
+typedef MqttInboundMessage = ({
+  String topic,
+  Uint8List payload,
+  DateTime receivedAt,
+  int connectionGeneration,
+});
+
 /// 连接状态变化回调。
 typedef ConnectionStateCallback = void Function(MqttConnectionState state);
 
@@ -39,12 +47,9 @@ class MqttService {
   /// [brokerIp] 默认为 [defaultMqttBrokerIp]。
   /// [port] 默认为 [defaultMqttPort]。
   /// [clientId] 用于向代理服务器标识当前客户端。
-  MqttService({
-    required this.clientId,
-    String? brokerIp,
-    int? port,
-  })  : _brokerIp = brokerIp ?? defaultMqttBrokerIp,
-        _port = port ?? defaultMqttPort;
+  MqttService({required this.clientId, String? brokerIp, int? port})
+    : _brokerIp = brokerIp ?? defaultMqttBrokerIp,
+      _port = port ?? defaultMqttPort;
 
   String _brokerIp;
   int _port;
@@ -61,12 +66,14 @@ class MqttService {
   /// 当前连接状态。
   MqttConnectionState get state => _state;
 
+  /// 当前底层 MQTT 客户端所属的连接代次。
+  int get connectionGeneration => _clientGeneration;
+
   /// 连接状态变化流控制器。
-  final _stateController =
-      StreamController<MqttConnectionState>.broadcast();
+  final _stateController = StreamController<MqttConnectionState>.broadcast();
 
   /// 连接状态变化流。
-///
+  ///
   /// 新订阅者会先收到当前状态，然后继续接收后续变化。
   Stream<MqttConnectionState> get stateStream async* {
     yield _state;
@@ -74,18 +81,17 @@ class MqttService {
   }
 
   /// 传入 Protobuf 消息的流控制器。
-  final _messageController =
-      StreamController<({String topic, Uint8List payload})>.broadcast();
+  final _messageController = StreamController<MqttInboundMessage>.broadcast();
 
-  /// 最近消息缓存，用于补发给后订阅者（最多 50 条）。
-  final List<({String topic, Uint8List payload})> _messageCache = [];
+  /// 最近消息缓存，保留接收时刻和连接代次并补发给后订阅者（最多 50 条）。
+  final List<MqttInboundMessage> _messageCache = [];
 
   static const int _maxMessageCache = 50;
 
-  /// 已接收的 (topic, payload) 元组流。
-///
+  /// 已接收的 MQTT 消息流，包含载荷、原始接收时刻和连接代次。
+  ///
   /// 新订阅者会先收到缓存消息，然后继续接收实时消息。
-  Stream<({String topic, Uint8List payload})> get messageStream async* {
+  Stream<MqttInboundMessage> get messageStream async* {
     for (final msg in _messageCache) {
       yield msg;
     }
@@ -117,8 +123,8 @@ class MqttService {
   }
 
   /// 建立到 MQTT 代理服务器的连接。
-///
-/// [brokerIp] 和 [port] 覆盖构造函数默认值
+  ///
+  /// [brokerIp] 和 [port] 覆盖构造函数默认值
   /// 用于本次连接尝试。
   Future<void> connect({String? brokerIp, int? port}) async {
     if (_state == MqttConnectionState.connecting ||
@@ -161,7 +167,9 @@ class MqttService {
 
       await _client!.connect().timeout(mqttConnectionTimeout);
 
-      _updatesSub = _client!.updates!.listen(_onMessage);
+      _updatesSub = _client!.updates!.listen(
+        (messages) => _onMessage(messages, generation),
+      );
       _setState(MqttConnectionState.connected);
       _currentReconnectDelay = mqttReconnectDelay;
 
@@ -212,16 +220,10 @@ class MqttService {
       throw StateError('Cannot publish: not connected');
     }
 
-    final buffer = typed.Uint8Buffer()
-      ..addAll(message.writeToBuffer());
-    final builder = MqttClientPayloadBuilder()
-      ..addBuffer(buffer);
+    final buffer = typed.Uint8Buffer()..addAll(message.writeToBuffer());
+    final builder = MqttClientPayloadBuilder()..addBuffer(buffer);
 
-    _client!.publishMessage(
-      topic,
-      MqttQos.atLeastOnce,
-      builder.payload!,
-    );
+    _client!.publishMessage(topic, MqttQos.atLeastOnce, builder.payload!);
   }
 
   void _onConnected(int generation) {
@@ -250,8 +252,11 @@ class MqttService {
     // 代理服务器已响应 PINGREQ。
   }
 
-  void _onMessage(List<MqttReceivedMessage<MqttMessage>>? messages) {
-    if (messages == null) return;
+  void _onMessage(
+    List<MqttReceivedMessage<MqttMessage>>? messages,
+    int generation,
+  ) {
+    if (messages == null || generation != _clientGeneration) return;
 
     for (final msg in messages) {
       final payload = msg.payload as MqttPublishMessage;
@@ -260,7 +265,12 @@ class MqttService {
       // 直接用 Uint8List.view(buffer) 会带上尾部填充，
       // 导致 Protobuf 解析器把填充的 0 字节读成非法字段标签。
       final data = Uint8List.fromList(payload.payload.message);
-      final tuple = (topic: msg.topic, payload: data);
+      final tuple = (
+        topic: msg.topic,
+        payload: data,
+        receivedAt: DateTime.now(),
+        connectionGeneration: generation,
+      );
       _messageCache.add(tuple);
       if (_messageCache.length > _maxMessageCache) {
         _messageCache.removeAt(0);

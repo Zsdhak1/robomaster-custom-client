@@ -90,6 +90,7 @@ class _NotificationRuntime {
   Timer? _qualityTimer;
   MqttConnectionState? _mqttState;
   DateTime? _mqttConnectedAt;
+  int? _mqttGeneration;
   DateTime? _lastMqttMessageAt;
   CustomVideoStats? _customStats;
   GameStatus? _gameStatus;
@@ -105,6 +106,7 @@ class _NotificationRuntime {
     _mqttTracker.handle(initialMqttState, now);
     if (initialMqttState == MqttConnectionState.connected) {
       _mqttConnectedAt = now;
+      _mqttGeneration = ref.read(mqttServiceProvider).connectionGeneration;
     }
     ref
       ..listen(mqttConnectionStateProvider, (_, next) {
@@ -136,10 +138,12 @@ class _NotificationRuntime {
     if (next == MqttConnectionState.connected &&
         previous != MqttConnectionState.connected) {
       _mqttConnectedAt = now;
+      _mqttGeneration = ref.read(mqttServiceProvider).connectionGeneration;
     }
     if (shouldResetNotificationMatchForMqttTransition(previous, next)) {
       _gameStatus = null;
       _mqttConnectedAt = null;
+      _mqttGeneration = null;
       _lastMqttMessageAt = null;
       _resetMatchState();
     }
@@ -150,6 +154,8 @@ class _NotificationRuntime {
     final accept = shouldAcceptNotificationEnvelope(
       mqttState: _mqttState,
       connectedAt: _mqttConnectedAt,
+      connectedGeneration: _mqttGeneration,
+      envelopeGeneration: envelope.connectionGeneration,
       envelopeTimestamp: envelope.timestamp,
     );
     if (accept == false) return;
@@ -492,11 +498,16 @@ int? enemyBaseHealthFromProtocol(GlobalUnitStatus status) {
 bool shouldAcceptNotificationEnvelope({
   required MqttConnectionState? mqttState,
   required DateTime? connectedAt,
+  required int? connectedGeneration,
+  required int envelopeGeneration,
   required DateTime envelopeTimestamp,
 }) {
-  if (mqttState != MqttConnectionState.connected || connectedAt == null) {
+  if (mqttState != MqttConnectionState.connected ||
+      connectedAt == null ||
+      connectedGeneration == null) {
     return false;
   }
+  if (envelopeGeneration != connectedGeneration) return false;
   return envelopeTimestamp.isBefore(connectedAt) == false;
 }
 

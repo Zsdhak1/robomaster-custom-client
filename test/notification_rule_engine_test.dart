@@ -694,6 +694,13 @@ void _testTransitions() {
 void _testModuleTransition() {
   final engine = NotificationRuleEngine();
   final now = DateTime(2026, 7, 13, 12);
+  final initiallyOffline = ModuleStatusTransition.from(
+    null,
+    const MapEntry(
+      RobotModuleType.videoTransmission,
+      ModuleAvailability.offline,
+    ),
+  );
   final offline = ModuleStatusTransition.from(
     ModuleAvailability.online,
     const MapEntry(
@@ -710,16 +717,25 @@ void _testModuleTransition() {
   );
   expect(offline, isNotNull);
   expect(recovered, isNotNull);
-  final transitions = [offline, recovered].whereType<ModuleStatusTransition>();
+  expect(initiallyOffline, isNotNull);
+  final transitions = [
+    initiallyOffline,
+    offline,
+    recovered,
+  ].whereType<ModuleStatusTransition>();
   final events = transitions.map(
     (transition) => engine.moduleEvent(transition, now),
   );
   final eventList = events.toList(growable: false);
-  expect(eventList, hasLength(2));
-  final offlineEvent = eventList[0];
-  final recoveryEvent = eventList[1];
+  expect(eventList, hasLength(3));
+  final initialOfflineEvent = eventList[0];
+  final offlineEvent = eventList[1];
+  final recoveryEvent = eventList[2];
+  expect(initialOfflineEvent.detail, '模块明确上报离线状态');
+  expect(initialOfflineEvent.detail, isNot(contains('由在线变为离线')));
   expect(offlineEvent.type, NotificationEventType.moduleDisconnected);
   expect(offlineEvent.headline, '图传模块离线');
+  expect(offlineEvent.detail, '检测到模块状态由在线变为离线');
   expect(offlineEvent.dedupKey, 'module-offline-videoTransmission');
   expect(recoveryEvent.type, NotificationEventType.moduleRecovered);
   expect(recoveryEvent.headline, '图传模块恢复在线');

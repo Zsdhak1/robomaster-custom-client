@@ -264,6 +264,8 @@ void _registerMqttSessionFenceTests() {
       shouldAcceptNotificationEnvelope(
         mqttState: MqttConnectionState.disconnected,
         connectedAt: connectedAt,
+        connectedGeneration: 2,
+        envelopeGeneration: 2,
         envelopeTimestamp: connectedAt,
       ),
       isFalse,
@@ -272,6 +274,8 @@ void _registerMqttSessionFenceTests() {
       shouldAcceptNotificationEnvelope(
         mqttState: MqttConnectionState.connected,
         connectedAt: null,
+        connectedGeneration: 2,
+        envelopeGeneration: 2,
         envelopeTimestamp: connectedAt,
       ),
       isFalse,
@@ -280,6 +284,8 @@ void _registerMqttSessionFenceTests() {
       shouldAcceptNotificationEnvelope(
         mqttState: MqttConnectionState.connected,
         connectedAt: connectedAt,
+        connectedGeneration: 2,
+        envelopeGeneration: 2,
         envelopeTimestamp: connectedAt.subtract(
           const Duration(microseconds: 1),
         ),
@@ -290,9 +296,21 @@ void _registerMqttSessionFenceTests() {
       shouldAcceptNotificationEnvelope(
         mqttState: MqttConnectionState.connected,
         connectedAt: connectedAt,
+        connectedGeneration: 2,
+        envelopeGeneration: 2,
         envelopeTimestamp: connectedAt,
       ),
       isTrue,
+    );
+    expect(
+      shouldAcceptNotificationEnvelope(
+        mqttState: MqttConnectionState.connected,
+        connectedAt: connectedAt,
+        connectedGeneration: 2,
+        envelopeGeneration: 1,
+        envelopeTimestamp: connectedAt.add(const Duration(seconds: 1)),
+      ),
+      isFalse,
     );
   });
 }

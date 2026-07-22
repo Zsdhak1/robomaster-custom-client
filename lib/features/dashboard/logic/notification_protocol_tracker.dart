@@ -56,12 +56,15 @@ class NotificationProtocolTracker {
     final offline = transition.becameOffline;
     final label = transition.module.label;
     final key = 'module-offline-${transition.module.name}';
+    final offlineDetail = transition.previous == null
+        ? '模块明确上报离线状态'
+        : '检测到模块状态由在线变为离线';
     return RuleNotificationEvent(
       type: offline
           ? NotificationEventType.moduleDisconnected
           : NotificationEventType.moduleRecovered,
       headline: offline ? '$label模块离线' : '$label模块恢复在线',
-      detail: offline ? '检测到模块状态由在线变为离线' : '模块已重新上报非离线状态',
+      detail: offline ? offlineDetail : '模块已重新上报非离线状态',
       dedupKey: offline ? key : 'module-recovered-${transition.module.name}',
       recoveryKey: offline ? null : key,
       occurredAt: timestamp,
