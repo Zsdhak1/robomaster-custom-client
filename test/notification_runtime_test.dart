@@ -40,11 +40,11 @@ void main() {
     final events = moduleStatusEventsFromReading(
       monitor: monitor,
       engine: NotificationRuleEngine(),
-      status: RobotModuleStatus(videoTransmission: 0),
+      status: RobotModuleStatus(videoTransmission: 0, armor: 1),
       timestamp: DateTime(2026, 7, 22, 12),
     );
 
-    expect(events, hasLength(RobotModuleType.values.length));
+    expect(events, hasLength(1));
     expect(
       events.any((event) =>
           event.type == NotificationEventType.moduleDisconnected &&
@@ -55,7 +55,40 @@ void main() {
       monitor.state.statuses[RobotModuleType.videoTransmission],
       ModuleAvailability.offline,
     );
+    expect(monitor.state.statuses[RobotModuleType.armor], ModuleAvailability.online);
+    expect(monitor.state.statuses, hasLength(2));
+    expect(monitor.state.statuses, isNot(contains(RobotModuleType.bigShooter)));
     monitor.reset();
     expect(monitor.state.statuses, isEmpty);
+  });
+
+  test('RobotModuleStatus preserves scalar field presence', () {
+    final status = RobotModuleStatus(videoTransmission: 0, armor: 1);
+
+    expect(status.hasVideoTransmission(), isTrue);
+    expect(status.hasArmor(), isTrue);
+    expect(status.hasBigShooter(), isFalse);
+  });
+
+  test('runtime preserves an offline module omitted by a later message', () {
+    final monitor = ModuleStatusMonitorController();
+    final engine = NotificationRuleEngine();
+    final timestamp = DateTime(2026, 7, 22, 12);
+    moduleStatusEventsFromReading(
+      monitor: monitor,
+      engine: engine,
+      status: RobotModuleStatus(armor: 0),
+      timestamp: timestamp,
+    );
+
+    moduleStatusEventsFromReading(
+      monitor: monitor,
+      engine: engine,
+      status: RobotModuleStatus(videoTransmission: 1),
+      timestamp: timestamp.add(const Duration(seconds: 1)),
+    );
+
+    expect(monitor.state.statuses[RobotModuleType.armor], ModuleAvailability.offline);
+    expect(monitor.state.statuses[RobotModuleType.videoTransmission], ModuleAvailability.online);
   });
 }

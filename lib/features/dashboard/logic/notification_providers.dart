@@ -305,20 +305,61 @@ ConnectionQualityRuleConfig _sensitivityAdjustedQualityConfig(
 }
 
 ModuleStatusReading _moduleReading(RobotModuleStatus status) {
+  final fields = <({RobotModuleType type, bool present, int value})>[
+    _moduleField(
+      RobotModuleType.powerManager,
+      status.hasPowerManager(),
+      status.powerManager,
+    ),
+    _moduleField(RobotModuleType.rfid, status.hasRfid(), status.rfid),
+    _moduleField(
+      RobotModuleType.lightStrip,
+      status.hasLightStrip(),
+      status.lightStrip,
+    ),
+    _moduleField(
+      RobotModuleType.smallShooter,
+      status.hasSmallShooter(),
+      status.smallShooter,
+    ),
+    _moduleField(
+      RobotModuleType.bigShooter,
+      status.hasBigShooter(),
+      status.bigShooter,
+    ),
+    _moduleField(RobotModuleType.uwb, status.hasUwb(), status.uwb),
+    _moduleField(RobotModuleType.armor, status.hasArmor(), status.armor),
+    _moduleField(
+      RobotModuleType.videoTransmission,
+      status.hasVideoTransmission(),
+      status.videoTransmission,
+    ),
+    _moduleField(
+      RobotModuleType.capacitor,
+      status.hasCapacitor(),
+      status.capacitor,
+    ),
+    _moduleField(
+      RobotModuleType.mainController,
+      status.hasMainController(),
+      status.mainController,
+    ),
+    _moduleField(
+      RobotModuleType.laserDetectionModule,
+      status.hasLaserDetectionModule(),
+      status.laserDetectionModule,
+    ),
+  ];
   return ModuleStatusReading.fromProtocolValues({
-    RobotModuleType.powerManager: status.powerManager,
-    RobotModuleType.rfid: status.rfid,
-    RobotModuleType.lightStrip: status.lightStrip,
-    RobotModuleType.smallShooter: status.smallShooter,
-    RobotModuleType.bigShooter: status.bigShooter,
-    RobotModuleType.uwb: status.uwb,
-    RobotModuleType.armor: status.armor,
-    RobotModuleType.videoTransmission: status.videoTransmission,
-    RobotModuleType.capacitor: status.capacitor,
-    RobotModuleType.mainController: status.mainController,
-    RobotModuleType.laserDetectionModule: status.laserDetectionModule,
+    for (final field in fields) if (field.present) field.type: field.value,
   });
 }
+
+({RobotModuleType type, bool present, int value}) _moduleField(
+  RobotModuleType type,
+  bool present,
+  int value,
+) => (type: type, present: present, value: value);
 
 /// 使用调用方注入的监控器处理模块读数并映射通知事件。
 List<RuleNotificationEvent> moduleStatusEventsFromReading({
