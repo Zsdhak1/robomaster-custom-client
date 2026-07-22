@@ -153,7 +153,9 @@ class NotificationRuleEngine {
     final elapsed = sample.timestamp.difference(death.at);
     final tolerance = Duration(milliseconds: config.toleranceMilliseconds);
     final method = _respawnMethod(death, elapsed, tolerance);
-    if (method == null || !config.buybackDetectionEnabled) {
+    final disabledPaidDetection =
+        method == _EnemyRespawnMethod.paid && !config.buybackDetectionEnabled;
+    if (method == null || disabledPaidDetection) {
       return _enemyRespawnEvent(sample, index, elapsed, null);
     }
     if (method == _EnemyRespawnMethod.paid) {
@@ -248,12 +250,13 @@ RespawnDurationBounds? expectedFreeRespawnBounds({
   final timeProgress = elapsedMatch ~/ config.timeDivisor;
   final buybackPenalty = priorBuybackCount * config.progressPenaltyPerBuyback;
   final requiredProgress = config.baseProgress + timeProgress + buybackPenalty;
+  final fastestRate = math.max(
+    config.normalProgressPerSecond,
+    config.acceleratedProgressPerSecond,
+  );
   return RespawnDurationBounds(
     normal: _respawnDuration(requiredProgress, config.normalProgressPerSecond),
-    fastest: _respawnDuration(
-      requiredProgress,
-      config.acceleratedProgressPerSecond,
-    ),
+    fastest: _respawnDuration(requiredProgress, fastestRate),
   );
 }
 

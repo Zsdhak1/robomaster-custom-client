@@ -55,6 +55,23 @@ void _registerRespawnTests() {
   test('uses protocol robot number in enemy respawn title', _testRespawnTitle);
   test('applies tolerance before classifying paid respawn', _testRespawnTolerance);
   test('keeps respawn method uncertain when timing is missing', _testUncertainRespawn);
+  test('normalizes an inverted accelerated rate', _testInvertedRespawnRates);
+  test(
+    'keeps classifying free respawns when buyback detection is disabled',
+    _testDisabledBuybackFreeRespawns,
+  );
+  test(
+    'keeps a paid-speed respawn uncertain when detection is disabled',
+    _testDisabledBuybackPaidRespawn,
+  );
+  test(
+    'does not penalize a later death after non-paid respawns',
+    _testNonPaidRespawnsDoNotIncreasePenalty,
+  );
+  test(
+    'applies a paid-respawn penalty to the next death',
+    _testPaidRespawnIncreasesPenalty,
+  );
   test('detects ally respawn', _testAllyRespawn);
   test('calculates configurable free respawn duration', _testRespawnFormula);
 }
@@ -293,6 +310,103 @@ void _testUncertainRespawn() {
   expect(event.detail, '敌方复活用时 2 秒，复活方式不确定');
 }
 
+void _testInvertedRespawnRates() {
+  const config = RespawnRuleConfig(
+    normalProgressPerSecond: 4,
+    acceleratedProgressPerSecond: 1,
+    toleranceMilliseconds: 0,
+  );
+  final bounds = expectedFreeRespawnBounds(
+    config: config,
+    remainingMatchSeconds: 420,
+    priorBuybackCount: 0,
+  );
+  final event = _enemyRespawnAfter(const Duration(seconds: 3), config: config);
+
+  expect(bounds?.normal, const Duration(milliseconds: 2500));
+  expect(bounds?.fastest, const Duration(milliseconds: 2500));
+  expect(event.type, NotificationEventType.enemyRespawned);
+  expect(event.detail, contains('推断为普通免费复活'));
+}
+
+void _testDisabledBuybackFreeRespawns() {
+  const config = RespawnRuleConfig(
+    buybackDetectionEnabled: false,
+    toleranceMilliseconds: 0,
+  );
+  final normal = _enemyRespawnAfter(const Duration(seconds: 10), config: config);
+  final accelerated = _enemyRespawnAfter(
+    const Duration(seconds: 4),
+    config: config,
+  );
+
+  expect(normal.detail, contains('推断为普通免费复活'));
+  expect(accelerated.detail, contains('推断为补给区加速免费复活'));
+}
+
+void _testDisabledBuybackPaidRespawn() {
+  const config = RespawnRuleConfig(
+    buybackDetectionEnabled: false,
+    toleranceMilliseconds: 0,
+  );
+  final event = _enemyRespawnAfter(const Duration(seconds: 2), config: config);
+
+  expect(event.type, NotificationEventType.enemyRespawned);
+  expect(event.detail, '敌方复活用时 2 秒，复活方式不确定');
+}
+
+void _testNonPaidRespawnsDoNotIncreasePenalty() {
+  const config = RespawnRuleConfig(toleranceMilliseconds: 0);
+  final cases = <({Duration elapsed, int? remaining})>[
+    (elapsed: const Duration(seconds: 10), remaining: 420),
+    (elapsed: const Duration(seconds: 4), remaining: 420),
+    (elapsed: const Duration(seconds: 2), remaining: null),
+  ];
+  for (final first in cases) {
+    final engine = NotificationRuleEngine();
+    final start = DateTime(2026, 7, 22, 12);
+    _handle(engine, _sample(start), config);
+    _respawnCycle(
+      engine,
+      start.add(const Duration(seconds: 1)),
+      first.elapsed,
+      config,
+      remainingMatchSeconds: first.remaining,
+    );
+    final second = _respawnCycle(
+      engine,
+      start.add(const Duration(seconds: 30)),
+      const Duration(seconds: 4),
+      config,
+    );
+    expect(second.type, NotificationEventType.enemyRespawned);
+    expect(second.detail, contains('推断为补给区加速免费复活'));
+  }
+}
+
+void _testPaidRespawnIncreasesPenalty() {
+  const config = RespawnRuleConfig(toleranceMilliseconds: 0);
+  final engine = NotificationRuleEngine();
+  final start = DateTime(2026, 7, 22, 12);
+  _handle(engine, _sample(start), config);
+  final first = _respawnCycle(
+    engine,
+    start.add(const Duration(seconds: 1)),
+    const Duration(seconds: 2),
+    config,
+  );
+  final second = _respawnCycle(
+    engine,
+    start.add(const Duration(seconds: 30)),
+    const Duration(seconds: 12),
+    config,
+  );
+
+  expect(first.type, NotificationEventType.enemyBoughtRespawn);
+  expect(second.type, NotificationEventType.enemyRespawned);
+  expect(second.detail, contains('推断为补给区加速免费复活'));
+}
+
 void _testAllyRespawn() {
   final engine = NotificationRuleEngine();
   final start = DateTime(2026, 7, 13, 12);
@@ -381,6 +495,25 @@ RuleNotificationEvent _respawnEnemy(
     config,
   );
   return events.single;
+}
+
+RuleNotificationEvent _respawnCycle(
+  NotificationRuleEngine engine,
+  DateTime deathAt,
+  Duration elapsed,
+  RespawnRuleConfig config, {
+  int? remainingMatchSeconds = 420,
+}) {
+  _handle(
+    engine,
+    _sample(
+      deathAt,
+      enemy: const [0, 300, 300, 300, 600],
+      remainingMatchSeconds: remainingMatchSeconds,
+    ),
+    config,
+  );
+  return _handle(engine, _sample(deathAt.add(elapsed)), config).single;
 }
 
 void _testTransitions() {
